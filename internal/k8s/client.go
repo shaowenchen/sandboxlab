@@ -147,8 +147,9 @@ type CreateRequest struct {
 	Env map[string]string
 }
 
-// Create builds a sandbox: a namespace of its own, the sandbox Deployment and
-// Service in it, and the namespace's own quota and network policy.
+// Create builds a sandbox: a namespace of its own, the sandbox Deployment, the
+// namespace's own quota and network policy, and — when the template serves
+// anything — a Service.
 //
 // The namespace comes first and is the unit of everything. If any later step
 // fails the namespace is removed, so a half-made sandbox is never left behind
@@ -184,12 +185,25 @@ func (c *Client) Create(ctx context.Context, req CreateRequest) (model.Sandbox, 
 	if err := c.createDeployment(ctx, ns, req); err != nil {
 		return cleanup(err)
 	}
-	if err := c.createService(ctx, ns, req.Template); err != nil {
-		return cleanup(err)
+
+	// A Service is created only when the template serves a port. One with no
+	// ports is not merely pointless — Kubernetes refuses it, because a Service
+	// is an address and ports are what it publishes (`spec.ports` is required
+	// unless the Service is headless or ExternalName). A template like the
+	// catalog's `python` runs no service at all and is driven through exec and
+	// the file endpoints, so the missing Service is the correct state and
+	// `Target` has nothing to resolve for it.
+	if hasPorts(req.Template.Ports) {
+		if err := c.createService(ctx, ns, req.Template); err != nil {
+			return cleanup(err)
+		}
 	}
 
 	return c.Get(ctx, req.ID)
 }
+
+// hasPorts reports whether a template publishes anything to reach over HTTP.
+func hasPorts(ports []model.Port) bool { return len(ports) > 0 }
 
 func (c *Client) createNamespace(ctx context.Context, req CreateRequest, created, expires time.Time) error {
 	annotations := map[string]string{

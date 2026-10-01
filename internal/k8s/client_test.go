@@ -108,6 +108,46 @@ func TestCreateBuildsANamespacePerSandbox(t *testing.T) {
 	}
 }
 
+// TestCreateWithoutPortsMakesNoService covers the templates that publish
+// nothing — the catalog's `python` and `node` are driven through exec and the
+// file endpoints, so they declare no ports.
+//
+// It is a regression test for a real failure: the Service was created
+// unconditionally, and Kubernetes refuses a Service with no ports ("spec.ports:
+// Required value"), so every sandbox from a portless template came back 500.
+// A fake clientset does not validate, which is why this asserts on what was
+// written rather than on the API rejecting it.
+func TestCreateWithoutPortsMakesNoService(t *testing.T) {
+	c := newClient()
+	ctx := context.Background()
+
+	tmpl := testTemplate()
+	tmpl.Ports = nil
+
+	sb, err := c.Create(ctx, CreateRequest{ID: "demo", Template: tmpl, TTL: time.Hour})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if _, err := c.cs.CoreV1().Services("sbx-demo").Get(ctx, sandboxName, metav1.GetOptions{}); !apierrors.IsNotFound(err) {
+		t.Errorf("a portless template got a Service (err = %v); Kubernetes refuses one with no ports", err)
+	}
+	// The rest of the sandbox is unaffected: only the Service is conditional.
+	if _, err := c.cs.AppsV1().Deployments("sbx-demo").Get(ctx, sandboxName, metav1.GetOptions{}); err != nil {
+		t.Errorf("the deployment is missing: %v", err)
+	}
+	if _, err := c.cs.CoreV1().Namespaces().Get(ctx, "sbx-demo", metav1.GetOptions{}); err != nil {
+		t.Errorf("the namespace is missing: %v", err)
+	}
+	// And it reads back with no endpoints rather than a URL to nothing.
+	if len(sb.Endpoints) != 0 {
+		t.Errorf("endpoints = %v, want none for a template with no ports", sb.Endpoints)
+	}
+	if sb.State != model.StateRunning {
+		t.Errorf("state = %q, want Running", sb.State)
+	}
+}
+
 func TestCreateRecordsTheExpiryOnTheNamespace(t *testing.T) {
 	// This is the whole reason a restart is a non-event: the expiry lives on
 	// the object, so a reaper that never saw the create still knows when the
