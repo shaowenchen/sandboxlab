@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 280
     steps:
-      - uses: shaowenchen/sandboxlab/action@master
+      - uses: shaowenchen/sandboxlab/action@main
         with:
           session_hours: '4'
           cloudflare_token: ${{ secrets.CLOUDFLARE_TOKEN }}

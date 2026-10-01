@@ -23,7 +23,7 @@ jobs:
     # and shuts down cleanly rather than being killed at the runner's ceiling.
     timeout-minutes: 280
     steps:
-      - uses: shaowenchen/sandboxlab/action@master
+      - uses: shaowenchen/sandboxlab/action@main
         with:
           session_hours: '4'
           # Only needed for the default named tunnel. Set domain to empty to use
