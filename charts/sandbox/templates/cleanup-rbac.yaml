@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "sandbox.cleanupServiceAccountName" . }}
+  namespace: {{ include "sandbox.namespace" . }}
+  labels:
+    {{- include "sandbox.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cleanup
+---
+{{/*
+Just enough to delete a sandbox namespace, and nothing else.
+
+Separate from the control plane's own ServiceAccount on purpose: this one is
+attached to a Job that runs for a few seconds at uninstall and then never again,
+so it should not carry the control plane's ability to create anything.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "sandbox.fullname" . }}-cleanup
+  labels:
+    {{- include "sandbox.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cleanup
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "sandbox.fullname" . }}-cleanup
+  labels:
+    {{- include "sandbox.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cleanup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "sandbox.fullname" . }}-cleanup
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "sandbox.cleanupServiceAccountName" . }}
+    namespace: {{ include "sandbox.namespace" . }}

@@ -1,0 +1,27 @@
+apiVersion: v2
+name: sandbox
+description: Create disposable sandbox environments in Kubernetes, on demand
+
+type: application
+
+# The chart version tracks the chart's own shape; appVersion tracks the control
+# plane. They move independently: a values change is a chart bump, a new release
+# is an appVersion bump.
+version: 0.1.0
+appVersion: "0.1.0"
+
+icon: https://www.chenshaowen.com/logo.png
+
+sources:
+  - https://github.com/shaowenchen/sandboxlab
+
+maintainers:
+  - name: shaowenchen
+    email: mail@chenshaowen.com
+
+keywords:
+  - sandbox
+  - ai
+  - agent
+  - kubernetes
+  - sandboxlab

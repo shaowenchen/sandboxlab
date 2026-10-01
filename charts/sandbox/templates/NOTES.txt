@@ -1,0 +1,42 @@
+The sandbox control plane is installed in namespace {{ include "sandbox.namespace" . }}.
+
+{{ if .Values.publicURL -}}
+Open the console at:
+
+  {{ .Values.publicURL }}{{ .Values.basePath }}
+
+It asks for the API key. Read it with:
+
+  kubectl -n {{ include "sandbox.namespace" . }} get secret {{ include "sandbox.fullname" . }}-apikey \
+    -o jsonpath='{.data.api-key}' | base64 -d; echo
+
+{{- else -}}
+No publicURL was set, so the API reports relative addresses and there is no
+address to open. Reach the console through a port-forward:
+
+  kubectl -n {{ include "sandbox.namespace" . }} port-forward svc/{{ include "sandbox.fullname" . }} 8080:{{ .Values.service.port }}
+
+Then open http://localhost:8080{{ .Values.basePath }} and use the API key:
+
+  kubectl -n {{ include "sandbox.namespace" . }} get secret {{ include "sandbox.fullname" . }}-apikey \
+    -o jsonpath='{.data.api-key}' | base64 -d; echo
+
+{{- end }}
+
+Create a sandbox with the CLI from
+https://github.com/shaowenchen/sandboxlab:
+
+  export SANDBOX_URL='{{ if .Values.publicURL }}{{ .Values.publicURL }}{{ .Values.basePath }}{{ else }}http://localhost:8080{{ .Values.basePath }}{{ end }}'
+  export SANDBOX_KEY='<the key above>'
+
+  sandbox catalog
+  sandbox create -t all-in-one --name myshop
+  sandbox url myshop
+
+The catalog is {{ if or .Values.catalogDir .Values.catalog }}the built-in templates plus
+the ones this release configures{{ else }}the built-in templates{{ end }}; read it with
+`sandbox catalog` or `GET /api/v1/catalog`.
+
+Sandboxes live in namespaces of their own, named {{ .Values.sandboxNamespacePrefix }}<id>,
+and are deleted when their lifetime runs out. Uninstalling this release removes
+the ones that are still running.

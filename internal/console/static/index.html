@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sandboxes</title>
+<!--
+  One page, no build step, no external asset: it is served from inside the
+  binary and every request it makes goes to the same /api/v1 the CLI uses.
+
+  It has two views behind one key. It asks /api/v1/whoami who the key belongs to
+  and draws the administrator's view or the user's — the API decides what each
+  may see, and this only decides what to put on the screen. A user who edited
+  their way into the admin view would get 404s, which is the point of the split
+  being in the API rather than here.
+-->
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --ink: #16181d; --muted: #6b7280;
+    --line: #e3e5e9; --accent: #2f6feb; --accent-ink: #fff;
+    --ok: #1a7f37; --warn: #9a6700; --bad: #b42318; --idle: #6b7280;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --panel: #171a21; --ink: #e6e8ec; --muted: #9aa2b1;
+      --line: #262b35; --accent: #4c8dff; --accent-ink: #0b0d11;
+      --ok: #3fb950; --warn: #d29922; --bad: #f85149; --idle: #8b93a1;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 14px 20px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .01em; }
+  header .grow { flex: 1; }
+  #who { font-size: 12.5px; }
+  main { padding: 20px; max-width: 1180px; margin: 0 auto; }
+  section { margin-bottom: 26px; }
+  section[hidden] { display: none; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
+       color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  h2 .sub { text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+  .tiles { display: flex; gap: 10px; flex-wrap: wrap; }
+  .tile {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 16px; min-width: 108px;
+  }
+  .tile b { display: block; font-size: 22px; font-weight: 650; line-height: 1.2; }
+  .tile span { color: var(--muted); font-size: 12px; }
+
+  .cards { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .card h3 { margin: 0; font-size: 14px; font-weight: 600; }
+  .card p { margin: 0; color: var(--muted); font-size: 13px; }
+  .card .meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted);
+                word-break: break-all; }
+  .card .foot { margin-top: auto; padding-top: 6px; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--panel);
+          border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line);
+           vertical-align: middle; }
+  th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em;
+       color: var(--muted); font-weight: 600; background: transparent; }
+  tr:last-child td { border-bottom: 0; }
+  td.mono, .mono { font-family: var(--mono); font-size: 12.5px; }
+  .secret { font-family: var(--mono); font-size: 12.5px; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px;
+           font-size: 11.5px; font-weight: 600; border: 1px solid currentColor; }
+  .s-Running { color: var(--ok); }
+  .s-Pending { color: var(--warn); }
+  .s-Failed  { color: var(--bad); }
+  .s-Expired { color: var(--idle); }
+
+  button, .btn {
+    font: inherit; padding: 6px 12px; border-radius: 7px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    text-decoration: none; display: inline-block;
+  }
+  button:hover, .btn:hover { border-color: var(--muted); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  button.primary:hover { filter: brightness(1.06); }
+  button.danger { color: var(--bad); }
+  button.small { padding: 3px 8px; font-size: 12.5px; }
+  button[disabled] { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .links { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  input, select {
+    font: inherit; padding: 6px 10px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  }
+  input:focus, select:focus, button:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 1px;
+  }
+  label { color: var(--muted); font-size: 12.5px; }
+
+  dialog {
+    border: 1px solid var(--line); border-radius: 12px; padding: 0;
+    background: var(--panel); color: var(--ink); width: min(520px, 92vw);
+  }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog form { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  dialog h3 { margin: 0; font-size: 15px; }
+  dialog .field { display: flex; flex-direction: column; gap: 4px; }
+  dialog .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  dialog .actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
+
+  pre {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px; overflow: auto; max-height: 46vh; margin: 0;
+    font-family: var(--mono); font-size: 12.5px; white-space: pre-wrap; word-break: break-word;
+  }
+  .note {
+    background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    border-radius: 8px; padding: 10px 14px; margin: 0 0 12px; font-size: 13px;
+  }
+  .note.warn { border-left-color: var(--warn); }
+  .note b { font-family: var(--mono); }
+  #toast { position: fixed; right: 18px; bottom: 18px; display: flex;
+           flex-direction: column; gap: 8px; z-index: 10; }
+  #toast div {
+    background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    border-radius: 8px; padding: 10px 14px; box-shadow: 0 6px 20px rgba(0,0,0,.16);
+    max-width: 44ch;
+  }
+  #toast div.err { border-left-color: var(--bad); }
+  .empty { color: var(--muted); background: var(--panel); border: 1px dashed var(--line);
+           border-radius: 10px; padding: 18px; text-align: center; }
+  .muted { color: var(--muted); }
+  .hidden { display: none !important; }
+  .scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sandboxes</h1>
+  <span id="who" class="muted"></span>
+  <span class="grow"></span>
+  <label for="key">API key</label>
+  <input id="key" type="password" size="22" placeholder="paste the key" autocomplete="off">
+  <button id="connect">Connect</button>
+  <button id="refresh" title="Reload">Refresh</button>
+</header>
+
+<main>
+  <section id="overview" hidden>
+    <h2 id="overviewTitle">Overview</h2>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section id="catalogSection" hidden>
+    <h2>Templates <span class="sub" id="catalogSub"></span></h2>
+    <div class="cards" id="catalog"></div>
+  </section>
+
+  <section id="sandboxSection" hidden>
+    <h2>Sandboxes <span class="sub" id="sandboxSub"></span></h2>
+    <div id="sandboxes"></div>
+  </section>
+
+  <section id="usersSection" hidden>
+    <h2>Users</h2>
+    <div class="note">
+      Each user gets a key of their own. They can create sandboxes and see only
+      theirs; this view sees everything.
+    </div>
+    <div class="row" style="margin-bottom:10px">
+      <button class="primary" id="newUser">New user</button>
+    </div>
+    <div id="users"></div>
+  </section>
+
+  <section id="welcome">
+    <div class="empty">
+      <p>Enter an API key to manage sandboxes.</p>
+      <p class="muted" id="welcomeHint"></p>
+    </div>
+  </section>
+</main>
+
+<dialog id="createDialog">
+  <form method="dialog" id="createForm">
+    <h3>New sandbox</h3>
+    <div class="field">
+      <label for="cTemplate">Template</label>
+      <select id="cTemplate"></select>
+    </div>
+    <div class="field">
+      <label for="cName">Name <span class="muted">(optional)</span></label>
+      <input id="cName" placeholder="left empty, one is generated" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="cTTL">Lifetime <span class="muted">(optional, e.g. 90m or 2h)</span></label>
+      <input id="cTTL" placeholder="the template's default" autocomplete="off">
+    </div>
+    <div class="actions">
+      <button value="cancel">Cancel</button>
+      <button class="primary" value="create">Create</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="userDialog">
+  <form method="dialog" id="userForm">
+    <h3 id="userTitle">New user</h3>
+    <div class="field">
+      <label for="uName">Name</label>
+      <input id="uName" placeholder="lowercase letters, digits and -" autocomplete="off">
+    </div>
+    <div class="grid">
+      <div class="field">
+        <label for="uMax">Max sandboxes <span class="muted">(0 = no limit)</span></label>
+        <input id="uMax" type="number" min="0" value="0">
+      </div>
+      <div class="field">
+        <label for="uTTL">Max lifetime <span class="muted">(e.g. 2h)</span></label>
+        <input id="uTTL" placeholder="the deployment's ceiling" autocomplete="off">
+      </div>
+    </div>
+    <div class="field">
+      <label for="uTemplates">Templates <span class="muted">(comma-separated; empty = all)</span></label>
+      <input id="uTemplates" placeholder="all of them" autocomplete="off">
+    </div>
+    <div class="actions">
+      <button value="cancel">Cancel</button>
+      <button class="primary" value="save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="keyDialog">
+  <form method="dialog">
+    <h3 id="keyTitle">Key</h3>
+    <div class="note warn">This is the only time the key is shown.</div>
+    <p class="secret" id="keyValue"></p>
+    <div class="actions"><button value="close">Close</button></div>
+  </form>
+</dialog>
+
+<dialog id="logsDialog">
+  <form method="dialog">
+    <h3 id="logsTitle">Logs</h3>
+    <pre id="logsBody"></pre>
+    <div class="actions"><button value="close">Close</button></div>
+  </form>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Everything this page calls lives under the deployment's own base path. It
+  // is derived from the page's URL rather than configured, so the same file
+  // works at "/" and at "/sandbox", and nothing has to be kept in step with
+  // SANDBOX_BASE_PATH on the server.
+  var API = location.pathname.replace(/\/+$/, "") + "/api/v1";
+
+  var state = { key: "", me: null, config: null, catalog: [], sandboxes: [], users: [] };
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ── plumbing ──────────────────────────────────────────────────────────────
+
+  function toast(message, isError) {
+    var el = document.createElement("div");
+    if (isError) el.className = "err";
+    el.textContent = message;
+    $("toast").appendChild(el);
+    setTimeout(function () { el.remove(); }, isError ? 7000 : 3500);
+  }
+
+  function api(path, options) {
+    options = options || {};
+    var headers = { "X-Sandbox-Key": state.key };
+    if (options.body !== undefined) headers["Content-Type"] = "application/json";
+    return fetch(API + path, {
+      method: options.method || "GET",
+      headers: headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body)
+    }).then(function (res) {
+      return res.text().then(function (text) {
+        var data = null;
+        try { data = text ? JSON.parse(text) : null; } catch (e) { /* not JSON */ }
+        if (!res.ok) {
+          var msg = (data && data.error) || text || res.statusText;
+          var err = new Error(msg);
+          err.status = res.status;
+          throw err;
+        }
+        return data;
+      });
+    });
+  }
+
+  function text(tag, cls, content) {
+    var el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (content !== undefined) el.textContent = content;
+    return el;
+  }
+
+  function ttlText(sb) {
+    if (!sb.expiresAt) return "no expiry";
+    var left = new Date(sb.expiresAt).getTime() - Date.now();
+    if (left <= 0) return "expired";
+    var m = Math.floor(left / 60000);
+    if (m < 60) return m + "m left";
+    return Math.floor(m / 60) + "h " + (m % 60) + "m left";
+  }
+
+  function isAdmin() { return !!(state.me && state.me.admin); }
+
+  // ── rendering ─────────────────────────────────────────────────────────────
+
+  function renderOverview(ov) {
+    var tiles = $("tiles");
+    tiles.replaceChildren();
+
+    var add = function (value, label) {
+      var t = text("div", "tile");
+      t.appendChild(text("b", null, String(value)));
+      t.appendChild(text("span", null, label));
+      tiles.appendChild(t);
+    };
+    add(ov.total, isAdmin() ? "sandboxes in total" : "your sandboxes");
+    Object.keys(ov.byState || {}).sort().forEach(function (s) { add(ov.byState[s], s.toLowerCase()); });
+    add(ov.cluster ? "up" : "unreachable", "cluster");
+    if (ov.maxSandboxes) add(ov.maxSandboxes, isAdmin() ? "deployment limit" : "your limit");
+
+    $("overviewTitle").textContent = isAdmin() ? "Overview" : "Your sandboxes";
+    $("overview").hidden = false;
+  }
+
+  function renderCatalog() {
+    var wrap = $("catalog");
+    wrap.replaceChildren();
+    state.catalog.forEach(function (t) {
+      var card = text("div", "card");
+      card.appendChild(text("h3", null, t.title || t.id));
+      card.appendChild(text("p", null, t.description || ""));
+      card.appendChild(text("div", "meta", t.image));
+
+      var ports = (t.ports || []).map(function (p) { return p.name + " " + p.port; }).join("  ");
+      if (ports) card.appendChild(text("div", "meta", ports));
+
+      var foot = text("div", "foot");
+      var btn = text("button", "primary", "Create");
+      btn.onclick = function () { openCreate(t.id); };
+      foot.appendChild(btn);
+      card.appendChild(foot);
+      wrap.appendChild(card);
+    });
+    $("catalogSub").textContent = isAdmin() ? "" : "— what you may create";
+    $("catalogSection").hidden = false;
+  }
+
+  function renderSandboxes() {
+    var wrap = $("sandboxes");
+    wrap.replaceChildren();
+
+    if (!state.sandboxes.length) {
+      var empty = text("div", "empty");
+      empty.appendChild(text("p", null, "No sandboxes yet."));
+      empty.appendChild(text("p", "muted",
+        "Create one from a template above; it is deleted when its lifetime runs out, or when you delete it."));
+      wrap.appendChild(empty);
+      $("sandboxSection").hidden = false;
+      return;
+    }
+
+    var header = ["name", "template", "state", "lifetime"];
+    if (isAdmin()) header.push("owner");
+    header.push("addresses", "");
+
+    var table = text("table");
+    var thead = text("thead");
+    var hr = text("tr");
+    header.forEach(function (h) { hr.appendChild(text("th", null, h)); });
+    thead.appendChild(hr);
+    table.appendChild(thead);
+
+    var tbody = text("tbody");
+    state.sandboxes.forEach(function (sb) {
+      var tr = text("tr");
+      tr.appendChild(text("td", "mono", sb.id));
+      tr.appendChild(text("td", null, sb.template));
+
+      var stateTd = text("td");
+      var badge = text("span", "badge s-" + sb.state, sb.state);
+      if (sb.message) badge.title = sb.message;
+      stateTd.appendChild(badge);
+      tr.appendChild(stateTd);
+
+      tr.appendChild(text("td", "muted", ttlText(sb)));
+
+      if (isAdmin()) {
+        tr.appendChild(text("td", "mono", sb.owner || "(the deployment)"));
+      }
+
+      var links = text("td");
+      var box = text("div", "links");
+      (sb.endpoints || []).forEach(function (ep) {
+        if (!ep.url) return;
+        var a = text("a", "btn small", ep.name);
+        a.href = ep.url + "?key=" + encodeURIComponent(state.key);
+        a.target = "_blank";
+        a.rel = "noopener";
+        box.appendChild(a);
+      });
+      if (!box.childNodes.length) box.appendChild(text("span", "muted", "—"));
+      links.appendChild(box);
+      tr.appendChild(links);
+
+      var actions = text("td");
+      var row = text("div", "row");
+      var logs = text("button", "small", "Logs");
+      logs.onclick = function () { showLogs(sb.id); };
+      var renew = text("button", "small", "Renew");
+      renew.onclick = function () { renewSandbox(sb.id); };
+      var rm = text("button", "small danger", "Delete");
+      rm.onclick = function () { removeSandbox(sb.id); };
+      row.appendChild(logs);
+      row.appendChild(renew);
+      row.appendChild(rm);
+      actions.appendChild(row);
+      tr.appendChild(actions);
+
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+
+    var scroller = text("div", "scroll");
+    scroller.appendChild(table);
+    wrap.appendChild(scroller);
+
+    $("sandboxSub").textContent = isAdmin() ? "" : "— yours";
+    $("sandboxSection").hidden = false;
+  }
+
+  function renderUsers() {
+    var wrap = $("users");
+    wrap.replaceChildren();
+
+    if (!state.users.length) {
+      var empty = text("div", "empty");
+      empty.appendChild(text("p", null, "No users yet."));
+      empty.appendChild(text("p", "muted",
+        "Create one and give them the key it prints. They will only see their own sandboxes."));
+      wrap.appendChild(empty);
+      $("usersSection").hidden = false;
+      return;
+    }
+
+    var table = text("table");
+    var thead = text("thead");
+    var hr = text("tr");
+    ["user", "key", "sandboxes", "limits", "last used", ""].forEach(function (h) {
+      hr.appendChild(text("th", null, h));
+    });
+    thead.appendChild(hr);
+    table.appendChild(thead);
+
+    var tbody = text("tbody");
+    state.users.forEach(function (u) {
+      var tr = text("tr");
+      tr.appendChild(text("td", "mono", u.name));
+      tr.appendChild(text("td", "muted", "hidden"));
+
+      var count = text("td", "mono", String(u.sandboxes || 0));
+      if (u.maxSandboxes) count.textContent = (u.sandboxes || 0) + " / " + u.maxSandboxes;
+      tr.appendChild(count);
+
+      tr.appendChild(text("td", "muted", limitsText(u)));
+      tr.appendChild(text("td", "muted", u.lastUsedAt ? new Date(u.lastUsedAt).toLocaleString() : "never"));
+
+      var actions = text("td");
+      var row = text("div", "row");
+      var reveal = text("button", "small", "Show key");
+      reveal.onclick = function () { revealKey(u.name); };
+      var rotate = text("button", "small", "Rotate");
+      rotate.onclick = function () { rotateKey(u.name); };
+      var edit = text("button", "small", "Limits");
+      edit.onclick = function () { openUser(u); };
+      var rm = text("button", "small danger", "Delete");
+      rm.onclick = function () { removeUser(u.name); };
+      row.appendChild(reveal);
+      row.appendChild(rotate);
+      row.appendChild(edit);
+      row.appendChild(rm);
+      actions.appendChild(row);
+      tr.appendChild(actions);
+
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+
+    var scroller = text("div", "scroll");
+    scroller.appendChild(table);
+    wrap.appendChild(scroller);
+    $("usersSection").hidden = false;
+  }
+
+  function limitsText(u) {
+    var parts = [];
+    if (u.maxSandboxes) parts.push(u.maxSandboxes + " sandbox(es)");
+    if (u.maxTTL) parts.push("up to " + (u.maxTTL / 1e9 / 3600) + "h");
+    if (u.templates && u.templates.length) parts.push(u.templates.join(", "));
+    return parts.length ? parts.join("; ") : "the deployment's own limits";
+  }
+
+  // ── actions ───────────────────────────────────────────────────────────────
+
+  function refresh() {
+    return api("/whoami").then(function (me) {
+      state.me = me;
+      var who = me.admin ? "administrator" : ("user " + me.user);
+      $("who").textContent = "— " + who;
+
+      var wanted = [api("/overview"), api("/catalog"), api("/sandboxes")];
+      if (me.canManageUsers) wanted.push(api("/users"));
+      return Promise.all(wanted);
+    }).then(function (r) {
+      renderOverview(r[0]);
+      state.catalog = r[1].templates || [];
+      state.sandboxes = r[2].sandboxes || [];
+      state.users = r[3] ? (r[3].users || []) : [];
+      renderCatalog();
+      renderSandboxes();
+      if (state.me.canManageUsers) renderUsers();
+      else $("usersSection").hidden = true;
+      $("welcome").hidden = true;
+    }).catch(function (err) {
+      $("welcome").hidden = false;
+      $("welcomeHint").textContent = err.message;
+      $("who").textContent = "";
+      ["overview", "catalogSection", "sandboxSection", "usersSection"].forEach(function (id) {
+        $(id).hidden = true;
+      });
+    });
+  }
+
+  function openCreate(templateId) {
+    var sel = $("cTemplate");
+    sel.replaceChildren();
+    state.catalog.forEach(function (t) {
+      var o = document.createElement("option");
+      o.value = t.id;
+      o.textContent = t.title ? t.title + " (" + t.id + ")" : t.id;
+      sel.appendChild(o);
+    });
+    if (templateId) sel.value = templateId;
+    $("cName").value = "";
+    $("cTTL").value = "";
+    $("createDialog").showModal();
+  }
+
+  function submitCreate() {
+    var body = { template: $("cTemplate").value };
+    if ($("cName").value.trim()) body.name = $("cName").value.trim();
+    if ($("cTTL").value.trim()) body.ttl = $("cTTL").value.trim();
+    api("/sandboxes", { method: "POST", body: body })
+      .then(function (sb) { toast("Created " + sb.id); return refresh(); })
+      .catch(function (err) { toast("Could not create: " + err.message, true); });
+  }
+
+  function removeSandbox(id) {
+    if (!confirm("Delete sandbox " + id + "? Everything in it goes with it.")) return;
+    api("/sandboxes/" + encodeURIComponent(id), { method: "DELETE" })
+      .then(function () { toast("Deleted " + id); return refresh(); })
+      .catch(function (err) { toast("Could not delete: " + err.message, true); });
+  }
+
+  function renewSandbox(id) {
+    var ttl = prompt("How long from now? (e.g. 2h; leave empty to remove the expiry)", "2h");
+    if (ttl === null) return;
+    api("/sandboxes/" + encodeURIComponent(id) + "/renew", { method: "POST", body: { ttl: ttl.trim() } })
+      .then(function () { toast("Renewed " + id); return refresh(); })
+      .catch(function (err) { toast("Could not renew: " + err.message, true); });
+  }
+
+  function showLogs(id) {
+    $("logsTitle").textContent = "Logs — " + id;
+    $("logsBody").textContent = "loading…";
+    $("logsDialog").showModal();
+    api("/sandboxes/" + encodeURIComponent(id) + "/logs?tail=300")
+      .then(function (d) { $("logsBody").textContent = d.logs || "(no output yet)"; })
+      .catch(function (err) { $("logsBody").textContent = "could not read logs: " + err.message; });
+  }
+
+  // ── users ─────────────────────────────────────────────────────────────────
+
+  var editingUser = null;
+
+  function openUser(u) {
+    editingUser = u || null;
+    $("userTitle").textContent = u ? ("Limits — " + u.name) : "New user";
+    $("uName").value = u ? u.name : "";
+    $("uName").disabled = !!u;
+    $("uMax").value = (u && u.maxSandboxes) || 0;
+    $("uTTL").value = (u && u.maxTTL) ? (u.maxTTL / 1e9 / 3600) + "h" : "";
+    $("uTemplates").value = (u && u.templates) ? u.templates.join(", ") : "";
+    $("userDialog").showModal();
+  }
+
+  function submitUser() {
+    var name = $("uName").value.trim();
+    var body = {
+      maxSandboxes: parseInt($("uMax").value, 10) || 0,
+      maxTTL: $("uTTL").value.trim(),
+      templates: $("uTemplates").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean)
+    };
+    var call;
+    if (editingUser) {
+      call = api("/users/" + encodeURIComponent(editingUser.name), { method: "PATCH", body: body });
+    } else {
+      body.name = name;
+      call = api("/users", { method: "POST", body: body });
+    }
+    call.then(function (u) {
+      if (u.key) showKey(u.name, u.key);
+      else toast("Saved " + u.name);
+      return refresh();
+    }).catch(function (err) { toast("Could not save: " + err.message, true); });
+  }
+
+  function revealKey(name) {
+    api("/users/" + encodeURIComponent(name))
+      .then(function (u) { showKey(u.name, u.key || "(no key stored)"); })
+      .catch(function (err) { toast("Could not read the key: " + err.message, true); });
+  }
+
+  function rotateKey(name) {
+    if (!confirm("Issue a new key for " + name + "? The old one stops working immediately.")) return;
+    api("/users/" + encodeURIComponent(name) + "/key", { method: "POST", body: {} })
+      .then(function (u) { showKey(u.name, u.key); return refresh(); })
+      .catch(function (err) { toast("Could not rotate: " + err.message, true); });
+  }
+
+  function showKey(name, key) {
+    $("keyTitle").textContent = "Key for " + name;
+    $("keyValue").textContent = key;
+    $("keyDialog").showModal();
+  }
+
+  function removeUser(name) {
+    if (!confirm("Delete " + name + "? Their key stops working. Their sandboxes keep running until their own lifetimes run out.")) return;
+    api("/users/" + encodeURIComponent(name), { method: "DELETE" })
+      .then(function () { toast("Deleted " + name); return refresh(); })
+      .catch(function (err) { toast("Could not delete: " + err.message, true); });
+  }
+
+  // ── wiring ────────────────────────────────────────────────────────────────
+
+  $("createForm").addEventListener("submit", function (ev) {
+    var button = ev.submitter;
+    // The dialog is a form with method=dialog, so the default submit closes it.
+    // "Create" is the one value that does more than close.
+    if (button && button.value === "create") submitCreate();
+  });
+
+  $("userForm").addEventListener("submit", function (ev) {
+    var button = ev.submitter;
+    if (button && button.value === "save") submitUser();
+  });
+
+  $("newUser").onclick = function () { openUser(null); };
+
+  $("connect").onclick = function () {
+    state.key = $("key").value.trim();
+    if (!state.key) { toast("Paste the API key first", true); return; }
+    try { localStorage.setItem("sandbox.key", state.key); } catch (e) { /* private mode */ }
+    refresh().then(function () { toast("Connected as " + (state.me.admin ? "administrator" : state.me.user)); });
+  };
+
+  $("refresh").onclick = function () { refresh(); };
+
+  try {
+    var saved = localStorage.getItem("sandbox.key");
+    if (saved) { $("key").value = saved; state.key = saved; refresh(); }
+  } catch (e) { /* private mode: no remembered key, which is fine */ }
+
+  // Refresh on an interval so a sandbox that expires disappears without a
+  // click. Thirty seconds is the reaper's own period, so the page never lags
+  // what the cluster shows by more than one sweep.
+  setInterval(function () { if (state.key) refresh(); }, 30000);
+
+  fetch(API + "/config").then(function (r) { return r.json(); }).then(function (cfg) {
+    $("welcomeHint").textContent = "This deployment serves " + cfg.templates +
+      " templates" + (cfg.publicURL ? " at " + cfg.publicURL : "") + ".";
+  }).catch(function () { /* the hint is a courtesy; its absence changes nothing */ });
+})();
+</script>
+</body>
+</html>

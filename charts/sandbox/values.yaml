@@ -1,0 +1,162 @@
+# Default values for sandbox.
+#
+# The control plane creates one namespace per sandbox and deletes it when the
+# sandbox expires, so read `namespace` and the RBAC notes before installing: the
+# first is where this runs, and the second is what lets it manage namespaces at
+# all.
+
+# Override the chart's name, and the release name it is combined with.
+nameOverride: ""
+fullnameOverride: ""
+
+# Namespace the control plane itself runs in. It defaults to ops-system rather
+# than the release namespace, because this is infrastructure rather than an
+# application: the thing it manages — the sandboxes — live in namespaces of
+# their own, and the control plane wants an address that does not move when a
+# release is reinstalled.
+#
+# The sandboxes do NOT run here. Each gets a namespace of its own, named
+# <sandboxNamespacePrefix><id>.
+namespaceOverride: "ops-system"
+
+image:
+  repository: docker.io/shaowenchen/sandboxlab
+  # Defaults to the chart's own version when empty, which is the tag the image
+  # is published under.
+  tag: ""
+  # Always, deliberately: an environment is stood up to test the current commit,
+  # and a node that already has a stale tag would keep running the old control
+  # plane for the whole session.
+  pullPolicy: Always
+
+imagePullSecrets: []
+
+# The key every API call must carry, and the one printed in the environment's
+# summary.
+#
+# Left empty, one is generated at install and REUSED on upgrade — the chart
+# looks up the Secret it created rather than minting a new one, so reinstalling
+# a release does not invalidate every client that was given the key. Set it to
+# pin a particular value; it is then used as given.
+apiKey: ""
+
+# The address the console and the sandboxes are reached at, with scheme:
+# "https://sandbox.example.com". It is what the API reports a sandbox's URLs
+# under, so an empty value means the addresses it hands out are relative — which
+# works on a port-forward and not through a gateway.
+publicURL: ""
+
+# A path prefix the whole deployment is served under, without a trailing slash.
+# Empty means the root of the host.
+basePath: ""
+
+# Where the HTTP server binds inside the pod.
+listen: ":8080"
+
+# The prefix a sandbox's namespace is named with: sandbox "myshop" becomes
+# namespace "sbx-myshop".
+sandboxNamespacePrefix: "sbx-"
+
+# Sandbox lifetimes.
+defaultTTL: 1h
+maxTTL: 8h
+# How many sandboxes may exist at once. 0 is no ceiling, which is the right
+# default for a one-session environment: the cluster is thrown away with it.
+maxSandboxes: 0
+# How often expired sandboxes are collected.
+reapInterval: 30s
+
+# Serve /sandbox/<id>/<port>/... by proxying to the sandbox. Off means the API
+# still works and nothing can be reached inside a sandbox.
+dataPlane: true
+
+# A directory of extra template files, mounted into the pod. Its ids replace the
+# built-in ones; see `catalog` below for the inline equivalent.
+catalogDir: ""
+# Extra templates, keyed by filename. Each value is a template document, the
+# same shape as the built-in catalog's files.
+#
+#   catalog:
+#     internal-tool.yaml: |
+#       id: internal-tool
+#       title: Internal tool environment
+#       image: registry.example.com/internal/tool:1.2.3
+#       ttlDefault: 30m
+catalog: {}
+# Template ids to leave out of the catalog entirely.
+disableTemplates: []
+# Which tag of the built-in images to use where a template pins `latest`, for an
+# environment that must run pinned versions. Empty leaves the templates as
+# written.
+logLevel: info
+
+# The control plane's own resources. It is a small HTTP server; the work happens
+# in the sandboxes.
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# What the control plane is allowed to do. It has to manage namespaces, and
+# everything inside the namespaces it creates — see templates/clusterrole.yaml
+# for why this is cluster-scoped rather than namespaced.
+rbac:
+  # Create the ClusterRole and ClusterRoleBinding. Off means you supply your own,
+  # which is what an installation that cannot grant cluster-admin wants.
+  create: true
+
+service:
+  type: ClusterIP
+  port: 80
+
+# An Istio Gateway route. This is how the environment in the sandboxlab action is
+# published: it puts everything on one hostname, with the base path telling the
+# control plane's own routes from a sandbox's.
+istio:
+  enabled: false
+  # The Gateway the route attaches to. It must exist; the chart does not create
+  # one, because a cluster has one gateway shared by everything on it.
+  gateway: ""
+  # An additional hostname the route answers on. Empty means every host the
+  # Gateway serves, which is what a tunnel wants: the hostname is assigned by
+  # the tunnel and cannot be known here.
+  host: ""
+
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  path: /
+  pathType: Prefix
+  annotations: {}
+  tls: []
+
+# A Job that removes every sandbox this release created, run before the release
+# is deleted. Without it, uninstalling the control plane leaves the sandboxes it
+# made behind — they are separate namespaces and nothing else knows about them.
+cleanup:
+  enabled: true
+  image:
+    repository: bitnami/kubectl
+    tag: "1.31"
+  # The job deletes namespaces carrying this label, which is what every sandbox
+  # namespace is labelled with.
+  serviceAccount:
+    # Create a ServiceAccount for the job with just enough to delete the
+    # namespaces.
+    create: true
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# The Deployment's own scheduling and safety.
+replicaCount: 1
+# Seconds the pod is given to drain on termination. The data plane holds
+# streaming connections, so this is not zero.
+terminationGracePeriodSeconds: 20

@@ -1,0 +1,21 @@
+# Binaries built by `make build`. The published artifacts are images, so nothing
+# here is committed.
+/bin/
+
+# Packaged charts, built by `make package-chart` for a release to attach.
+/dist/
+
+# Runtime state a local `sandbox` serve writes: the API key it generated, the
+# catalog it merged, logs.
+/.sandboxlab/
+/.sandbox-session/
+
+# Coverage and test output.
+*.out
+coverage.txt
+
+# Editor and OS noise.
+.DS_Store
+.idea/
+.vscode/
+*.swp

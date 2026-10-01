@@ -1,0 +1,272 @@
+name: ci
+
+# Check the commit, then build the image.
+#
+# The checks live here rather than in a workflow of their own because the image
+# depends on them: a workflow cannot depend on a job in another file, so the gate
+# has to be inside one. A red check stops the image from being built, which is
+# the point.
+#
+# Every change builds an image, not only a tag. A build that is never exercised
+# until the day a release is cut is a build whose Dockerfile has been free to rot
+# — and the tag is not what makes an image worth having, the commit in it is.
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: sandboxlab
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          # From go.mod rather than hardcoded: a toolchain mismatch between CI
+          # and the module is a failure that looks like a code problem.
+          go-version-file: go.mod
+          cache: true
+
+      # The same script the developer runs, so there is one answer to "which
+      # helm is this checked with".
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Check formatting
+        run: make fmt-check
+
+      - name: Vet
+        run: make vet
+
+      - name: Test
+        run: make test-race
+
+      # Renders the chart and asserts what a deployment actually fails on — a
+      # probe path that follows the base path, a ServiceAccount the Deployment
+      # names, every value reaching the pod. `helm lint` cannot see any of it.
+      - name: Check the chart
+        run: make helm-check
+
+      # The action's inputs and the script's variables have to agree: an input
+      # the action accepts but never forwards is a setting that silently does
+      # nothing, which is worse than one that does not exist.
+      - name: Check the action's inputs reach the script
+        run: hack/action-check.sh
+
+      - name: Build the binaries
+        run: make build
+
+      - name: Confirm the CLI and server start
+        run: |
+          set -euo pipefail
+          ./bin/sandbox catalog
+          ./bin/sandbox-cli --help >/dev/null
+          # The describe endpoint is the API's own contract, and it needs no
+          # cluster — so it is the one part of the server that can be started
+          # and asked something here.
+          ./bin/sandbox --help >/dev/null
+
+  image:
+    name: image
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      # A pull request builds but does not publish: the Dockerfile is worth
+      # validating on every change, and a fork's pull request has no secrets to
+      # log in with.
+      - name: Log in to the registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: docker.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            COMMIT=${{ github.sha }}
+
+  # The real thing: a cluster, a gateway, the control plane, a sandbox created
+  # and deleted through the API.
+  #
+  # It runs the environment with a supplied host instead of a tunnel, so a build
+  # never depends on a public tunnel being granted — a quick tunnel's hostname
+  # is minted per connection, rate-limited, and aimed at trying things rather
+  # than at being a test dependency.
+  #
+  # Not on every pull request: it takes about ten minutes, most of it Istio, and
+  # the unit and chart checks cover what changes most often.
+  e2e:
+    name: e2e
+    needs: test
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install kind
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/kind "https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64"
+          sudo install -m 0755 /tmp/kind /usr/local/bin/kind
+
+      - name: Install kubectl
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/kubectl "https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl"
+          sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+
+      - name: Install istioctl
+        run: |
+          set -euo pipefail
+          curl -fsSL https://istio.io/downloadIstio | ISTIO_VERSION=1.24.2 sh -
+          sudo install -m 0755 istio-1.24.2/bin/istioctl /usr/local/bin/istioctl
+
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Start the environment
+        env:
+          # No tunnel: the environment is reached over the node port, which is
+          # the whole path a tunnel would forward to anyway.
+          # A full URL, because this run reaches the gateway over plain HTTP on
+          # the node port — nothing terminates TLS here. A bare host would be
+          # taken as https, and every address the API reported would point at a
+          # port nothing listens on.
+          SANDBOXLAB_PUBLIC_HOST: http://127.0.0.1:30080
+          SANDBOXLAB_SESSION_HOURS: '0'
+          SANDBOXLAB_RUNTIME_DIR: ${{ github.workspace }}/.sandboxlab
+        # The script holds the environment open for the session, so it is run in
+        # the background and its result file is what gets asserted on.
+        run: |
+          set -euo pipefail
+          nohup bash hack/environment.sh > /tmp/environment.log 2>&1 &
+          echo $! > /tmp/environment.pid
+          # Wait for the script to say it is ready, or for it to exit.
+          for i in $(seq 1 120); do
+            if grep -q 'SANDBOX_READY' .sandboxlab/result.env 2>/dev/null; then
+              echo "the environment is up"; exit 0
+            fi
+            if ! kill -0 "$(cat /tmp/environment.pid)" 2>/dev/null; then
+              echo "::error::the environment script exited before it was up"
+              tail -100 /tmp/environment.log
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "::error::the environment did not come up within 20 minutes"
+          tail -100 /tmp/environment.log
+          exit 1
+
+      - name: Exercise the environment
+        run: |
+          set -euo pipefail
+          . .sandboxlab/result.env
+          # The address the environment recorded, not one reconstructed here:
+          # the gateway's node port and the base path are the script's to know,
+          # and a second guess in the workflow is a second thing to keep in
+          # step.
+          base="${SANDBOX_GATEWAY_URL}${SANDBOX_BASE_PATH}"
+          auth=(-H "X-Sandbox-Key: ${SANDBOX_API_KEY}")
+
+          echo "== the catalog the environment serves =="
+          curl -fsS "${auth[@]}" "$base/api/v1/catalog" | tee /tmp/catalog.json | head -30
+
+          echo "== create a sandbox =="
+          created=$(curl -fsS -X POST "${auth[@]}" -H 'Content-Type: application/json' \
+            -d '{"template":"python","name":"e2e","ttl":"5m"}' "$base/api/v1/sandboxes")
+          echo "$created"
+          echo "$created" | grep -q '"id": *"e2e"' || { echo "::error::the sandbox was not created"; exit 1; }
+
+          echo "== it is in the cluster =="
+          kubectl get namespace sbx-e2e
+
+          echo "== it is listed =="
+          curl -fsS "${auth[@]}" "$base/api/v1/sandboxes" | grep -q '"e2e"'
+
+          echo "== its logs can be read =="
+          curl -fsS "${auth[@]}" "$base/api/v1/sandboxes/e2e/logs" >/dev/null || true
+
+          echo "== deleting it removes the namespace =="
+          curl -fsS -X DELETE "${auth[@]}" "$base/api/v1/sandboxes/e2e" >/dev/null
+          for i in $(seq 1 30); do
+            if ! kubectl get namespace sbx-e2e >/dev/null 2>&1; then
+              echo "the namespace is gone"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::the namespace survived the delete"
+          exit 1
+
+      - name: Show what happened
+        if: always()
+        run: |
+          echo "== the environment log =="
+          tail -200 /tmp/environment.log || true
+          echo "== the sandboxes =="
+          kubectl get namespaces -l app.kubernetes.io/managed-by=sandboxlab || true
+          echo "== the control plane =="
+          kubectl -n ops-system get pods,deployments || true
+          # The Deployment is found by the label the chart puts on it, not by
+          # name: the chart's fullname collapses to the release name here, so
+          # it is "sandbox" — and a hardcoded "sandbox-sandbox" would have
+          # printed nothing every time this ran.
+          deploy=$(kubectl -n ops-system get deploy \
+            -l app.kubernetes.io/instance=sandbox \
+            -o jsonpath='{.items[0].metadata.name}')
+          kubectl -n ops-system logs "deployment/${deploy}" --tail=100 || true

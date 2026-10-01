@@ -1,0 +1,147 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sandbox.fullname" . }}
+  namespace: {{ include "sandbox.namespace" . }}
+  labels:
+    {{- include "sandbox.labels" . | nindent 4 }}
+spec:
+  # One. The control plane keeps no state, so more replicas would work — but
+  # each would run its own reaper, and two reapers sweeping the same cluster is
+  # a race over who deletes what. A leader election is not worth it for a
+  # component this small; if it ever is, this is where it goes.
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "sandbox.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "sandbox.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        # A checksum of the values the pod reads, so a change to them restarts
+        # the pod. Without it a `helm upgrade` that only changed, say, the
+        # default TTL would leave the old value running until something else
+        # happened to roll the Deployment.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "sandbox.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # The control plane only serves HTTP; it needs no more privilege than the
+      # distroless image already drops, and nothing needs the API server token
+      # mounted in the filesystem — client-go reads it from the projected volume
+      # either way, but not mounting it is the smaller surface.
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: sandbox
+          image: {{ include "sandbox.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["serve"]
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: SANDBOX_LISTEN
+              value: {{ .Values.listen | quote }}
+            - name: SANDBOX_NAMESPACE
+              value: {{ include "sandbox.namespace" . | quote }}
+            - name: SANDBOX_NAMESPACE_PREFIX
+              value: {{ .Values.sandboxNamespacePrefix | quote }}
+            - name: SANDBOX_PUBLIC_URL
+              value: {{ .Values.publicURL | quote }}
+            - name: SANDBOX_BASE_PATH
+              value: {{ .Values.basePath | quote }}
+            - name: SANDBOX_DEFAULT_TTL
+              value: {{ .Values.defaultTTL | quote }}
+            - name: SANDBOX_MAX_TTL
+              value: {{ .Values.maxTTL | quote }}
+            - name: SANDBOX_MAX_SANDBOXES
+              value: {{ .Values.maxSandboxes | quote }}
+            - name: SANDBOX_REAP_INTERVAL
+              value: {{ .Values.reapInterval | quote }}
+            - name: SANDBOX_DATA_PLANE
+              value: {{ .Values.dataPlane | quote }}
+            - name: SANDBOX_LOG_LEVEL
+              value: {{ .Values.logLevel | quote }}
+            - name: SANDBOX_DISABLE_TEMPLATES
+              value: {{ join "," .Values.disableTemplates | quote }}
+            {{- if or .Values.catalogDir .Values.catalog }}
+            - name: SANDBOX_CATALOG_DIR
+              value: {{ default "/etc/sandbox/catalog" .Values.catalogDir | quote }}
+            {{- end }}
+            # From the Secret, never a plain value: the pod spec is readable by
+            # anyone who can read the Deployment.
+            - name: SANDBOX_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "sandbox.fullname" . }}-apikey
+                  key: api-key
+          # The probes go through the base path, because that is where the
+          # routes are: a deployment served under /sandbox has no /healthz at
+          # its root, and a probe that assumed otherwise would keep a working
+          # pod out of rotation.
+          livenessProbe:
+            httpGet:
+              path: {{ printf "%s/healthz" .Values.basePath | quote }}
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: {{ printf "%s/readyz" .Values.basePath | quote }}
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            # Readiness is "can I reach a cluster", so a control plane that has
+            # lost the API server leaves rotation — which is the point of it
+            # being a separate probe from liveness.
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          {{- if or .Values.catalogDir .Values.catalog }}
+          volumeMounts:
+            - name: catalog
+              mountPath: /etc/sandbox/catalog
+              readOnly: true
+          {{- end }}
+      {{- if or .Values.catalogDir .Values.catalog }}
+      volumes:
+        - name: catalog
+          configMap:
+            name: {{ include "sandbox.fullname" . }}-catalog
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

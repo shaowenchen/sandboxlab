@@ -1,0 +1,192 @@
+name: 'Run sandboxlab'
+description: >-
+  Start a complete sandboxlab environment on the runner — a kind cluster,
+  an Istio gateway, the control plane from this commit — and publish it through
+  a tunnel. It prints a console link and an API key, and you create sandboxes
+  from there.
+author: 'shaowenchen'
+
+branding:
+  icon: 'box'
+  color: 'orange'
+
+inputs:
+  api_key:
+    description: >-
+      API key for this environment. Generated when empty, and printed in the
+      summary either way.
+    required: false
+    default: ''
+  session_hours:
+    description: >-
+      How long the environment may run, in hours; empty or 0 means no
+      self-imposed limit (the job's own timeout still applies).
+    required: false
+    default: '4'
+  tunnel:
+    description: "cloudflare (no account needed) or ngrok (needs ngrok_token)."
+    required: false
+    default: 'cloudflare'
+  cloudflare_token:
+    description: >-
+      Token of a named Cloudflare tunnel. Empty starts a quick tunnel instead: a
+      random trycloudflare.com hostname with no account behind it.
+    required: false
+    default: ''
+  domain:
+    description: >-
+      The domain the console is served under, without a scheme. Not tunnel
+      configuration: a named Cloudflare tunnel keeps its hostname in its ingress
+      and cannot report it, and this is what the control plane needs — it
+      becomes publicURL, which is both where the console lives and what every
+      sandbox's address is built from. Point the hostname at the tunnel first;
+      nothing here can create it.
+    required: false
+    # Named by default, so a run serves a domain you chose rather than a
+    # hostname minted for that one connection. That makes the named tunnel the
+    # expected path — a quick tunnel cannot be given this name, so a run with
+    # cloudflare_token unset stops and says so rather than quietly publishing
+    # somewhere else. Set it empty to go back to a quick tunnel's own hostname.
+    default: 'sandbox.chenshaowen.com'
+  ngrok_token:
+    description: 'ngrok authtoken. Required when tunnel is ngrok.'
+    required: false
+    default: ''
+  base_path:
+    description: >-
+      The path the deployment is served under. Everything on one hostname shares
+      it: the console at <domain><base_path>, and a sandbox at
+      <domain><base_path>/sandbox/<name>/<port>/.
+    required: false
+    default: '/sandbox'
+  default_ttl:
+    description: 'How long a sandbox lives when it asks for nothing else, e.g. 1h.'
+    required: false
+    default: '1h'
+  max_ttl:
+    description: 'The longest a sandbox may live, e.g. 8h. Empty is no ceiling.'
+    required: false
+    default: '8h'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate inputs
+      shell: bash
+      env:
+        TUNNEL: ${{ inputs.tunnel }}
+        NGROK_TOKEN: ${{ inputs.ngrok_token }}
+        CLOUDFLARE_TOKEN: ${{ inputs.cloudflare_token }}
+        DOMAIN: ${{ inputs.domain }}
+      run: |
+        set -euo pipefail
+        case "$TUNNEL" in
+          cloudflare|ngrok) ;;
+          *) echo "::error::tunnel must be 'cloudflare' or 'ngrok', got '$TUNNEL'"; exit 1 ;;
+        esac
+        # The failure this catches is a run that starts a tunnel agent with no
+        # credential and only discovers it minutes later, from a missing link.
+        if [ "$TUNNEL" = "ngrok" ] && [ -z "$NGROK_TOKEN" ]; then
+          echo "::error::tunnel is 'ngrok' but ngrok_token is empty; ngrok needs an authtoken"
+          exit 1
+        fi
+        # A domain can only be named for a tunnel whose ingress was arranged in
+        # advance, which only a named Cloudflare tunnel has. Checked here rather
+        # than in the script so a run that cannot work fails in seconds instead
+        # of after a three-minute wait for a hostname that was never coming.
+        if [ -n "$DOMAIN" ]; then
+          if [ "$TUNNEL" != "cloudflare" ]; then
+            echo "::error::domain is only for a named Cloudflare tunnel, not '$TUNNEL'"
+            exit 1
+          fi
+          if [ -z "$CLOUDFLARE_TOKEN" ]; then
+            echo "::error::domain needs cloudflare_token: a quick tunnel is assigned a random hostname by Cloudflare, so the console could not be served under the one given"
+            exit 1
+          fi
+        fi
+
+    # The environment runs on the runner's own Docker daemon: kind creates nodes
+    # as containers.
+    - name: Install kind
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Pinned, unlike a "latest" asset: kind's cluster bootstrap is
+        # version-sensitive, and a moving tag would change this environment's
+        # behaviour without this repository changing.
+        curl -fsSL -o /tmp/kind "https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64"
+        sudo install -m 0755 /tmp/kind /usr/local/bin/kind
+        kind version
+
+    - name: Install kubectl
+      shell: bash
+      run: |
+        set -euo pipefail
+        curl -fsSL -o /tmp/kubectl \
+          "https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl"
+        sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+        kubectl version --client
+
+    - name: Install istioctl
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Pinned for the same reason as kind: the CRDs and the gateway's Service
+        # shape are what the chart's VirtualService is written against.
+        curl -fsSL https://istio.io/downloadIstio | ISTIO_VERSION=1.24.2 sh -
+        sudo install -m 0755 istio-1.24.2/bin/istioctl /usr/local/bin/istioctl
+        istioctl version --remote=false
+
+    - name: Install helm
+      uses: azure/setup-helm@v4
+      with:
+        version: v3.16.4
+
+    - name: Install the tunnel agent
+      shell: bash
+      env:
+        TUNNEL: ${{ inputs.tunnel }}
+      run: |
+        set -euo pipefail
+        if [ "$TUNNEL" = "cloudflare" ]; then
+          curl -fsSL -o /tmp/cloudflared \
+            "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
+          sudo install -m 0755 /tmp/cloudflared /usr/local/bin/cloudflared
+          cloudflared --version
+        else
+          curl -fsSL "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz" \
+            | sudo tar -xz -C /usr/local/bin
+          sudo chmod +x /usr/local/bin/ngrok
+          ngrok --version
+        fi
+
+    - name: Start the environment
+      shell: bash
+      env:
+        SANDBOXLAB_TUNNEL: ${{ inputs.tunnel }}
+        SANDBOXLAB_DOMAIN: ${{ inputs.domain }}
+        SANDBOXLAB_API_KEY: ${{ inputs.api_key }}
+        SANDBOXLAB_SESSION_HOURS: ${{ inputs.session_hours }}
+        SANDBOXLAB_BASE_PATH: ${{ inputs.base_path }}
+        SANDBOXLAB_DEFAULT_TTL: ${{ inputs.default_ttl }}
+        SANDBOXLAB_MAX_TTL: ${{ inputs.max_ttl }}
+        CLOUDFLARE_TOKEN: ${{ inputs.cloudflare_token }}
+        NGROK_TOKEN: ${{ inputs.ngrok_token }}
+        SANDBOXLAB_RUNTIME_DIR: ${{ github.workspace }}/.sandboxlab
+      run: |
+        set -euo pipefail
+        # The script and the chart are used from the checked-out action, so the
+        # version being tested and the chart installing it cannot come from
+        # different places.
+        exec bash "${{ github.action_path }}/../hack/environment.sh"
+
+    - name: Publish the summary
+      # always(), so a run that failed partway still reports what it learned —
+      # a link that works and an error above it is more useful than neither.
+      if: always()
+      shell: bash
+      env:
+        SANDBOXLAB_RUNTIME_DIR: ${{ github.workspace }}/.sandboxlab
+      run: |
+        set -euo pipefail
+        bash "${{ github.action_path }}/../hack/summary.sh"

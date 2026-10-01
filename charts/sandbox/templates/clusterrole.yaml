@@ -1,0 +1,73 @@
+{{- if .Values.rbac.create -}}
+{{/*
+Cluster-scoped, and it has to be.
+
+A sandbox is a namespace, so creating one is a cluster-scoped write — there is
+no namespace you could grant "create namespaces in". Anything narrower than this
+would mean the control plane could not do the one thing it exists to do, so the
+grant is written out rather than pretended at with a Role.
+
+It is a ClusterRole per resource rather than a wildcard, so what it can do is
+readable: it manages namespaces that carry its own label, and everything inside
+the ones it created.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "sandbox.fullname" . }}
+  labels:
+    {{- include "sandbox.labels" . | nindent 4 }}
+rules:
+  # The sandbox lifecycle itself. `delete` on namespaces is the one that matters
+  # and the one worth reviewing: deleting a namespace reclaims everything in it,
+  # which is the design and also the most destructive thing this can do.
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  # A namespace has to be labelled for the control plane to recognise it, and
+  # the expiry is an annotation on it — so updating namespaces is `renew`.
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["update", "patch"]
+
+  # Everything created inside a sandbox's namespace. These are namespaced
+  # resources and the grant is cluster-wide, because which namespaces exist is
+  # decided at runtime.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["services", "resourcequotas", "limitranges", "pods", "configmaps", "secrets", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+  # Reading a sandbox's output. `pods/log` is a separate resource from `pods`
+  # and is easy to leave out, which shows up as `sandbox logs` failing on an
+  # otherwise working deployment.
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+
+  {{- if .Values.istio.enabled }}
+  # The console's own route, when the chart installs one.
+  - apiGroups: ["networking.istio.io"]
+    resources: ["virtualservices"]
+    verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+  {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "sandbox.fullname" . }}
+  labels:
+    {{- include "sandbox.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "sandbox.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "sandbox.serviceAccountName" . }}
+    namespace: {{ include "sandbox.namespace" . }}
+{{- end }}

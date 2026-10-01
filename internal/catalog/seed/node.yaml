@@ -1,0 +1,17 @@
+# A Node workspace, on the same terms as the Python one: kept alive, reached
+# through exec and the file endpoints, no port of its own.
+id: node
+title: Node sandbox
+description: >-
+  A Node 22 workspace that stays up, for running scripts and installing
+  packages with npm.
+image: node:22-slim
+
+command: ["sleep", "infinity"]
+
+resources:
+  cpu: "1"
+  memory: 1Gi
+
+ttlDefault: 30m
+ttlMax: 4h

@@ -1,0 +1,47 @@
+# A complete Linux desktop in one container: a window manager, a browser, a
+# terminal and a filesystem, all reached through the web UI on port 3000.
+#
+# This is the template to reach for when the question is "can this be done in a
+# real desktop at all" — nothing has to be installed first, and you can watch
+# what happens rather than reading about it in a log.
+#
+# linuxserver/webtop is the image because it is the one that actually exists
+# under this shape on Docker Hub: a maintained, multi-architecture desktop with
+# a web front end, rather than something that has to be assembled from a VNC
+# server, a window manager and an HTML client. The flavor is ubuntu-xfce — the
+# lightest of the desktops it ships, which is what a container wants.
+id: all-in-one
+title: Linux desktop (browser)
+description: >-
+  A full Linux desktop in a browser: window manager, browser, terminal and
+  filesystem. Nothing to install first.
+image: linuxserver/webtop:ubuntu-xfce
+
+# 3000 is the HTTP desktop, and it is the only port declared. The image also
+# exposes 3001 for the same UI over HTTPS, which is skipped deliberately: it
+# serves a self-signed certificate, and a browser that has to be told to trust
+# one is a worse first experience than plain HTTP behind the key that already
+# guards this deployment.
+ports:
+  - name: desktop
+    port: 3000
+    description: The desktop, in a browser — open it and you are at the machine
+
+env:
+  # Left off, and that is the deliberate part: the desktop's own login would be
+  # a second password on a sandbox that is already behind the deployment's API
+  # key and the tunnel. Turn it on (and pass a password) if this template is
+  # ever served somewhere without that.
+  SELKIES_ENABLE_BASIC_AUTH: "false"
+  # The desktop's clock and locale. Without it the container runs on UTC, which
+  # is a small thing that is confusing every time it comes up.
+  TZ: "Asia/Shanghai"
+
+resources:
+  # A desktop is heavier than a shell. Two cores and 4Gi is what XFCE plus a
+  # browser wants to be usable rather than merely alive.
+  cpu: "2"
+  memory: 4Gi
+
+ttlDefault: 1h
+ttlMax: 8h

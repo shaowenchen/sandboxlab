@@ -1,0 +1,72 @@
+{{- if .Values.cleanup.enabled }}
+{{/*
+Remove the sandboxes this release made, before the release goes.
+
+A sandbox is a namespace of its own, so nothing in the release owns it and
+`helm uninstall` would leave every one of them behind — running, costing
+resources, and reachable by nobody once the control plane is gone. This is the
+thing that makes uninstalling actually uninstall.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "sandbox.fullname" . }}-cleanup
+  namespace: {{ include "sandbox.namespace" . }}
+  labels:
+    {{- include "sandbox.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cleanup
+  annotations:
+    # Before the rest, so it can still reach the API server with the release's
+    # own credentials. "before-hook-creation" then removes a previous run's Job
+    # so an uninstall that follows a failed one is not blocked by it.
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  # One attempt. A failure here is worth reading rather than retrying: it means
+  # something could not be deleted, and the log says what.
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        {{- include "sandbox.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: cleanup
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "sandbox.cleanupServiceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cleanup
+          image: "{{ .Values.cleanup.image.repository }}:{{ .Values.cleanup.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              # Every sandbox namespace carries this label, which is the same
+              # one the control plane lists by. Deleting by it is safe: a
+              # namespace without the label was not created by this control
+              # plane and is not ours to remove.
+              names=$(kubectl get namespaces -l app.kubernetes.io/managed-by=sandboxlab -o name || true)
+              if [ -z "$names" ]; then
+                echo "no sandboxes to clean up"
+                exit 0
+              fi
+              echo "removing sandboxes:"
+              echo "$names"
+              # --wait=false returns as soon as the deletes are accepted.
+              # Waiting would hold the uninstall on namespace finalizers, and a
+              # namespace that takes a moment to go is not a failure.
+              kubectl delete $names --wait=false --ignore-not-found
+              echo "the sandboxes are being removed"
+{{- end }}

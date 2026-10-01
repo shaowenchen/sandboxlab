@@ -1,0 +1,60 @@
+{{- if .Values.istio.enabled -}}
+{{- if not .Values.istio.gateway -}}
+{{- fail "istio.enabled is set but istio.gateway is empty: a VirtualService has to name the Gateway it attaches to, and the chart does not create one" -}}
+{{- end -}}
+{{- /*
+The console's own route.
+
+One route, matching everything under the base path, and that is deliberate. A
+sandbox is reached through the control plane's proxy at <base>/sandbox/<id>/...,
+so there are no per-sandbox routes to write — which is what makes creating a
+sandbox a cluster write and nothing else. The alternative, a VirtualService per
+sandbox, would mean an ingress object created and garbage-collected with every
+sandbox, and a create that can half-fail somewhere a delete cannot clean up.
+
+The host is left unset by default, which makes the route answer on whatever host
+the Gateway serves — what a tunnel wants, since the hostname is assigned by the
+tunnel and cannot be known here.
+*/ -}}
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: {{ include "sandbox.fullname" . }}
+  namespace: {{ include "sandbox.namespace" . }}
+  labels:
+    {{- include "sandbox.labels" . | nindent 4 }}
+    app.kubernetes.io/component: control-plane
+spec:
+  hosts:
+    {{- if .Values.istio.host }}
+    - {{ .Values.istio.host | quote }}
+    {{- else }}
+    - "*"
+    {{- end }}
+  gateways:
+    - {{ .Values.istio.gateway | quote }}
+  http:
+    - name: console
+      match:
+        {{- if .Values.basePath }}
+        # The base path, with and without a trailing slash, so the bare address
+        # reaches the console rather than 404ing.
+        - uri:
+            exact: {{ .Values.basePath | quote }}
+        - uri:
+            prefix: {{ printf "%s/" .Values.basePath | quote }}
+        {{- else }}
+        # Served at the root, so every path is this deployment's.
+        - uri:
+            prefix: "/"
+        {{- end }}
+      route:
+        - destination:
+            host: {{ include "sandbox.fullname" . }}.{{ include "sandbox.namespace" . }}.svc.cluster.local
+            port:
+              number: {{ .Values.service.port }}
+      # No timeout. The data-plane proxy streams a sandbox's output, and the
+      # Envoy default of 15s would cut a long-running command off mid-line —
+      # which looks like the sandbox failing rather than the route deciding.
+      timeout: 0s
+{{- end }}
