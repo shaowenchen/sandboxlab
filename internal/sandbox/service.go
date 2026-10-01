@@ -296,12 +296,27 @@ func (s *Service) Renew(ctx context.Context, who auth.Identity, id string, in Re
 }
 
 // Logs returns the tail of a sandbox's output, if the caller may see it.
+//
+// A sandbox that cannot be read because it is still coming up is reported as a
+// conflict rather than a server error. This is the ordinary state right after a
+// create: the pod exists and its container is being pulled, so there is nothing
+// to read yet, and a caller polling for output should be told to come back
+// rather than that something broke.
+//
+// The state decides it, not the error's wording — and the state is what makes
+// the distinction safe: a sandbox whose container has *exited* is Failed or
+// Running and reads as a plain error, because its logs are empty rather than
+// unavailable, and a failing container is exactly the one worth reading.
 func (s *Service) Logs(ctx context.Context, who auth.Identity, id string, tail int64) (string, error) {
 	sb, err := s.owned(ctx, who, id)
 	if err != nil {
 		return "", err
 	}
-	return s.client.Logs(ctx, sb.ID, tail)
+	logs, err := s.client.Logs(ctx, sb.ID, tail)
+	if err != nil && sb.State == model.StatePending {
+		return "", fmt.Errorf("%w: the sandbox %q is still starting; its output is not available yet", ErrConflict, sb.ID)
+	}
+	return logs, err
 }
 
 // Overview summarises the deployment for whoever is looking.

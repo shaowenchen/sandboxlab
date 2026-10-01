@@ -239,6 +239,12 @@ jobs:
           echo "== it is listed =="
           curl -fsS "${auth[@]}" "$base/api/v1/sandboxes" | grep -q '"e2e"'
 
+          echo "== it comes up =="
+          # Waiting is part of the contract, not a workaround: a create returns
+          # as soon as the objects exist, and the container is pulled after
+          # that. The API reports a sandbox that is still starting as Pending.
+          kubectl -n sbx-e2e rollout status deployment/sandbox --timeout=120s
+
           echo "== its logs can be read =="
           # Not `|| true`. It was, and that is how `sandbox logs` returned 500
           # for every sandbox — the pod name was passed empty — while this job

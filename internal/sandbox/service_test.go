@@ -7,7 +7,10 @@ import (
 	"testing"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 
 	"github.com/shaowenchen/sandboxlab/internal/auth"
 	"github.com/shaowenchen/sandboxlab/internal/config"
@@ -586,5 +589,54 @@ func TestNoQuotaSourceMeansNoUserLimits(t *testing.T) {
 	s := testService(t, config.Config{}, nil)
 	if _, err := s.Create(context.Background(), alice, CreateInput{Template: "quick", Name: "mine"}); err != nil {
 		t.Errorf("Create with no quota source: %v", err)
+	}
+}
+
+// TestLogsOfAStartingSandboxIsAConflict covers the moment right after a create.
+//
+// The container is being pulled, so its logs are not readable yet and the
+// cluster returns an error. Reporting that as a server error told a caller
+// polling for output that something had broken; it is the ordinary state of a
+// sandbox that is coming up.
+func TestLogsOfAStartingSandboxIsAConflict(t *testing.T) {
+	ctx := context.Background()
+
+	for _, tc := range []struct {
+		name         string
+		available    int32
+		wantConflict bool
+	}{
+		// AvailableReplicas is what decides Pending from Running, and the
+		// distinction is the point: only a sandbox still coming up is a
+		// conflict, because a running one whose logs fail to read is a genuine
+		// error worth surfacing rather than a "come back later".
+		{"a container still being created", 0, true},
+		{"a running sandbox", 1, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cs := fake.NewClientset()
+			cs.PrependReactor("create", "deployments", func(action k8stesting.Action) (bool, runtime.Object, error) {
+				dep := action.(k8stesting.CreateAction).GetObject().(*appsv1.Deployment)
+				dep.Status = appsv1.DeploymentStatus{Replicas: 1, AvailableReplicas: tc.available}
+				return false, nil, nil
+			})
+			cfg := config.Config{DefaultTTL: time.Hour, MaxTTL: 4 * time.Hour, SandboxNamespacePrefix: "sbx-"}
+			s := New(cfg, testCatalog(t), k8s.NewWithClientset(cs, cfg), nil)
+
+			if _, err := s.Create(ctx, admin, CreateInput{Template: "quick", Name: "my-box"}); err != nil {
+				t.Fatalf("Create: %v", err)
+			}
+
+			// Nothing plays the controller here, so there is no pod and the
+			// cluster will not serve logs — which is the failing read the
+			// mapping turns on.
+			_, err := s.Logs(ctx, admin, "my-box", 10)
+			switch {
+			case tc.wantConflict && !errors.Is(err, ErrConflict):
+				t.Errorf("Logs of a starting sandbox = %v, want ErrConflict", err)
+			case !tc.wantConflict && errors.Is(err, ErrConflict):
+				t.Errorf("Logs = %v; a sandbox that is not starting must not read as a conflict", err)
+			}
+		})
 	}
 }
