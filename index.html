@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Installing the SandboxLab chart</title>
+<meta name="description" content="Create disposable sandbox environments in Kubernetes, on demand.">
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #6a6a6a;
+  --rule: #e3e3e3;
+  --accent: #0b6bcb;
+  --code-bg: #f5f5f5;
+  --sidebar-bg: #fafafa;
+  --measure: 46rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a;
+    --fg: #e6e6e6;
+    --muted: #9a9a9a;
+    --rule: #2b2f36;
+    --accent: #6cb2ff;
+    --code-bg: #1c1f24;
+    --sidebar-bg: #17191d;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+.layout { display: flex; align-items: flex-start; min-height: 100vh; }
+
+nav {
+  flex: 0 0 15rem;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 1.75rem 1.25rem;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--rule);
+}
+nav .brand { font-weight: 650; font-size: 1.05rem; letter-spacing: -0.01em; }
+nav .brand a { color: var(--fg); text-decoration: none; }
+nav ul { list-style: none; margin: 1.5rem 0 0; padding: 0; }
+nav li { margin: 0 0 0.15rem; }
+nav a {
+  display: block;
+  padding: 0.3rem 0.6rem;
+  border-radius: 5px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+nav a:hover { color: var(--fg); background: var(--code-bg); }
+nav a[aria-current="page"] { color: var(--fg); background: var(--code-bg); font-weight: 600; }
+nav .repo { margin-top: 1.5rem; font-size: 0.85rem; }
+nav .repo a { padding: 0; }
+
+main { flex: 1 1 auto; min-width: 0; padding: 2.5rem 2.5rem 5rem; }
+article { max-width: var(--measure); }
+
+h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -0.015em; }
+h1 { font-size: 1.9rem; margin: 0 0 1.25rem; }
+h2 { font-size: 1.35rem; margin: 2.5rem 0 0.9rem; padding-top: 0.75rem; border-top: 1px solid var(--rule); }
+h3 { font-size: 1.1rem; margin: 2rem 0 0.7rem; }
+h4 { font-size: 1rem; margin: 1.5rem 0 0.5rem; }
+
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+p, ul, ol { margin: 0 0 1.05rem; }
+li { margin: 0.25rem 0; }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.875em;
+  background: var(--code-bg);
+  padding: 0.12em 0.35em;
+  border-radius: 4px;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  overflow-x: auto;
+}
+pre code { background: none; padding: 0; font-size: 0.85em; }
+pre.contract { max-height: none; white-space: pre-wrap; word-break: break-word; }
+
+blockquote {
+  margin: 0 0 1.05rem;
+  padding: 0.1rem 0 0.1rem 1rem;
+  border-left: 3px solid var(--rule);
+  color: var(--muted);
+}
+
+table { border-collapse: collapse; width: 100%; margin: 0 0 1.25rem; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--rule); padding: 0.45rem 0.7rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); font-weight: 600; }
+
+hr { border: none; border-top: 1px solid var(--rule); margin: 2.5rem 0; }
+img { max-width: 100%; height: auto; }
+
+.source {
+  margin-top: 3.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 46rem) {
+  .layout { flex-direction: column; }
+  nav { position: static; height: auto; width: 100%; flex: none; border-right: none; border-bottom: 1px solid var(--rule); }
+  nav ul { margin-top: 1rem; }
+  main { padding: 1.5rem 1.25rem 3.5rem; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav>
+    <div class="brand"><a href="index.html">SandboxLab</a></div>
+    <div class="repo"><a href="https://github.com/shaowenchen/sandboxlab">Source on GitHub</a></div>
+  </nav>
+  <main>
+    <article>
+<h1 id="sandboxlab-chart">sandboxlab chart</h1>
+<p>Installs the sandbox control plane: the API, the console, and the proxy that
+reaches into a sandbox.</p>
+<p>A <strong>sandbox</strong> here is a namespace. Creating one is a cluster-scoped write, it is
+deleted as a unit when its time is up, and it holds nothing the control plane
+needs to remember — which is why this chart has no database, no PersistentVolume
+and no state to back up.</p>
+<h2 id="installing">Installing</h2>
+<p>From the published repository:</p>
+<pre><code class="language-bash">helm repo add sandboxlab https://www.chenshaowen.com/sandboxlab
+helm repo update
+helm install sandbox sandboxlab/sandbox \
+  --namespace ops-system --create-namespace \
+  --set publicURL=https://sandbox.example.com
+</code></pre>
+<p>Or from a checkout:</p>
+<pre><code class="language-bash">helm install sandbox ./charts/sandbox \
+  --namespace ops-system --create-namespace \
+  --set publicURL=https://sandbox.example.com
+</code></pre>
+<p>The control plane lands in <strong><code>ops-system</code></strong> by default (<code>namespaceOverride</code>).
+That is not the release namespace, deliberately: this is infrastructure, and the
+things it manages — the sandboxes — get namespaces of their own.</p>
+<p>Read the key:</p>
+<pre><code class="language-bash">kubectl -n ops-system get secret sandbox-apikey \
+  -o jsonpath='{.data.api-key}' | base64 -d; echo
+</code></pre>
+<p><code>helm install</code> prints the same instructions, filled in, in its notes.</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A cluster</strong></td>
+<td>Any. Nothing here is provider-specific.</td>
+</tr>
+<tr>
+<td><strong>Cluster-scoped RBAC to create</strong></td>
+<td>A sandbox is a namespace, so the control plane needs <code>create</code>/<code>delete</code> on namespaces cluster-wide. See <a href="#rbac">RBAC</a>.</td>
+</tr>
+<tr>
+<td><strong>Something to publish with</strong></td>
+<td>An Istio gateway, an Ingress, or a tunnel. Or nothing, and a port-forward.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="reaching-it">Reaching it</h2>
+<p>Three routes reach the deployment, and you pick one:</p>
+<p><strong>A tunnel</strong> — what the <a href="https://github.com/shaowenchen/sandboxlab/blob/main/action/README.md">sandboxlab action</a> does. <code>publicURL</code> is
+the tunnel's hostname, <code>basePath</code> is set, and <code>istio.enabled=true</code> writes the
+one VirtualService that puts the console and every sandbox behind it.</p>
+<p><strong>An Ingress</strong> — <code>ingress.enabled=true</code> and <code>ingress.host</code>. Point it at the
+control plane's Service and set <code>publicURL</code> to the same host.</p>
+<p><strong>A port-forward</strong> — nothing to configure. Leave <code>publicURL</code> empty and the API
+reports relative addresses:</p>
+<pre><code class="language-bash">kubectl -n ops-system port-forward svc/sandbox 8080:80
+</code></pre>
+<h3 id="the-base-path">The base path</h3>
+<p><code>basePath</code> is a path prefix the whole deployment is served under: <code>/sandbox</code>
+means the console is at <code>https://host/sandbox</code> and a sandbox at
+<code>https://host/sandbox/sandbox/&lt;id&gt;/&lt;port&gt;/</code>. Leave it empty to serve at the
+root.</p>
+<p>It is not cosmetic. The environment the sandboxlab action builds publishes
+everything on one hostname, and the path is what tells the console's own routes
+from an app's — so the base path is how the control plane and a sandbox can
+share an address without a second hostname.</p>
+<h2 id="rbac">RBAC</h2>
+<p>The control plane's ClusterRole grants, cluster-wide:</p>
+<ul>
+<li><code>namespaces</code>: get, list, watch, create, update, patch, delete</li>
+<li><code>deployments</code>, <code>services</code>, <code>resourcequotas</code>, <code>limitranges</code>, <code>pods</code>,
+<code>configmaps</code>, <code>secrets</code>, <code>persistentvolumeclaims</code>, <code>pods/log</code>,
+<code>networkpolicies</code>: the full set, inside the namespaces it creates</li>
+</ul>
+<p><code>delete</code> on namespaces is the one worth reviewing: deleting a namespace
+reclaims everything in it. That is the design — one operation, nothing to miss —
+and it is also the most destructive thing this component can do.</p>
+<p><code>rbac.create=false</code> skips the ClusterRole and ClusterRoleBinding if you supply
+your own; the chart then expects a ServiceAccount named
+<code>&lt;release&gt;-sandbox-control-plane</code> to already have the grants.</p>
+<h2 id="the-catalog">The catalog</h2>
+<p>The templates a sandbox can be created from come from two places:</p>
+<ol>
+<li><strong>Built in</strong>, compiled into the image: <code>all-in-one</code>, <code>python</code>, <code>node</code>,
+<code>code-server</code>.</li>
+<li><strong>This release</strong>, through <code>catalog</code> (inline) or <code>catalogDir</code> (a mounted
+directory). An id in either <strong>replaces</strong> the built-in of that name; it does
+not merge with it.</li>
+</ol>
+<pre><code class="language-yaml">catalog:
+  internal-tool.yaml: |
+    id: internal-tool
+    title: Internal tool environment
+    image: registry.example.com/internal/tool:1.2.3
+    ports:
+      - name: web
+        port: 8080
+    ttlDefault: 30m
+    ttlMax: 4h
+</code></pre>
+<p><code>disableTemplates</code> removes templates by id from the final catalog — a misspelled
+id there is a startup error rather than a template that quietly stays listed.</p>
+<h2 id="uninstalling">Uninstalling</h2>
+<p><code>helm uninstall</code> removes the control plane <strong>and the sandboxes it created</strong>. A
+<code>pre-delete</code> Job deletes every namespace carrying
+<code>app.kubernetes.io/managed-by=sandboxlab</code>, which is every sandbox.</p>
+<p>That Job exists because a sandbox is a namespace of its own: nothing in the
+release owns it, so without it an uninstall would leave every sandbox behind —
+running, costing resources, and reachable by nobody. Set <code>cleanup.enabled=false</code>
+to keep them, and delete them by hand.</p>
+<h2 id="values">Values</h2>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Default</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>namespaceOverride</code></td>
+<td><code>ops-system</code></td>
+<td>Where the control plane runs.</td>
+</tr>
+<tr>
+<td><code>image.repository</code> / <code>image.tag</code></td>
+<td>chart appVersion</td>
+<td>The control plane image.</td>
+</tr>
+<tr>
+<td><code>apiKey</code></td>
+<td>generated</td>
+<td>The key every call carries. Empty generates one and reuses it across upgrades.</td>
+</tr>
+<tr>
+<td><code>publicURL</code></td>
+<td>—</td>
+<td>The address the API reports sandbox URLs under. Empty reports relative ones.</td>
+</tr>
+<tr>
+<td><code>basePath</code></td>
+<td>—</td>
+<td>A path prefix the deployment is served under.</td>
+</tr>
+<tr>
+<td><code>sandboxNamespacePrefix</code></td>
+<td><code>sbx-</code></td>
+<td>Prefix of a sandbox's namespace.</td>
+</tr>
+<tr>
+<td><code>defaultTTL</code> / <code>maxTTL</code></td>
+<td><code>1h</code> / <code>8h</code></td>
+<td>Sandbox lifetimes.</td>
+</tr>
+<tr>
+<td><code>maxSandboxes</code></td>
+<td><code>0</code> (no ceiling)</td>
+<td>How many may exist at once.</td>
+</tr>
+<tr>
+<td><code>reapInterval</code></td>
+<td><code>30s</code></td>
+<td>How often expired sandboxes are collected.</td>
+</tr>
+<tr>
+<td><code>dataPlane</code></td>
+<td><code>true</code></td>
+<td>Serve <code>/sandbox/&lt;id&gt;/&lt;port&gt;/</code> by proxying into a sandbox.</td>
+</tr>
+<tr>
+<td><code>catalog</code> / <code>catalogDir</code></td>
+<td>—</td>
+<td>Templates to add or replace.</td>
+</tr>
+<tr>
+<td><code>disableTemplates</code></td>
+<td><code>[]</code></td>
+<td>Template ids to leave out.</td>
+</tr>
+<tr>
+<td><code>istio.enabled</code> / <code>istio.gateway</code></td>
+<td><code>false</code> / —</td>
+<td>Write the VirtualService. The gateway must already exist.</td>
+</tr>
+<tr>
+<td><code>ingress.enabled</code> / <code>ingress.host</code></td>
+<td><code>false</code> / —</td>
+<td>Write an Ingress instead.</td>
+</tr>
+<tr>
+<td><code>cleanup.enabled</code></td>
+<td><code>true</code></td>
+<td>Delete the sandboxes on uninstall.</td>
+</tr>
+<tr>
+<td><code>replicaCount</code></td>
+<td><code>1</code></td>
+<td>One, because each replica runs its own reaper.</td>
+</tr>
+</tbody>
+</table>
+<p><code>kubectl explain</code> and <code>values.yaml</code> are the exhaustive sources; every field is
+commented where it is defined.</p>
+<h2 id="what-it-does-not-create">What it does not create</h2>
+<ul>
+<li><strong>A Gateway.</strong> An Istio gateway is shared by everything on a cluster; the
+chart points at one (<code>istio.gateway</code>) and fails to render without it rather
+than installing a route that attaches to nothing.</li>
+<li><strong>A registry or an object store.</strong> The control plane has no state to keep and
+no images to build.</li>
+<li><strong>TLS.</strong> Terminate it at the tunnel, the load balancer, or the Ingress.</li>
+</ul>
+
+      <p class="source">This page is rendered from <a href="https://github.com/shaowenchen/sandboxlab/blob/main/charts/sandbox/README.md"><code>charts/sandbox/README.md</code></a> in the repository.</p>
+    </article>
+  </main>
+</div>
+</body>
+</html>
