@@ -240,7 +240,10 @@ jobs:
           curl -fsS "${auth[@]}" "$base/api/v1/sandboxes" | grep -q '"e2e"'
 
           echo "== its logs can be read =="
-          curl -fsS "${auth[@]}" "$base/api/v1/sandboxes/e2e/logs" >/dev/null || true
+          # Not `|| true`. It was, and that is how `sandbox logs` returned 500
+          # for every sandbox — the pod name was passed empty — while this job
+          # reported success. A sandbox that cannot be read is a failure.
+          curl -fsS "${auth[@]}" "$base/api/v1/sandboxes/e2e/logs" >/dev/null
 
           echo "== deleting it removes the namespace =="
           curl -fsS -X DELETE "${auth[@]}" "$base/api/v1/sandboxes/e2e" >/dev/null

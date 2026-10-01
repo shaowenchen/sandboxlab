@@ -592,7 +592,13 @@ func (c *Client) Logs(ctx context.Context, id string, tail int64) (string, error
 	if tail <= 0 {
 		tail = 200
 	}
-	req := c.cs.CoreV1().Pods(ns).GetLogs("", &corev1.PodLogOptions{
+
+	pod, err := c.sandboxPod(ctx, ns)
+	if err != nil {
+		return "", err
+	}
+
+	req := c.cs.CoreV1().Pods(ns).GetLogs(pod, &corev1.PodLogOptions{
 		Container: containerName,
 		TailLines: &tail,
 	})
@@ -606,6 +612,29 @@ func (c *Client) Logs(ctx context.Context, id string, tail int64) (string, error
 		return "", fmt.Errorf("reading sandbox logs: %w", err)
 	}
 	return b.String(), nil
+}
+
+// sandboxPod returns the name of the pod running a sandbox.
+//
+// The name is read rather than built: a pod's is its Deployment's plus a suffix
+// the controller generates, and guessing that suffix is not possible. It is a
+// function of its own because the empty name it replaced could not be caught
+// where the logs are read — client-go's fake does not carry the pod name into
+// the action it dispatches for GetLogs, so a test there cannot see which pod
+// was asked for, while this can.
+func (c *Client) sandboxPod(ctx context.Context, ns string) (string, error) {
+	pods, err := c.cs.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{
+		LabelSelector: appLabelKey + "=" + sandboxName,
+	})
+	if err != nil {
+		return "", fmt.Errorf("finding the sandbox's pod: %w", err)
+	}
+	// One sandbox is one replica, which is what makes the first match the
+	// answer.
+	if len(pods.Items) == 0 {
+		return "", fmt.Errorf("the sandbox in %s has no pod yet", ns)
+	}
+	return pods.Items[0].Name, nil
 }
 
 // deploymentState reduces a Deployment to the state a caller cares about.

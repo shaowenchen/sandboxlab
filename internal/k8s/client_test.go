@@ -626,6 +626,111 @@ func TestLogsRequiresTheSandbox(t *testing.T) {
 	}
 }
 
+// TestLogsFailsWithoutAPod covers the path a missing-pod check exists for.
+//
+// It is a regression test for a real failure: the pod name was passed to
+// GetLogs as the empty string, so `sandbox logs` returned 500 for every
+// sandbox. A fake clientset does not reject an empty name and returns no
+// content, so the assertion is that the pod is looked up at all — with no pod
+// there is nothing to read, and saying so is the difference between the two
+// implementations.
+func TestLogsFailsWithoutAPod(t *testing.T) {
+	c := newClient()
+	ctx := context.Background()
+	if _, err := c.Create(ctx, CreateRequest{ID: "demo", Template: testTemplate()}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// Create writes a Deployment, and a real cluster's controller turns that
+	// into a Pod; nothing here plays that controller, so there is none.
+	if _, err := c.Logs(ctx, "demo", 100); err == nil {
+		t.Error("Logs with no pod returned no error; the pod name was never resolved")
+	} else if !strings.Contains(err.Error(), "no pod") {
+		t.Errorf("Logs with no pod = %v, want an error about the missing pod", err)
+	}
+}
+
+// TestSandboxPodReadsTheRunningPod asserts the pod is found in the cluster
+// rather than built from the Deployment's name — a pod's name carries a suffix
+// the controller generates, which nothing outside it can predict.
+func TestSandboxPodReadsTheRunningPod(t *testing.T) {
+	c := newClient()
+	ctx := context.Background()
+	if _, err := c.Create(ctx, CreateRequest{ID: "demo", Template: testTemplate()}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	const podName = "sandbox-7d9f8c4b5-x2jql"
+	if _, err := c.cs.CoreV1().Pods("sbx-demo").Create(ctx, &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   podName,
+			Labels: map[string]string{appLabelKey: sandboxName},
+		},
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("creating the pod: %v", err)
+	}
+
+	got, err := c.sandboxPod(ctx, "sbx-demo")
+	if err != nil {
+		t.Fatalf("sandboxPod: %v", err)
+	}
+	if got != podName {
+		t.Errorf("sandboxPod = %q, want %q", got, podName)
+	}
+}
+
+// TestSandboxPodIgnoresAnotherSandboxesPod asserts the lookup is by the label
+// the control plane sets, not by "whatever pod is in the namespace" — the
+// namespace holds one sandbox, and reading another's output would be a leak.
+func TestSandboxPodIgnoresUnrelatedPods(t *testing.T) {
+	c := newClient()
+	ctx := context.Background()
+	if _, err := c.Create(ctx, CreateRequest{ID: "demo", Template: testTemplate()}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	for _, pod := range []*corev1.Pod{
+		{ObjectMeta: metav1.ObjectMeta{Name: "someone-elses", Labels: map[string]string{"app": "other"}}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "sandbox-1", Labels: map[string]string{appLabelKey: sandboxName}}},
+	} {
+		if _, err := c.cs.CoreV1().Pods("sbx-demo").Create(ctx, pod, metav1.CreateOptions{}); err != nil {
+			t.Fatalf("creating %s: %v", pod.Name, err)
+		}
+	}
+
+	got, err := c.sandboxPod(ctx, "sbx-demo")
+	if err != nil {
+		t.Fatalf("sandboxPod: %v", err)
+	}
+	if got != "sandbox-1" {
+		t.Errorf("sandboxPod = %q, want sandbox-1", got)
+	}
+}
+
+// TestLogsSucceedsWithAPod is the other half: the lookup finds one, and the
+// stream is read. The content is the fake's placeholder — what is asserted is
+// that the path returns rather than erroring.
+func TestLogsSucceedsWithAPod(t *testing.T) {
+	c := newClient()
+	ctx := context.Background()
+	if _, err := c.Create(ctx, CreateRequest{ID: "demo", Template: testTemplate()}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if _, err := c.cs.CoreV1().Pods("sbx-demo").Create(ctx, &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "sandbox-abc-1",
+			Labels: map[string]string{appLabelKey: sandboxName},
+		},
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("creating the pod: %v", err)
+	}
+
+	// A tail of zero is the default path, and was in the same few lines as the
+	// bug this covers.
+	if _, err := c.Logs(ctx, "demo", 0); err != nil {
+		t.Errorf("Logs with a pod: %v", err)
+	}
+}
+
 func TestResourceQuantityValidation(t *testing.T) {
 	// A template with an unparseable quantity should fail the create with a
 	// message about the template, not a panic or a 500.
