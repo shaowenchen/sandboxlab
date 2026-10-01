@@ -106,6 +106,27 @@ helm-template:
 helm-check: helm-template
 	@hack/helm-check.sh
 
-.PHONY: package-chart
-package-chart:
-	hack/package-chart.sh
+# Package the chart into a Helm repository directory. Needs helm; the same
+# script CI runs, so a local publish and a published one cannot diverge.
+#   make chart-package VERSION=0.1.0-dev PAGES=./pages
+#
+# The version defaults to what this commit would publish — the same script CI
+# runs — rather than a literal here, so a chart packaged by hand cannot be
+# stamped with a version no image is published under.
+.PHONY: chart-package
+chart-package: PAGES ?= ./pages
+chart-package:
+	@mkdir -p $(PAGES)
+	./hack/package-chart.sh $${VERSION:-$$(./hack/chart-version.sh)} $${APP_VERSION:-$$(git rev-parse --short HEAD)} $(PAGES) $${REPO_URL:-https://www.chenshaowen.com/sandboxlab}
+
+# Render this repository's documentation into the static site published
+# alongside the chart. Needs no helm and no cluster: it reads the markdown and
+# writes HTML, and fails on a link that would be dead on the site.
+#   make docs PAGES=./pages
+.PHONY: docs
+docs: PAGES ?= ./pages
+docs:
+	@mkdir -p $(PAGES)
+	go run ./cmd/gendocs -dest $(PAGES) \
+		-repo $${REPO_URL:-https://github.com/shaowenchen/sandboxlab} \
+		-branch $${REPO_BRANCH:-main}

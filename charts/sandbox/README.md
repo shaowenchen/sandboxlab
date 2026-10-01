@@ -10,6 +10,18 @@ and no state to back up.
 
 ## Installing
 
+From the published repository:
+
+```bash
+helm repo add sandboxlab https://www.chenshaowen.com/sandboxlab
+helm repo update
+helm install sandbox sandboxlab/sandbox \
+  --namespace ops-system --create-namespace \
+  --set publicURL=https://sandbox.example.com
+```
+
+Or from a checkout:
+
 ```bash
 helm install sandbox ./charts/sandbox \
   --namespace ops-system --create-namespace \
@@ -41,7 +53,7 @@ kubectl -n ops-system get secret sandbox-apikey \
 
 Three routes reach the deployment, and you pick one:
 
-**A tunnel** — what the [sandboxlab action](../../action) does. `publicURL` is
+**A tunnel** — what the [sandboxlab action](../../action/README.md) does. `publicURL` is
 the tunnel's hostname, `basePath` is set, and `istio.enabled=true` writes the
 one VirtualService that puts the console and every sandbox behind it.
 

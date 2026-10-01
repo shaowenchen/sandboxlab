@@ -301,7 +301,14 @@ helm install sandbox ./charts/sandbox \
 ```
 
 See [charts/sandbox/README.md](charts/sandbox/README.md) for the values, the
-RBAC it needs, and what it does not create.
+RBAC it needs, and what it does not create. The chart is also published as a
+Helm repository at <https://www.chenshaowen.com/sandboxlab>, where that same
+README is the page you land on:
+
+```bash
+helm repo add sandboxlab https://www.chenshaowen.com/sandboxlab
+helm install sandbox sandboxlab/sandbox --namespace ops-system --create-namespace
+```
 
 To run the whole environment by hand — a cluster, a gateway, the control plane —
 without GitHub Actions:
@@ -326,6 +333,23 @@ hack/action-check.sh   # the action's inputs reach the script
 `make check` needs no cluster: every test runs against a fake clientset. The
 end-to-end job in [.github/workflows/ci.yml](.github/workflows/ci.yml) is the one
 that starts a real environment, and it is where the cluster behaviour is proved.
+
+## Publishing
+
+The Helm chart and the documentation are published together to a `gh-pages`
+branch by [.github/workflows/pages.yml](.github/workflows/pages.yml), on every
+push to the default branch and on every tag. They share a branch, so they share
+a workflow: the packaged chart is `helm repo add`-able from that branch, and the
+page you land on from it is the chart's README, rendered.
+
+```bash
+make chart-package PAGES=./pages   # helm package + helm repo index
+make docs PAGES=./pages            # render the markdown into the site
+```
+
+`make docs` reads the repository's own markdown rather than a second copy kept
+in step by hand, and fails on a link that would be dead on the site — so the
+site cannot disagree with the repository.
 
 Most of the tests are over the seams rather than inside the packages — the API
 against a stub, the proxy through the real router, and an integration test that

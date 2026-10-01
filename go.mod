@@ -4,6 +4,7 @@ go 1.26.1
 
 require (
 	github.com/spf13/cobra v1.10.2
+	github.com/yuin/goldmark v1.8.6
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.37.0
 	k8s.io/apimachinery v0.37.0
