@@ -53,8 +53,17 @@ spec:
             host: {{ include "sandbox.fullname" . }}.{{ include "sandbox.namespace" . }}.svc.cluster.local
             port:
               number: {{ .Values.service.port }}
-      # No timeout. The data-plane proxy streams a sandbox's output, and the
-      # Envoy default of 15s would cut a long-running command off mid-line —
-      # which looks like the sandbox failing rather than the route deciding.
-      timeout: 0s
+      # No timeout is set, deliberately, and that is not the same as leaving the
+      # field to a default. Istio's route translation sets a zero timeout on
+      # every route unless the VirtualService names one, which is what overrides
+      # Envoy's own 15s default — so omitting the field is how this route is
+      # made to never cut a request off. The data-plane proxy streams a sandbox's
+      # output, and a 15s ceiling would truncate a long-running command
+      # mid-line, which looks like the sandbox failing rather than the route
+      # deciding.
+      #
+      # Written as an omission rather than `timeout: 0s`, which is the same
+      # intent but no longer accepted: Istio validates a timeout that is present
+      # against "a valid duration greater than 1ms", so the explicit zero is
+      # rejected at admission.
 {{- end }}

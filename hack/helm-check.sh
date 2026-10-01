@@ -142,7 +142,23 @@ has "$istio" 'kind: VirtualService' "a VirtualService is rendered"
 has "$istio" '- "istio-system/ingressgateway"' "it attaches to the named Gateway"
 has "$istio" 'prefix: "/sandbox/"' "it matches the base path"
 has "$istio" 'host: sandbox.ops-system.svc.cluster.local' "it routes to the control plane's Service"
-has "$istio" 'timeout: 0s' "it does not cut a long-lived sandbox request off"
+
+# The route must carry no timeout, which is how Istio is made to never cut a
+# streamed sandbox request off: its route translation sets a zero timeout unless
+# the VirtualService names one, overriding Envoy's own 15s default.
+#
+# Anchored to the chart's own indentation and stripped of comments, because an
+# unanchored `timeout:` also matches the comment above the field — which is
+# where the last bug hid: `timeout: 0s` was there for real, Istio 1.24 refused
+# it at admission ("must be a valid duration greater than 1ms"), and the install
+# failed on a route that rendered perfectly.
+render_timeout=$(sed 's/#.*//' <<<"$istio" \
+  | grep -cE '^( +|\t*)timeout:' || true)
+if [ "$render_timeout" -eq 0 ]; then
+  ok "no timeout is set, so a streamed sandbox request is never cut off"
+else
+  bad "the route sets a timeout; a streamed sandbox request would be cut off"
+fi
 
 # Without a gateway the chart should refuse, not render something that attaches
 # to nothing — a VirtualService with an empty gateway is accepted by the API
