@@ -1,5 +1,5 @@
 # Start a complete sandbox environment by hand and get a link.
-#   gh workflow run sandboxlab.yml
+#   gh workflow run debugger.yml
 #
 # The run's Summary carries the console link and the API key. Open the console,
 # create a sandbox, and you are in a shell/browser/desktop workspace within
@@ -9,7 +9,7 @@
 # Manual only, deliberately. It holds a runner for the whole session and starts a
 # real cluster and a gateway, which is far too much to spend on every push — and
 # the checks that run on every push are what ci.yml is for.
-name: sandboxlab
+name: debugger
 
 on:
   workflow_dispatch:
@@ -38,13 +38,19 @@ on:
           - 'ngrok'
       domain:
         description: 'Domain'
-        type: string
-        # The same default the action declares. Named rather than empty so a run
-        # serves a domain that was chosen, not a hostname minted for that one
-        # connection — which means the named tunnel is the expected path, and a
-        # run without CLOUDFLARE_TOKEN stops rather than quietly publishing a
-        # quick tunnel's address instead.
-        default: 'sandboxlab.chenshaowen.com'
+        type: choice
+        # A list, because only two hostnames have a Cloudflare public hostname
+        # pointing at the tunnel. A name that is not one of them is not a
+        # smaller mistake than a typo elsewhere: the edge accepts the hostname
+        # and nothing answers for it, so the run publishes a link that returns
+        # 530. Free text made that a two-minute debugging session.
+        #
+        # Both are real Cloudflare ingress entries; if a third is added there,
+        # it belongs here as a third option.
+        default: 'sandboxlab-1.chenshaowen.com'
+        options:
+          - 'sandboxlab-1.chenshaowen.com'
+          - 'sandboxlab-2.chenshaowen.com'
 
 permissions:
   contents: read

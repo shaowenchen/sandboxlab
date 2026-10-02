@@ -47,7 +47,13 @@ inputs:
     # expected path — a quick tunnel cannot be given this name, so a run with
     # cloudflare_token unset stops and says so rather than quietly publishing
     # somewhere else. Set it empty to go back to a quick tunnel's own hostname.
-    default: 'sandboxlab.chenshaowen.com'
+    #
+    # It stays free text here. A composite action cannot declare a dropdown —
+    # `type: choice` is a workflow_dispatch feature — so the list of hostnames
+    # that actually have a Cloudflare public hostname lives in the workflow that
+    # offers this, .github/workflows/debugger.yml. This is the same value that
+    # workflow's first option passes.
+    default: 'sandboxlab-1.chenshaowen.com'
   ngrok_token:
     description: 'ngrok authtoken. Required when tunnel is ngrok.'
     required: false

@@ -78,8 +78,8 @@ done
 
 # ── the workflow offers what the action accepts ─────────────────────────────
 
-printf '\n\033[1mthe sandboxlab workflow only passes inputs the action declares\033[0m\n'
-workflow="$REPO_ROOT/.github/workflows/sandboxlab.yml"
+printf '\n\033[1mthe debugger workflow only passes inputs the action declares\033[0m\n'
+workflow="$REPO_ROOT/.github/workflows/debugger.yml"
 # `with:` entries under the `uses: ./action` step.
 passed=$(awk '/uses: \.\/action/{f=1} f && /^          [a-z_]+:/{ sub(/^ +/, ""); sub(/:.*/, ""); print }' "$workflow")
 for key in $passed; do
@@ -89,6 +89,46 @@ for key in $passed; do
     bad "the workflow passes $key, which the action does not declare"
   fi
 done
+
+# ── the two places that name a domain agree ─────────────────────────────────
+
+# The action's default and the workflow's first option are the same value
+# written twice, because a composite action cannot declare a choice and a
+# workflow cannot read the action's defaults. Acting on one and not the other
+# is the drift: change the action's default and a run started from `uses:` —
+# or from any workflow that does not pass a domain — serves a different
+# hostname than one started from this repository's own workflow.
+printf '\n\033[1mthe action default and the workflow list agree\033[0m\n'
+
+worked_domain_default=$(awk '
+  /^      domain:/{f=1; next}
+  f && /^        default:/{ sub(/^ *default: */, ""); gsub(/'"'"'/, ""); print; exit }
+' "$workflow")
+action_domain_default=$(awk '
+  /^  domain:/{f=1; next}
+  f && /^    default:/{ sub(/^ *default: */, ""); gsub(/'"'"'/, ""); print; exit }
+' "$ACTION")
+
+if [ -z "$worked_domain_default" ] || [ -z "$action_domain_default" ]; then
+  bad "could not read a domain default from $ACTION or $workflow"
+elif [ "$action_domain_default" = "$worked_domain_default" ]; then
+  ok "both default to $action_domain_default"
+else
+  bad "the action defaults to $action_domain_default, the workflow to $worked_domain_default"
+fi
+
+# And the default is one of the options, which is the failure a list makes
+# possible: a default edited to a name that is not offered.
+if awk '
+  /^      domain:/{f=1; next}
+  f && /^      [a-z_]+:/{exit}
+  f && /^          - /{ sub(/^ *- */, ""); gsub(/'"'"'/, ""); if ($0 == want) found=1 }
+  END{ exit !found }
+' want="$worked_domain_default" "$workflow"; then
+  ok "the default is one of the options"
+else
+  bad "$worked_domain_default is the default but not one of the options"
+fi
 
 printf '\n\033[1m%d check(s) failed\033[0m\n' "$fail"
 [ "$fail" -eq 0 ]

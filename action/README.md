@@ -67,7 +67,7 @@ routes from a sandbox's: the console at `<domain>/sandbox`, a sandbox at
 | `session_hours` | `4` | How long the environment may run. `0` means no self-imposed limit, bounded by the job's timeout. |
 | `tunnel` | `cloudflare` | `cloudflare` (no account needed) or `ngrok`. |
 | `cloudflare_token` | — | Token of a named Cloudflare tunnel; empty starts a quick tunnel. |
-| `domain` | `sandboxlab.chenshaowen.com` | The domain the console is served under. Named by default, and explained below. |
+| `domain` | `sandboxlab-1.chenshaowen.com` | The domain the console is served under. Named by default, and explained below. |
 | `ngrok_token` | — | ngrok authtoken; required when `tunnel` is `ngrok`. |
 | `base_path` | `/sandbox` | The path the deployment is served under. |
 | `default_ttl` | `1h` | How long a sandbox lives when it asks for nothing else. |
@@ -79,9 +79,15 @@ particular one, and the token is a credential and never a plain input.
 
 ## The domain, and the named tunnel it needs
 
-`domain` defaults to `sandboxlab.chenshaowen.com`, and it is used as given: it
+`domain` defaults to `sandboxlab-1.chenshaowen.com`, and it is used as given: it
 becomes the control plane's `publicURL`, which is both where the console lives
 and what every sandbox's address is built from.
+
+The action takes it as free text — a composite action cannot declare a dropdown,
+because `type: choice` is a `workflow_dispatch` feature — but the workflow that
+offers this one, [`.github/workflows/debugger.yml`](../.github/workflows/debugger.yml),
+turns it into a choice of the hostnames that have a Cloudflare public hostname
+behind the tunnel. Anything else resolves to nothing and answers 530.
 
 This is app configuration, not tunnel configuration. Nothing is passed to
 `cloudflared` on this path — a named tunnel already knows its ingress, because
