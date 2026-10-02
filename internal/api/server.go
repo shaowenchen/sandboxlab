@@ -80,6 +80,21 @@ type Server struct {
 	log   *slog.Logger
 	mux   *http.ServeMux
 	start time.Time
+
+	// declared is every route this server registered, recorded as it was. It is
+	// what Routes() reports and therefore what the spec is checked against —
+	// kept beside registration so the two cannot drift.
+	declared []declaredRoute
+}
+
+// declaredRoute is a registration Routes() can report.
+type declaredRoute struct {
+	// pattern is what the mux was given.
+	pattern string
+	// documented is the shape the spec describes, which is the same string
+	// except for a mount whose interior the handler parses itself.
+	documented string
+	methods    []string
 }
 
 // New builds the server and its routes.
@@ -97,6 +112,60 @@ func New(d Deps) *Server {
 	return s
 }
 
+// methods applies the method dispatch that the by-id handlers do themselves,
+// and refuses the rest.
+//
+// It exists so that a route which serves more than GET — /api/v1/sandboxes
+// takes GET and POST, /api/v1/users/{name} takes four — says so in one place
+// rather than inside a switch a reader has to go find. What it enables is
+// Routes(), below: without a declaration there is nothing for the spec check to
+// compare against, and the spec would be free to describe a method this server
+// does not answer.
+func methods(allowed string, m map[string]http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if h, ok := m[r.Method]; ok {
+			h(w, r)
+			return
+		}
+		w.Header().Set("Allow", allowed)
+		writeJSON(w, http.StatusMethodNotAllowed, errorBody{Error: r.Method + " is not supported here"})
+	}
+}
+
+// handle registers a route and records it, so Routes() cannot disagree with
+// what was actually registered. The pattern is both what the mux is given and
+// what the spec knows the route by.
+func (s *Server) handle(pattern, allowed string, m map[string]http.HandlerFunc) {
+	s.declared = append(s.declared, declaredRoute{
+		pattern:    pattern,
+		documented: pattern,
+		methods:    strings.Split(allowed, ", "),
+	})
+	s.mux.HandleFunc(pattern, methods(allowed, m))
+}
+
+// handleAny registers a route that takes every method and whose interior the
+// handler parses itself, so the pattern the mux gets is a mount point rather
+// than the shape a caller sees.
+//
+// The data plane is the one of those. It forwards to a sandbox's own port, and
+// the methods there belong to whatever the sandbox runs — the all-in-one
+// image's API is driven entirely by POSTs — so this API cannot list them
+// without being wrong about someone else's program. What it can say is the
+// shape, which is what documented names: "/sandbox/{id}/{port}/...".
+//
+// Declared rather than assumed, so a future mount has to state its shape for
+// the spec check to compare against. A mount that quietly answered more than
+// the spec describes is exactly what that check exists to catch.
+func (s *Server) handleAny(pattern, documented string, h http.HandlerFunc) {
+	s.declared = append(s.declared, declaredRoute{
+		pattern:    pattern,
+		documented: documented,
+		methods:    []string{"*"},
+	})
+	s.mux.HandleFunc(pattern, h)
+}
+
 // routes registers everything. Patterns are written root-relative; the base
 // path is stripped once, in ServeHTTP, so no handler has to know the deployment
 // is served under a prefix — and a handler cannot forget to.
@@ -104,38 +173,53 @@ func (s *Server) routes(d Deps) {
 	// Unauthenticated. A health check comes from a kubelet that has no key, and
 	// the describe endpoint is what a client reads to learn the API's shape
 	// before it has been given one.
-	s.mux.HandleFunc("/healthz", s.health)
-	s.mux.HandleFunc("/readyz", s.ready)
-	s.mux.HandleFunc("/api/v1/describe", s.describe)
-	s.mux.HandleFunc("/api/v1/config", s.getConfig)
+	s.handle("/healthz", "GET", map[string]http.HandlerFunc{"GET": s.health})
+	s.handle("/readyz", "GET", map[string]http.HandlerFunc{"GET": s.ready})
+	s.handle("/api/v1/describe", "GET", map[string]http.HandlerFunc{"GET": s.describe})
+	s.handle("/api/v1/config", "GET", map[string]http.HandlerFunc{"GET": s.getConfig})
 
 	// Who am I. Authenticated, and the one route a console needs to decide
 	// which of its two views to draw.
-	s.mux.HandleFunc("/api/v1/whoami", s.authenticated(s.whoami))
+	s.handle("/api/v1/whoami", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.whoami)})
 
 	// The sandboxes. A user sees their own and an administrator sees all of
 	// them, from the same routes — the difference is the identity, not the URL.
-	s.mux.HandleFunc("/api/v1/catalog", s.authenticated(s.listCatalog))
-	s.mux.HandleFunc("/api/v1/catalog/{id}", s.authenticated(s.getCatalogEntry))
-	s.mux.HandleFunc("/api/v1/overview", s.authenticated(s.overview))
-	s.mux.HandleFunc("/api/v1/sandboxes", s.authenticated(s.sandboxes))
-	s.mux.HandleFunc("/api/v1/sandboxes/{id}", s.authenticated(s.sandboxByID))
-	s.mux.HandleFunc("/api/v1/sandboxes/{id}/renew", s.authenticated(s.renewSandbox))
-	s.mux.HandleFunc("/api/v1/sandboxes/{id}/logs", s.authenticated(s.sandboxLogs))
+	s.handle("/api/v1/catalog", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.listCatalog)})
+	s.handle("/api/v1/catalog/{id}", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.getCatalogEntry)})
+	s.handle("/api/v1/overview", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.overview)})
+	s.handle("/api/v1/sandboxes", "GET, POST", map[string]http.HandlerFunc{
+		"GET":  s.authenticated(s.sandboxes),
+		"POST": s.authenticated(s.sandboxes),
+	})
+	s.handle("/api/v1/sandboxes/{id}", "GET, DELETE", map[string]http.HandlerFunc{
+		"GET":    s.authenticated(s.sandboxByID),
+		"DELETE": s.authenticated(s.sandboxByID),
+	})
+	s.handle("/api/v1/sandboxes/{id}/renew", "POST", map[string]http.HandlerFunc{"POST": s.authenticated(s.renewSandbox)})
+	s.handle("/api/v1/sandboxes/{id}/logs", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.sandboxLogs)})
 
 	// User management. Administrator only — enforced in the handler wrapper, so
 	// a route added here without it is the only way to get it wrong, and it is
 	// one line away rather than a check inside each handler.
 	if s.users != nil {
-		s.mux.HandleFunc("/api/v1/users", s.adminOnly(s.users_))
-		s.mux.HandleFunc("/api/v1/users/{name}", s.adminOnly(s.userByName))
-		s.mux.HandleFunc("/api/v1/users/{name}/key", s.adminOnly(s.userKey))
+		s.handle("/api/v1/users", "GET, POST", map[string]http.HandlerFunc{
+			"GET":  s.adminOnly(s.users_),
+			"POST": s.adminOnly(s.users_),
+		})
+		s.handle("/api/v1/users/{name}", "GET, PATCH, PUT, DELETE", map[string]http.HandlerFunc{
+			"GET":    s.adminOnly(s.userByName),
+			"PATCH":  s.adminOnly(s.userByName),
+			"PUT":    s.adminOnly(s.userByName),
+			"DELETE": s.adminOnly(s.userByName),
+		})
+		s.handle("/api/v1/users/{name}/key", "POST", map[string]http.HandlerFunc{"POST": s.adminOnly(s.userKey)})
 	}
 
 	// The data plane: a browser opens these directly, so the key may come from
-	// the query string as well as a header.
+	// the query string as well as a header. Every method is forwarded — see
+	// handleAny.
 	if d.DataPlane != nil && s.cfg.DataPlane {
-		s.mux.HandleFunc("/sandbox/", s.dataPlane(d.DataPlane))
+		s.handleAny("/sandbox/", "/sandbox/{id}/{port}/", s.dataPlane(d.DataPlane))
 	}
 
 	// The console is the fallback, so a client-side route inside it resolves on
@@ -155,11 +239,39 @@ func (s *Server) routes(d Deps) {
 	// The earlier note here said the opposite, on the reasoning that a readable
 	// console "would list every sandbox to anyone who found the hostname". It
 	// would not: listing is an API call, and the API still answers 401.
+	//
+	// Registered directly rather than through handle(): it answers every path in
+	// the deployment, so it is the backdrop rather than a route, and Routes()
+	// leaves it out.
 	if d.Console != nil {
 		s.mux.Handle("/", d.Console)
 	} else {
 		s.mux.HandleFunc("/", s.placeholder())
 	}
+}
+
+// Route is one thing this server answers: the shape a caller sees, and the
+// methods it accepts there.
+type Route struct {
+	Pattern string
+	Methods []string
+}
+
+// Routes lists every route the server registered, in registration order, root
+// relative and without the deployment's base path.
+//
+// The spec check reads this and compares it against api/openapi.yaml, which is
+// what makes "the spec is the source of truth" a property rather than a claim:
+// a route the spec describes and this does not register is a client generated
+// against an endpoint that does not exist, and a route registered here and not
+// in the spec is one nobody can discover. Neither is visible from either side
+// alone.
+func (s *Server) Routes() []Route {
+	out := make([]Route, 0, len(s.declared))
+	for _, r := range s.declared {
+		out = append(out, Route{Pattern: r.documented, Methods: append([]string(nil), r.methods...)})
+	}
+	return out
 }
 
 // ServeHTTP strips the deployment's base path and dispatches.
