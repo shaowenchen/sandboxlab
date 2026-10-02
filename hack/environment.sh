@@ -43,8 +43,9 @@ RUNTIME_DIR="$SANDBOXLAB_RUNTIME_DIR"
 mkdir -p "$RUNTIME_DIR"
 TUNNEL_LOG="$RUNTIME_DIR/tunnel.log"
 RESULT_ENV="$RUNTIME_DIR/result.env"
-# What summary.sh reads. It is written and rewritten as facts are learned, so a
-# run that fails partway still explains as much as it got to.
+# What summary.sh reads. It is written and rewritten as facts are learned, and
+# published once the environment is ready — so a run that fails partway still
+# has every fact it got to, printed by the summary step that always runs.
 : > "$RESULT_ENV"
 
 # ── output ──────────────────────────────────────────────────────────────────
@@ -563,9 +564,55 @@ show "the sandboxes" kubectl get namespaces -l app.kubernetes.io/managed-by=sand
 
 # ── 9. publish ──────────────────────────────────────────────────────────────
 
+# The tunnel comes up now rather than at the start. Everything above is the
+# cluster's own business and is already proven — the pods, the Service, the
+# VirtualService and the API's answers — so a tunnel that fails here fails on
+# its own, and cannot be mistaken for the platform not having come up. The
+# exception is a quick tunnel or ngrok, whose hostname had to be known before
+# the control plane was installed; the earlier resolve started that one already,
+# and open_tunnel notices and does nothing.
 if [ -z "$SANDBOXLAB_PUBLIC_HOST" ] && [ -z "${tunnel_pid:-}" ]; then
   open_tunnel
 fi
+
+# The summary, and the banner below, are published from here rather than from a
+# step after this script. The script holds the session open for hours, so a step
+# that ran once it returned would leave the run's Summary — where the console
+# link and the API key live — empty for the whole session, which is exactly when
+# someone is looking for them. Publishing before the wait is also what makes the
+# deliverable exist at all: everything anyone needs is printed while the
+# environment is up, not after it is gone.
+#
+# summary.sh prints what environment.sh recorded, rather than deriving anything,
+# so what appears is what this process actually learned.
+bash "$REPO_ROOT/hack/summary.sh"
+
+# The same facts again, unmissably, in the log. The Summary is a tab someone has
+# to know to open; a run is read by scrolling, and a key that only exists in the
+# tab is a key nobody finds. This is what makes the link and the key part of the
+# run's own output.
+cat <<EOF
+
+=====================================================================
+ sandboxlab is ready
+
+   Console:  ${PUBLIC_URL}${SANDBOXLAB_BASE_PATH}
+   API key:  ${API_KEY}
+
+   The console asks for that address and this key; both are kept in your
+   browser. A sandbox is served under
+   ${PUBLIC_URL}${SANDBOXLAB_BASE_PATH}/sandbox/<name>/<port>/.
+
+   Create one from the CLI:
+
+     export SANDBOX_URL='${PUBLIC_URL}${SANDBOXLAB_BASE_PATH}'
+     export SANDBOX_KEY='${API_KEY}'
+     sandbox catalog
+     sandbox create -t all-in-one --name demo --wait
+     sandbox url demo
+
+=====================================================================
+EOF
 
 # ── 10. stay up ─────────────────────────────────────────────────────────────
 

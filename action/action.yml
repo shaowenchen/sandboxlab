@@ -180,9 +180,16 @@ runs:
         # different places.
         exec bash "${{ github.action_path }}/../hack/environment.sh"
 
-    - name: Publish the summary
-      # always(), so a run that failed partway still reports what it learned —
-      # a link that works and an error above it is more useful than neither.
+    - name: Publish the summary if the environment never got to it
+      # A backstop, not the publish. environment.sh prints the summary itself
+      # once the environment is ready, because it then holds the session open
+      # for hours and a step after it would not run until the session was over —
+      # leaving the Summary empty for exactly the hours someone is using it.
+      #
+      # This step is `always()`, so it also covers the run that failed before
+      # reaching that point. It reprints from the result file the script wrote,
+      # so it says what the run had rather than repeating it: the two share one
+      # source, and the text is the same when both run.
       if: always()
       shell: bash
       env:
