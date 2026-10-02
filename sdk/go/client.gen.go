@@ -196,7 +196,7 @@ type Sandbox struct {
 	Template string `json:"template"`
 }
 
-// SandboxList Every sandbox the caller may see, and how many that is.
+// SandboxList Every sandbox in the deployment, and how many that is.
 //
 // Counted as well as listed because the two are not always the same
 // question: a console renders the list, and a script that only wants to
@@ -377,7 +377,7 @@ type ClientInterface interface {
 	// Corresponds with GET /api/v1/overview (the `GetOverview` operationId).
 	GetOverview(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListSandboxes Every sandbox you may see
+	// ListSandboxes Every sandbox in the deployment
 	//
 	// Corresponds with GET /api/v1/sandboxes (the `ListSandboxes` operationId).
 	ListSandboxes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -536,7 +536,7 @@ func (c *Client) GetOverview(ctx context.Context, reqEditors ...RequestEditorFn)
 	return c.Client.Do(req)
 }
 
-// ListSandboxes Every sandbox you may see
+// ListSandboxes Every sandbox in the deployment
 //
 // Corresponds with GET /api/v1/sandboxes (the `ListSandboxes` operationId).
 func (c *Client) ListSandboxes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1284,7 +1284,7 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/v1/overview (the `GetOverview` operationId).
 	GetOverviewWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetOverviewResponse, error)
 
-	// ListSandboxesWithResponse Every sandbox you may see
+	// ListSandboxesWithResponse Every sandbox in the deployment
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -2171,7 +2171,7 @@ func (c *ClientWithResponses) GetOverviewWithResponse(ctx context.Context, reqEd
 	return ParseGetOverviewResponse(rsp)
 }
 
-// ListSandboxesWithResponse Every sandbox you may see
+// ListSandboxesWithResponse Every sandbox in the deployment
 //
 // Returns a wrapper object for the known response body format(s).
 //
