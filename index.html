@@ -209,8 +209,11 @@ share an address without a second hostname.</p>
 <ul>
 <li><code>namespaces</code>: get, list, watch, create, update, patch, delete</li>
 <li><code>deployments</code>, <code>services</code>, <code>resourcequotas</code>, <code>limitranges</code>, <code>pods</code>,
-<code>configmaps</code>, <code>secrets</code>, <code>persistentvolumeclaims</code>, <code>pods/log</code>,
-<code>networkpolicies</code>: the full set, inside the namespaces it creates</li>
+<code>configmaps</code>, <code>persistentvolumeclaims</code>, <code>pods/log</code>, <code>networkpolicies</code>: the
+full set, inside the namespaces it creates</li>
+<li><code>secrets</code>: <strong>get only</strong>. Nothing in the process writes a Secret — the key is
+created at install and read from the environment — so the grant stopped at
+read rather than being widened to the set above out of habit.</li>
 </ul>
 <p><code>delete</code> on namespaces is the one worth reviewing: deleting a namespace
 reclaims everything in it. That is the design — one operation, nothing to miss —
