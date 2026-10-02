@@ -193,7 +193,7 @@ export interface SandboxesApiInterface {
 
     /**
      * 
-     * @summary Every sandbox you may see
+     * @summary Every sandbox in the deployment
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof SandboxesApiInterface
@@ -201,7 +201,7 @@ export interface SandboxesApiInterface {
     listSandboxesRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<SandboxList>>;
 
     /**
-     * Every sandbox you may see
+     * Every sandbox in the deployment
      */
     listSandboxes(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<SandboxList>;
 
@@ -586,7 +586,7 @@ export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterfa
     }
 
     /**
-     * Every sandbox you may see
+     * Every sandbox in the deployment
      */
     async listSandboxesRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<SandboxList>> {
         const queryParameters: any = {};
@@ -619,7 +619,7 @@ export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterfa
     }
 
     /**
-     * Every sandbox you may see
+     * Every sandbox in the deployment
      */
     async listSandboxes(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<SandboxList> {
         const response = await this.listSandboxesRaw(initOverrides);

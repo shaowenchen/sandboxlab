@@ -95,7 +95,7 @@ Class | Method | HTTP request | Description
 *SandboxesApi* | [**get_sandbox**](docs/SandboxesApi.md#get_sandbox) | **GET** /api/v1/sandboxes/{id} | One sandbox
 *SandboxesApi* | [**get_sandbox_logs**](docs/SandboxesApi.md#get_sandbox_logs) | **GET** /api/v1/sandboxes/{id}/logs | The tail of a sandbox&#39;s output
 *SandboxesApi* | [**list_catalog**](docs/SandboxesApi.md#list_catalog) | **GET** /api/v1/catalog | The templates a sandbox can be created from
-*SandboxesApi* | [**list_sandboxes**](docs/SandboxesApi.md#list_sandboxes) | **GET** /api/v1/sandboxes | Every sandbox you may see
+*SandboxesApi* | [**list_sandboxes**](docs/SandboxesApi.md#list_sandboxes) | **GET** /api/v1/sandboxes | Every sandbox in the deployment
 *SandboxesApi* | [**proxy_to_sandbox**](docs/SandboxesApi.md#proxy_to_sandbox) | **GET** /sandbox/{id}/{port}/ | Proxy to a sandbox&#39;s own port
 *SandboxesApi* | [**renew_sandbox**](docs/SandboxesApi.md#renew_sandbox) | **POST** /api/v1/sandboxes/{id}/renew | Reset a sandbox&#39;s lifetime, measured from now
 

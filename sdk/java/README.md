@@ -128,8 +128,8 @@ Class | Method | HTTP request | Description
 *SandboxesApi* | [**getSandboxLogsWithHttpInfo**](docs/SandboxesApi.md#getSandboxLogsWithHttpInfo) | **GET** /api/v1/sandboxes/{id}/logs | The tail of a sandbox&#39;s output
 *SandboxesApi* | [**listCatalog**](docs/SandboxesApi.md#listCatalog) | **GET** /api/v1/catalog | The templates a sandbox can be created from
 *SandboxesApi* | [**listCatalogWithHttpInfo**](docs/SandboxesApi.md#listCatalogWithHttpInfo) | **GET** /api/v1/catalog | The templates a sandbox can be created from
-*SandboxesApi* | [**listSandboxes**](docs/SandboxesApi.md#listSandboxes) | **GET** /api/v1/sandboxes | Every sandbox you may see
-*SandboxesApi* | [**listSandboxesWithHttpInfo**](docs/SandboxesApi.md#listSandboxesWithHttpInfo) | **GET** /api/v1/sandboxes | Every sandbox you may see
+*SandboxesApi* | [**listSandboxes**](docs/SandboxesApi.md#listSandboxes) | **GET** /api/v1/sandboxes | Every sandbox in the deployment
+*SandboxesApi* | [**listSandboxesWithHttpInfo**](docs/SandboxesApi.md#listSandboxesWithHttpInfo) | **GET** /api/v1/sandboxes | Every sandbox in the deployment
 *SandboxesApi* | [**proxyToSandbox**](docs/SandboxesApi.md#proxyToSandbox) | **GET** /sandbox/{id}/{port}/ | Proxy to a sandbox&#39;s own port
 *SandboxesApi* | [**proxyToSandboxWithHttpInfo**](docs/SandboxesApi.md#proxyToSandboxWithHttpInfo) | **GET** /sandbox/{id}/{port}/ | Proxy to a sandbox&#39;s own port
 *SandboxesApi* | [**renewSandbox**](docs/SandboxesApi.md#renewSandbox) | **POST** /api/v1/sandboxes/{id}/renew | Reset a sandbox&#39;s lifetime, measured from now

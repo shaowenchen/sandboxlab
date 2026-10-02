@@ -1930,7 +1930,7 @@ class SandboxesApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> SandboxList:
-        """Every sandbox you may see
+        """Every sandbox in the deployment
 
 
         :param _request_timeout: timeout setting for this request. If one
@@ -1993,7 +1993,7 @@ class SandboxesApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> ApiResponse[SandboxList]:
-        """Every sandbox you may see
+        """Every sandbox in the deployment
 
 
         :param _request_timeout: timeout setting for this request. If one
@@ -2056,7 +2056,7 @@ class SandboxesApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> RESTResponseType:
-        """Every sandbox you may see
+        """Every sandbox in the deployment
 
 
         :param _request_timeout: timeout setting for this request. If one

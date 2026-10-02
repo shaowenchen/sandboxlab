@@ -56,7 +56,7 @@ All URIs are relative to *https://sandboxlab.example.com/sandbox*
 *SandboxesApi* | [**getSandbox**](docs/SandboxesApi.md#getsandbox) | **GET** /api/v1/sandboxes/{id} | One sandbox
 *SandboxesApi* | [**getSandboxLogs**](docs/SandboxesApi.md#getsandboxlogs) | **GET** /api/v1/sandboxes/{id}/logs | The tail of a sandbox\&#39;s output
 *SandboxesApi* | [**listCatalog**](docs/SandboxesApi.md#listcatalog) | **GET** /api/v1/catalog | The templates a sandbox can be created from
-*SandboxesApi* | [**listSandboxes**](docs/SandboxesApi.md#listsandboxes) | **GET** /api/v1/sandboxes | Every sandbox you may see
+*SandboxesApi* | [**listSandboxes**](docs/SandboxesApi.md#listsandboxes) | **GET** /api/v1/sandboxes | Every sandbox in the deployment
 *SandboxesApi* | [**proxyToSandbox**](docs/SandboxesApi.md#proxytosandbox) | **GET** /sandbox/{id}/{port}/ | Proxy to a sandbox\&#39;s own port
 *SandboxesApi* | [**renewSandbox**](docs/SandboxesApi.md#renewsandboxoperation) | **POST** /api/v1/sandboxes/{id}/renew | Reset a sandbox\&#39;s lifetime, measured from now
 

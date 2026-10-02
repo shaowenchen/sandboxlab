@@ -967,7 +967,7 @@ public class SandboxesApi {
   }
 
   /**
-   * Every sandbox you may see
+   * Every sandbox in the deployment
    * 
    * @return SandboxList
    * @throws ApiException if fails to make API call
@@ -977,7 +977,7 @@ public class SandboxesApi {
   }
 
   /**
-   * Every sandbox you may see
+   * Every sandbox in the deployment
    * 
    * @param headers Optional headers to include in the request
    * @return SandboxList
@@ -989,7 +989,7 @@ public class SandboxesApi {
   }
 
   /**
-   * Every sandbox you may see
+   * Every sandbox in the deployment
    * 
    * @return ApiResponse&lt;SandboxList&gt;
    * @throws ApiException if fails to make API call
@@ -999,7 +999,7 @@ public class SandboxesApi {
   }
 
   /**
-   * Every sandbox you may see
+   * Every sandbox in the deployment
    * 
    * @param headers Optional headers to include in the request
    * @return ApiResponse&lt;SandboxList&gt;
