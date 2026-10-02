@@ -79,6 +79,17 @@ type Client struct {
 	cs  kubernetes.Interface
 	cfg config.Config
 	now func() time.Time
+
+	// rc is the rest config the clientset was built from. It is kept for exec
+	// alone: everything else goes through the clientset, and only the upgraded
+	// connection of pods/exec needs the transport underneath it. nil when the
+	// client was built over an injected clientset.
+	rc *rest.Config
+
+	// runner overrides the real executor. nil means "build one from rc" — see
+	// execRunner. It exists because neither the clientset interface nor its
+	// fake can exec.
+	runner Runner
 }
 
 // New builds a client from the resolved configuration.
@@ -96,10 +107,18 @@ func New(cfg config.Config) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("building the Kubernetes client: %w", err)
 	}
-	return NewWithClientset(cs, cfg), nil
+	// NewForConfig mutates the config it is given — it installs rate limiters
+	// and wraps the transport — so the copy kept for exec is taken from what it
+	// returns rather than sharing its mutable state with the clientset's.
+	return &Client{cs: cs, cfg: cfg, now: time.Now, rc: rest.CopyConfig(rc)}, nil
 }
 
 // NewWithClientset builds a client over an injected clientset, for tests.
+//
+// It carries no rest config, so exec is unavailable unless a runner is
+// installed with WithRunner. That is deliberate: the fake clientset cannot
+// exec, and a client that quietly fell back to the real transport would try to
+// reach a cluster the test never had.
 func NewWithClientset(cs kubernetes.Interface, cfg config.Config) *Client {
 	return &Client{cs: cs, cfg: cfg, now: time.Now}
 }

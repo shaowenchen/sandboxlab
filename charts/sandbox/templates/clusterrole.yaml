@@ -52,6 +52,17 @@ rules:
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get"]
+  # Running a command inside a sandbox, which is what `sandbox exec` and the
+  # file endpoints are built on. A subresource again, and separate from `pods`
+  # for the same reason `pods/log` is — this is the one grant here that lets the
+  # holder run arbitrary code in a sandbox, so it is written out rather than
+  # implied by the `pods` rule above.
+  #
+  # `get` as well as `create`: the connection upgrade that carries the command
+  # is negotiated with a GET before the POST begins.
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["get", "create"]
   - apiGroups: ["networking.k8s.io"]
     resources: ["networkpolicies"]
     verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
