@@ -20,6 +20,10 @@ sandboxlab/models/describe.py
 sandboxlab/models/endpoint.py
 sandboxlab/models/endpoint_description.py
 sandboxlab/models/error.py
+sandboxlab/models/exec_request.py
+sandboxlab/models/exec_result.py
+sandboxlab/models/file_content.py
+sandboxlab/models/file_info.py
 sandboxlab/models/get_sandbox_logs200_response.py
 sandboxlab/models/overview.py
 sandboxlab/models/port.py
@@ -31,6 +35,7 @@ sandboxlab/models/sandbox_state.py
 sandboxlab/models/status.py
 sandboxlab/models/template.py
 sandboxlab/models/template_list.py
+sandboxlab/models/write_file_request.py
 sandboxlab/py.typed
 sandboxlab/rest.py
 setup.cfg

@@ -90,6 +90,7 @@ Class | Method | HTTP request | Description
 *MetaApi* | [**ready**](docs/MetaApi.md#ready) | **GET** /readyz | Readiness
 *SandboxesApi* | [**create_sandbox**](docs/SandboxesApi.md#create_sandbox) | **POST** /api/v1/sandboxes | Create one
 *SandboxesApi* | [**delete_sandbox**](docs/SandboxesApi.md#delete_sandbox) | **DELETE** /api/v1/sandboxes/{id} | Delete one
+*SandboxesApi* | [**exec_in_sandbox**](docs/SandboxesApi.md#exec_in_sandbox) | **POST** /api/v1/sandboxes/{id}/exec | Run a command in a sandbox and wait for it
 *SandboxesApi* | [**get_catalog_entry**](docs/SandboxesApi.md#get_catalog_entry) | **GET** /api/v1/catalog/{id} | One template
 *SandboxesApi* | [**get_overview**](docs/SandboxesApi.md#get_overview) | **GET** /api/v1/overview | Counts of sandboxes by state and template
 *SandboxesApi* | [**get_sandbox**](docs/SandboxesApi.md#get_sandbox) | **GET** /api/v1/sandboxes/{id} | One sandbox
@@ -97,7 +98,9 @@ Class | Method | HTTP request | Description
 *SandboxesApi* | [**list_catalog**](docs/SandboxesApi.md#list_catalog) | **GET** /api/v1/catalog | The templates a sandbox can be created from
 *SandboxesApi* | [**list_sandboxes**](docs/SandboxesApi.md#list_sandboxes) | **GET** /api/v1/sandboxes | Every sandbox in the deployment
 *SandboxesApi* | [**proxy_to_sandbox**](docs/SandboxesApi.md#proxy_to_sandbox) | **GET** /sandbox/{id}/{port}/ | Proxy to a sandbox&#39;s own port
+*SandboxesApi* | [**read_sandbox_file**](docs/SandboxesApi.md#read_sandbox_file) | **GET** /api/v1/sandboxes/{id}/files | Read a file out of a sandbox
 *SandboxesApi* | [**renew_sandbox**](docs/SandboxesApi.md#renew_sandbox) | **POST** /api/v1/sandboxes/{id}/renew | Reset a sandbox&#39;s lifetime, measured from now
+*SandboxesApi* | [**write_sandbox_file**](docs/SandboxesApi.md#write_sandbox_file) | **PUT** /api/v1/sandboxes/{id}/files | Write a file into a sandbox
 
 
 ## Documentation For Models
@@ -111,6 +114,10 @@ Class | Method | HTTP request | Description
  - [Endpoint](docs/Endpoint.md)
  - [EndpointDescription](docs/EndpointDescription.md)
  - [Error](docs/Error.md)
+ - [ExecRequest](docs/ExecRequest.md)
+ - [ExecResult](docs/ExecResult.md)
+ - [FileContent](docs/FileContent.md)
+ - [FileInfo](docs/FileInfo.md)
  - [GetSandboxLogs200Response](docs/GetSandboxLogs200Response.md)
  - [Overview](docs/Overview.md)
  - [Port](docs/Port.md)
@@ -122,6 +129,7 @@ Class | Method | HTTP request | Description
  - [Status](docs/Status.md)
  - [Template](docs/Template.md)
  - [TemplateList](docs/TemplateList.md)
+ - [WriteFileRequest](docs/WriteFileRequest.md)
 
 
 <a id="documentation-for-authorization"></a>

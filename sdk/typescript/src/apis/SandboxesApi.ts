@@ -17,6 +17,10 @@ import * as runtime from '../runtime';
 import type {
   CreateSandboxRequest,
   DeleteSandbox200Response,
+  ExecRequest,
+  ExecResult,
+  FileContent,
+  FileInfo,
   GetSandboxLogs200Response,
   Overview,
   RenewSandboxRequest,
@@ -24,12 +28,21 @@ import type {
   SandboxList,
   Template,
   TemplateList,
+  WriteFileRequest,
 } from '../models/index';
 import {
     CreateSandboxRequestFromJSON,
     CreateSandboxRequestToJSON,
     DeleteSandbox200ResponseFromJSON,
     DeleteSandbox200ResponseToJSON,
+    ExecRequestFromJSON,
+    ExecRequestToJSON,
+    ExecResultFromJSON,
+    ExecResultToJSON,
+    FileContentFromJSON,
+    FileContentToJSON,
+    FileInfoFromJSON,
+    FileInfoToJSON,
     GetSandboxLogs200ResponseFromJSON,
     GetSandboxLogs200ResponseToJSON,
     OverviewFromJSON,
@@ -44,6 +57,8 @@ import {
     TemplateToJSON,
     TemplateListFromJSON,
     TemplateListToJSON,
+    WriteFileRequestFromJSON,
+    WriteFileRequestToJSON,
 } from '../models/index';
 
 export interface SandboxesApiCreateSandboxOperationRequest {
@@ -52,6 +67,11 @@ export interface SandboxesApiCreateSandboxOperationRequest {
 
 export interface SandboxesApiDeleteSandboxRequest {
     id: string;
+}
+
+export interface SandboxesApiExecInSandboxRequest {
+    id: string;
+    execRequest: ExecRequest;
 }
 
 export interface SandboxesApiGetCatalogEntryRequest {
@@ -72,9 +92,20 @@ export interface SandboxesApiProxyToSandboxRequest {
     port: string;
 }
 
+export interface SandboxesApiReadSandboxFileRequest {
+    id: string;
+    path: string;
+}
+
 export interface SandboxesApiRenewSandboxOperationRequest {
     id: string;
     renewSandboxRequest: RenewSandboxRequest;
+}
+
+export interface SandboxesApiWriteSandboxFileRequest {
+    id: string;
+    path: string;
+    writeFileRequest: WriteFileRequest;
 }
 
 /**
@@ -114,6 +145,23 @@ export interface SandboxesApiInterface {
      * Delete one
      */
     deleteSandbox(requestParameters: SandboxesApiDeleteSandboxRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DeleteSandbox200Response>;
+
+    /**
+     * The command is an argv, not a command line: pass [\"sh\", \"-c\", \"...\"] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+     * @summary Run a command in a sandbox and wait for it
+     * @param {string} id 
+     * @param {ExecRequest} execRequest 
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SandboxesApiInterface
+     */
+    execInSandboxRaw(requestParameters: SandboxesApiExecInSandboxRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ExecResult>>;
+
+    /**
+     * The command is an argv, not a command line: pass [\"sh\", \"-c\", \"...\"] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+     * Run a command in a sandbox and wait for it
+     */
+    execInSandbox(requestParameters: SandboxesApiExecInSandboxRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ExecResult>;
 
     /**
      * 
@@ -223,6 +271,23 @@ export interface SandboxesApiInterface {
     proxyToSandbox(requestParameters: SandboxesApiProxyToSandboxRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Blob>;
 
     /**
+     * content is the file\'s bytes: UTF-8 verbatim when the file is text, and base64 when it is not. encoding says which, so a caller reads a field rather than sniffing the content. A file over the deployment\'s limit is 413 rather than a truncated read.
+     * @summary Read a file out of a sandbox
+     * @param {string} id 
+     * @param {string} path an absolute path inside the sandbox
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SandboxesApiInterface
+     */
+    readSandboxFileRaw(requestParameters: SandboxesApiReadSandboxFileRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<FileContent>>;
+
+    /**
+     * content is the file\'s bytes: UTF-8 verbatim when the file is text, and base64 when it is not. encoding says which, so a caller reads a field rather than sniffing the content. A file over the deployment\'s limit is 413 rather than a truncated read.
+     * Read a file out of a sandbox
+     */
+    readSandboxFile(requestParameters: SandboxesApiReadSandboxFileRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<FileContent>;
+
+    /**
      * A ttl of \"0\" removes the expiry entirely, which is how a sandbox someone is working in is kept from disappearing.
      * @summary Reset a sandbox\'s lifetime, measured from now
      * @param {string} id 
@@ -238,6 +303,24 @@ export interface SandboxesApiInterface {
      * Reset a sandbox\'s lifetime, measured from now
      */
     renewSandbox(requestParameters: SandboxesApiRenewSandboxOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Sandbox>;
+
+    /**
+     * It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
+     * @summary Write a file into a sandbox
+     * @param {string} id 
+     * @param {string} path an absolute path inside the sandbox
+     * @param {WriteFileRequest} writeFileRequest 
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SandboxesApiInterface
+     */
+    writeSandboxFileRaw(requestParameters: SandboxesApiWriteSandboxFileRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<FileInfo>>;
+
+    /**
+     * It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
+     * Write a file into a sandbox
+     */
+    writeSandboxFile(requestParameters: SandboxesApiWriteSandboxFileRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<FileInfo>;
 
 }
 
@@ -345,6 +428,67 @@ export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterfa
      */
     async deleteSandbox(requestParameters: SandboxesApiDeleteSandboxRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DeleteSandbox200Response> {
         const response = await this.deleteSandboxRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * The command is an argv, not a command line: pass [\"sh\", \"-c\", \"...\"] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+     * Run a command in a sandbox and wait for it
+     */
+    async execInSandboxRaw(requestParameters: SandboxesApiExecInSandboxRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ExecResult>> {
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling execInSandbox().'
+            );
+        }
+
+        if (requestParameters['execRequest'] == null) {
+            throw new runtime.RequiredError(
+                'execRequest',
+                'Required parameter "execRequest" was null or undefined when calling execInSandbox().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+        if (this.configuration && this.configuration.apiKey) {
+            headerParameters["X-Sandbox-Key"] = await this.configuration.apiKey("X-Sandbox-Key"); // ApiKey authentication
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("BearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/v1/sandboxes/{id}/exec`;
+        urlPath = urlPath.replace(`{${"id"}}`, encodeURIComponent(String(requestParameters['id'])));
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'POST',
+            headers: headerParameters,
+            query: queryParameters,
+            body: ExecRequestToJSON(requestParameters['execRequest']),
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => ExecResultFromJSON(jsonValue));
+    }
+
+    /**
+     * The command is an argv, not a command line: pass [\"sh\", \"-c\", \"...\"] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+     * Run a command in a sandbox and wait for it
+     */
+    async execInSandbox(requestParameters: SandboxesApiExecInSandboxRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ExecResult> {
+        const response = await this.execInSandboxRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
@@ -690,6 +834,68 @@ export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterfa
     }
 
     /**
+     * content is the file\'s bytes: UTF-8 verbatim when the file is text, and base64 when it is not. encoding says which, so a caller reads a field rather than sniffing the content. A file over the deployment\'s limit is 413 rather than a truncated read.
+     * Read a file out of a sandbox
+     */
+    async readSandboxFileRaw(requestParameters: SandboxesApiReadSandboxFileRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<FileContent>> {
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling readSandboxFile().'
+            );
+        }
+
+        if (requestParameters['path'] == null) {
+            throw new runtime.RequiredError(
+                'path',
+                'Required parameter "path" was null or undefined when calling readSandboxFile().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        if (requestParameters['path'] != null) {
+            queryParameters['path'] = requestParameters['path'];
+        }
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (this.configuration && this.configuration.apiKey) {
+            headerParameters["X-Sandbox-Key"] = await this.configuration.apiKey("X-Sandbox-Key"); // ApiKey authentication
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("BearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/v1/sandboxes/{id}/files`;
+        urlPath = urlPath.replace(`{${"id"}}`, encodeURIComponent(String(requestParameters['id'])));
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => FileContentFromJSON(jsonValue));
+    }
+
+    /**
+     * content is the file\'s bytes: UTF-8 verbatim when the file is text, and base64 when it is not. encoding says which, so a caller reads a field rather than sniffing the content. A file over the deployment\'s limit is 413 rather than a truncated read.
+     * Read a file out of a sandbox
+     */
+    async readSandboxFile(requestParameters: SandboxesApiReadSandboxFileRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<FileContent> {
+        const response = await this.readSandboxFileRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
      * A ttl of \"0\" removes the expiry entirely, which is how a sandbox someone is working in is kept from disappearing.
      * Reset a sandbox\'s lifetime, measured from now
      */
@@ -747,6 +953,78 @@ export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterfa
      */
     async renewSandbox(requestParameters: SandboxesApiRenewSandboxOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Sandbox> {
         const response = await this.renewSandboxRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
+     * Write a file into a sandbox
+     */
+    async writeSandboxFileRaw(requestParameters: SandboxesApiWriteSandboxFileRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<FileInfo>> {
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling writeSandboxFile().'
+            );
+        }
+
+        if (requestParameters['path'] == null) {
+            throw new runtime.RequiredError(
+                'path',
+                'Required parameter "path" was null or undefined when calling writeSandboxFile().'
+            );
+        }
+
+        if (requestParameters['writeFileRequest'] == null) {
+            throw new runtime.RequiredError(
+                'writeFileRequest',
+                'Required parameter "writeFileRequest" was null or undefined when calling writeSandboxFile().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        if (requestParameters['path'] != null) {
+            queryParameters['path'] = requestParameters['path'];
+        }
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+        if (this.configuration && this.configuration.apiKey) {
+            headerParameters["X-Sandbox-Key"] = await this.configuration.apiKey("X-Sandbox-Key"); // ApiKey authentication
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("BearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/v1/sandboxes/{id}/files`;
+        urlPath = urlPath.replace(`{${"id"}}`, encodeURIComponent(String(requestParameters['id'])));
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'PUT',
+            headers: headerParameters,
+            query: queryParameters,
+            body: WriteFileRequestToJSON(requestParameters['writeFileRequest']),
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => FileInfoFromJSON(jsonValue));
+    }
+
+    /**
+     * It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
+     * Write a file into a sandbox
+     */
+    async writeSandboxFile(requestParameters: SandboxesApiWriteSandboxFileRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<FileInfo> {
+        const response = await this.writeSandboxFileRaw(requestParameters, initOverrides);
         return await response.value();
     }
 

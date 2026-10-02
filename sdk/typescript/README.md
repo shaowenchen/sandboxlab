@@ -51,6 +51,7 @@ All URIs are relative to *https://sandboxlab.example.com/sandbox*
 *MetaApi* | [**ready**](docs/MetaApi.md#ready) | **GET** /readyz | Readiness
 *SandboxesApi* | [**createSandbox**](docs/SandboxesApi.md#createsandboxoperation) | **POST** /api/v1/sandboxes | Create one
 *SandboxesApi* | [**deleteSandbox**](docs/SandboxesApi.md#deletesandbox) | **DELETE** /api/v1/sandboxes/{id} | Delete one
+*SandboxesApi* | [**execInSandbox**](docs/SandboxesApi.md#execinsandbox) | **POST** /api/v1/sandboxes/{id}/exec | Run a command in a sandbox and wait for it
 *SandboxesApi* | [**getCatalogEntry**](docs/SandboxesApi.md#getcatalogentry) | **GET** /api/v1/catalog/{id} | One template
 *SandboxesApi* | [**getOverview**](docs/SandboxesApi.md#getoverview) | **GET** /api/v1/overview | Counts of sandboxes by state and template
 *SandboxesApi* | [**getSandbox**](docs/SandboxesApi.md#getsandbox) | **GET** /api/v1/sandboxes/{id} | One sandbox
@@ -58,7 +59,9 @@ All URIs are relative to *https://sandboxlab.example.com/sandbox*
 *SandboxesApi* | [**listCatalog**](docs/SandboxesApi.md#listcatalog) | **GET** /api/v1/catalog | The templates a sandbox can be created from
 *SandboxesApi* | [**listSandboxes**](docs/SandboxesApi.md#listsandboxes) | **GET** /api/v1/sandboxes | Every sandbox in the deployment
 *SandboxesApi* | [**proxyToSandbox**](docs/SandboxesApi.md#proxytosandbox) | **GET** /sandbox/{id}/{port}/ | Proxy to a sandbox\&#39;s own port
+*SandboxesApi* | [**readSandboxFile**](docs/SandboxesApi.md#readsandboxfile) | **GET** /api/v1/sandboxes/{id}/files | Read a file out of a sandbox
 *SandboxesApi* | [**renewSandbox**](docs/SandboxesApi.md#renewsandboxoperation) | **POST** /api/v1/sandboxes/{id}/renew | Reset a sandbox\&#39;s lifetime, measured from now
+*SandboxesApi* | [**writeSandboxFile**](docs/SandboxesApi.md#writesandboxfile) | **PUT** /api/v1/sandboxes/{id}/files | Write a file into a sandbox
 
 
 ### Models
@@ -71,6 +74,10 @@ All URIs are relative to *https://sandboxlab.example.com/sandbox*
 - [Describe](docs/Describe.md)
 - [Endpoint](docs/Endpoint.md)
 - [EndpointDescription](docs/EndpointDescription.md)
+- [ExecRequest](docs/ExecRequest.md)
+- [ExecResult](docs/ExecResult.md)
+- [FileContent](docs/FileContent.md)
+- [FileInfo](docs/FileInfo.md)
 - [GetSandboxLogs200Response](docs/GetSandboxLogs200Response.md)
 - [ModelError](docs/ModelError.md)
 - [Overview](docs/Overview.md)
@@ -83,6 +90,7 @@ All URIs are relative to *https://sandboxlab.example.com/sandbox*
 - [Status](docs/Status.md)
 - [Template](docs/Template.md)
 - [TemplateList](docs/TemplateList.md)
+- [WriteFileRequest](docs/WriteFileRequest.md)
 
 ### Authorization
 

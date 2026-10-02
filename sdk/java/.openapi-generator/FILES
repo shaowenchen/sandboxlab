@@ -24,6 +24,10 @@ src/main/java/com/sandboxlab/model/Describe.java
 src/main/java/com/sandboxlab/model/Endpoint.java
 src/main/java/com/sandboxlab/model/EndpointDescription.java
 src/main/java/com/sandboxlab/model/Error.java
+src/main/java/com/sandboxlab/model/ExecRequest.java
+src/main/java/com/sandboxlab/model/ExecResult.java
+src/main/java/com/sandboxlab/model/FileContent.java
+src/main/java/com/sandboxlab/model/FileInfo.java
 src/main/java/com/sandboxlab/model/GetSandboxLogs200Response.java
 src/main/java/com/sandboxlab/model/Overview.java
 src/main/java/com/sandboxlab/model/Port.java
@@ -35,3 +39,4 @@ src/main/java/com/sandboxlab/model/SandboxState.java
 src/main/java/com/sandboxlab/model/Status.java
 src/main/java/com/sandboxlab/model/Template.java
 src/main/java/com/sandboxlab/model/TemplateList.java
+src/main/java/com/sandboxlab/model/WriteFileRequest.java

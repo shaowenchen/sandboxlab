@@ -21,7 +21,11 @@ import com.sandboxlab.client.Pair;
 import com.sandboxlab.model.CreateSandboxRequest;
 import com.sandboxlab.model.DeleteSandbox200Response;
 import com.sandboxlab.model.Error;
+import com.sandboxlab.model.ExecRequest;
+import com.sandboxlab.model.ExecResult;
 import java.io.File;
+import com.sandboxlab.model.FileContent;
+import com.sandboxlab.model.FileInfo;
 import com.sandboxlab.model.GetSandboxLogs200Response;
 import com.sandboxlab.model.Overview;
 import com.sandboxlab.model.RenewSandboxRequest;
@@ -29,6 +33,7 @@ import com.sandboxlab.model.Sandbox;
 import com.sandboxlab.model.SandboxList;
 import com.sandboxlab.model.Template;
 import com.sandboxlab.model.TemplateList;
+import com.sandboxlab.model.WriteFileRequest;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -384,6 +389,134 @@ public class SandboxesApi {
     localVarRequestBuilder.header("Accept", "application/json");
 
     localVarRequestBuilder.method("DELETE", HttpRequest.BodyPublishers.noBody());
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
+   * Run a command in a sandbox and wait for it
+   * The command is an argv, not a command line: pass [\&quot;sh\&quot;, \&quot;-c\&quot;, \&quot;...\&quot;] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+   * @param id  (required)
+   * @param execRequest  (required)
+   * @return ExecResult
+   * @throws ApiException if fails to make API call
+   */
+  public ExecResult execInSandbox(@javax.annotation.Nonnull String id, @javax.annotation.Nonnull ExecRequest execRequest) throws ApiException {
+    return execInSandbox(id, execRequest, null);
+  }
+
+  /**
+   * Run a command in a sandbox and wait for it
+   * The command is an argv, not a command line: pass [\&quot;sh\&quot;, \&quot;-c\&quot;, \&quot;...\&quot;] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+   * @param id  (required)
+   * @param execRequest  (required)
+   * @param headers Optional headers to include in the request
+   * @return ExecResult
+   * @throws ApiException if fails to make API call
+   */
+  public ExecResult execInSandbox(@javax.annotation.Nonnull String id, @javax.annotation.Nonnull ExecRequest execRequest, Map<String, String> headers) throws ApiException {
+    ApiResponse<ExecResult> localVarResponse = execInSandboxWithHttpInfo(id, execRequest, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * Run a command in a sandbox and wait for it
+   * The command is an argv, not a command line: pass [\&quot;sh\&quot;, \&quot;-c\&quot;, \&quot;...\&quot;] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+   * @param id  (required)
+   * @param execRequest  (required)
+   * @return ApiResponse&lt;ExecResult&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<ExecResult> execInSandboxWithHttpInfo(@javax.annotation.Nonnull String id, @javax.annotation.Nonnull ExecRequest execRequest) throws ApiException {
+    return execInSandboxWithHttpInfo(id, execRequest, null);
+  }
+
+  /**
+   * Run a command in a sandbox and wait for it
+   * The command is an argv, not a command line: pass [\&quot;sh\&quot;, \&quot;-c\&quot;, \&quot;...\&quot;] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+   * @param id  (required)
+   * @param execRequest  (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;ExecResult&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<ExecResult> execInSandboxWithHttpInfo(@javax.annotation.Nonnull String id, @javax.annotation.Nonnull ExecRequest execRequest, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = execInSandboxRequestBuilder(id, execRequest, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("execInSandbox", localVarResponse);
+        }
+        if (localVarResponse.body() == null) {
+          return new ApiResponse<ExecResult>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+        
+        
+        String responseBody = new String(localVarResponse.body().readAllBytes());
+        ExecResult responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<ExecResult>() {});
+        
+        localVarResponse.body().close();
+
+        return new ApiResponse<ExecResult>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder execInSandboxRequestBuilder(@javax.annotation.Nonnull String id, @javax.annotation.Nonnull ExecRequest execRequest, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'id' is set
+    if (id == null) {
+      throw new ApiException(400, "Missing the required parameter 'id' when calling execInSandbox");
+    }
+    // verify the required parameter 'execRequest' is set
+    if (execRequest == null) {
+      throw new ApiException(400, "Missing the required parameter 'execRequest' when calling execInSandbox");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/sandboxes/{id}/exec"
+        .replace("{id}", ApiClient.urlEncode(id.toString()));
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    localVarRequestBuilder.header("Content-Type", "application/json");
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    try {
+      byte[] localVarPostBody = memberVarObjectMapper.writeValueAsBytes(execRequest);
+      localVarRequestBuilder.method("POST", HttpRequest.BodyPublishers.ofByteArray(localVarPostBody));
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
     if (memberVarReadTimeout != null) {
       localVarRequestBuilder.timeout(memberVarReadTimeout);
     }
@@ -1194,6 +1327,143 @@ public class SandboxesApi {
   }
 
   /**
+   * Read a file out of a sandbox
+   * content is the file&#39;s bytes: UTF-8 verbatim when the file is text, and base64 when it is not. encoding says which, so a caller reads a field rather than sniffing the content. A file over the deployment&#39;s limit is 413 rather than a truncated read.
+   * @param id  (required)
+   * @param path an absolute path inside the sandbox (required)
+   * @return FileContent
+   * @throws ApiException if fails to make API call
+   */
+  public FileContent readSandboxFile(@javax.annotation.Nonnull String id, @javax.annotation.Nonnull String path) throws ApiException {
+    return readSandboxFile(id, path, null);
+  }
+
+  /**
+   * Read a file out of a sandbox
+   * content is the file&#39;s bytes: UTF-8 verbatim when the file is text, and base64 when it is not. encoding says which, so a caller reads a field rather than sniffing the content. A file over the deployment&#39;s limit is 413 rather than a truncated read.
+   * @param id  (required)
+   * @param path an absolute path inside the sandbox (required)
+   * @param headers Optional headers to include in the request
+   * @return FileContent
+   * @throws ApiException if fails to make API call
+   */
+  public FileContent readSandboxFile(@javax.annotation.Nonnull String id, @javax.annotation.Nonnull String path, Map<String, String> headers) throws ApiException {
+    ApiResponse<FileContent> localVarResponse = readSandboxFileWithHttpInfo(id, path, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * Read a file out of a sandbox
+   * content is the file&#39;s bytes: UTF-8 verbatim when the file is text, and base64 when it is not. encoding says which, so a caller reads a field rather than sniffing the content. A file over the deployment&#39;s limit is 413 rather than a truncated read.
+   * @param id  (required)
+   * @param path an absolute path inside the sandbox (required)
+   * @return ApiResponse&lt;FileContent&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<FileContent> readSandboxFileWithHttpInfo(@javax.annotation.Nonnull String id, @javax.annotation.Nonnull String path) throws ApiException {
+    return readSandboxFileWithHttpInfo(id, path, null);
+  }
+
+  /**
+   * Read a file out of a sandbox
+   * content is the file&#39;s bytes: UTF-8 verbatim when the file is text, and base64 when it is not. encoding says which, so a caller reads a field rather than sniffing the content. A file over the deployment&#39;s limit is 413 rather than a truncated read.
+   * @param id  (required)
+   * @param path an absolute path inside the sandbox (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;FileContent&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<FileContent> readSandboxFileWithHttpInfo(@javax.annotation.Nonnull String id, @javax.annotation.Nonnull String path, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = readSandboxFileRequestBuilder(id, path, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("readSandboxFile", localVarResponse);
+        }
+        if (localVarResponse.body() == null) {
+          return new ApiResponse<FileContent>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+        
+        
+        String responseBody = new String(localVarResponse.body().readAllBytes());
+        FileContent responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<FileContent>() {});
+        
+        localVarResponse.body().close();
+
+        return new ApiResponse<FileContent>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder readSandboxFileRequestBuilder(@javax.annotation.Nonnull String id, @javax.annotation.Nonnull String path, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'id' is set
+    if (id == null) {
+      throw new ApiException(400, "Missing the required parameter 'id' when calling readSandboxFile");
+    }
+    // verify the required parameter 'path' is set
+    if (path == null) {
+      throw new ApiException(400, "Missing the required parameter 'path' when calling readSandboxFile");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/sandboxes/{id}/files"
+        .replace("{id}", ApiClient.urlEncode(id.toString()));
+
+    List<Pair> localVarQueryParams = new ArrayList<>();
+    StringJoiner localVarQueryStringJoiner = new StringJoiner("&");
+    String localVarQueryParameterBaseName;
+    localVarQueryParameterBaseName = "path";
+    localVarQueryParams.addAll(ApiClient.parameterToPairs("path", path));
+
+    if (!localVarQueryParams.isEmpty() || localVarQueryStringJoiner.length() != 0) {
+      StringJoiner queryJoiner = new StringJoiner("&");
+      localVarQueryParams.forEach(p -> queryJoiner.add(p.getName() + '=' + p.getValue()));
+      if (localVarQueryStringJoiner.length() != 0) {
+        queryJoiner.add(localVarQueryStringJoiner.toString());
+      }
+      localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath + '?' + queryJoiner.toString()));
+    } else {
+      localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+    }
+
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    localVarRequestBuilder.method("GET", HttpRequest.BodyPublishers.noBody());
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
    * Reset a sandbox&#39;s lifetime, measured from now
    * A ttl of \&quot;0\&quot; removes the expiry entirely, which is how a sandbox someone is working in is kept from disappearing.
    * @param id  (required)
@@ -1307,6 +1577,157 @@ public class SandboxesApi {
     try {
       byte[] localVarPostBody = memberVarObjectMapper.writeValueAsBytes(renewSandboxRequest);
       localVarRequestBuilder.method("POST", HttpRequest.BodyPublishers.ofByteArray(localVarPostBody));
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
+   * Write a file into a sandbox
+   * It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
+   * @param id  (required)
+   * @param path an absolute path inside the sandbox (required)
+   * @param writeFileRequest  (required)
+   * @return FileInfo
+   * @throws ApiException if fails to make API call
+   */
+  public FileInfo writeSandboxFile(@javax.annotation.Nonnull String id, @javax.annotation.Nonnull String path, @javax.annotation.Nonnull WriteFileRequest writeFileRequest) throws ApiException {
+    return writeSandboxFile(id, path, writeFileRequest, null);
+  }
+
+  /**
+   * Write a file into a sandbox
+   * It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
+   * @param id  (required)
+   * @param path an absolute path inside the sandbox (required)
+   * @param writeFileRequest  (required)
+   * @param headers Optional headers to include in the request
+   * @return FileInfo
+   * @throws ApiException if fails to make API call
+   */
+  public FileInfo writeSandboxFile(@javax.annotation.Nonnull String id, @javax.annotation.Nonnull String path, @javax.annotation.Nonnull WriteFileRequest writeFileRequest, Map<String, String> headers) throws ApiException {
+    ApiResponse<FileInfo> localVarResponse = writeSandboxFileWithHttpInfo(id, path, writeFileRequest, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * Write a file into a sandbox
+   * It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
+   * @param id  (required)
+   * @param path an absolute path inside the sandbox (required)
+   * @param writeFileRequest  (required)
+   * @return ApiResponse&lt;FileInfo&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<FileInfo> writeSandboxFileWithHttpInfo(@javax.annotation.Nonnull String id, @javax.annotation.Nonnull String path, @javax.annotation.Nonnull WriteFileRequest writeFileRequest) throws ApiException {
+    return writeSandboxFileWithHttpInfo(id, path, writeFileRequest, null);
+  }
+
+  /**
+   * Write a file into a sandbox
+   * It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
+   * @param id  (required)
+   * @param path an absolute path inside the sandbox (required)
+   * @param writeFileRequest  (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;FileInfo&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<FileInfo> writeSandboxFileWithHttpInfo(@javax.annotation.Nonnull String id, @javax.annotation.Nonnull String path, @javax.annotation.Nonnull WriteFileRequest writeFileRequest, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = writeSandboxFileRequestBuilder(id, path, writeFileRequest, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("writeSandboxFile", localVarResponse);
+        }
+        if (localVarResponse.body() == null) {
+          return new ApiResponse<FileInfo>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+        
+        
+        String responseBody = new String(localVarResponse.body().readAllBytes());
+        FileInfo responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<FileInfo>() {});
+        
+        localVarResponse.body().close();
+
+        return new ApiResponse<FileInfo>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder writeSandboxFileRequestBuilder(@javax.annotation.Nonnull String id, @javax.annotation.Nonnull String path, @javax.annotation.Nonnull WriteFileRequest writeFileRequest, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'id' is set
+    if (id == null) {
+      throw new ApiException(400, "Missing the required parameter 'id' when calling writeSandboxFile");
+    }
+    // verify the required parameter 'path' is set
+    if (path == null) {
+      throw new ApiException(400, "Missing the required parameter 'path' when calling writeSandboxFile");
+    }
+    // verify the required parameter 'writeFileRequest' is set
+    if (writeFileRequest == null) {
+      throw new ApiException(400, "Missing the required parameter 'writeFileRequest' when calling writeSandboxFile");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/sandboxes/{id}/files"
+        .replace("{id}", ApiClient.urlEncode(id.toString()));
+
+    List<Pair> localVarQueryParams = new ArrayList<>();
+    StringJoiner localVarQueryStringJoiner = new StringJoiner("&");
+    String localVarQueryParameterBaseName;
+    localVarQueryParameterBaseName = "path";
+    localVarQueryParams.addAll(ApiClient.parameterToPairs("path", path));
+
+    if (!localVarQueryParams.isEmpty() || localVarQueryStringJoiner.length() != 0) {
+      StringJoiner queryJoiner = new StringJoiner("&");
+      localVarQueryParams.forEach(p -> queryJoiner.add(p.getName() + '=' + p.getValue()));
+      if (localVarQueryStringJoiner.length() != 0) {
+        queryJoiner.add(localVarQueryStringJoiner.toString());
+      }
+      localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath + '?' + queryJoiner.toString()));
+    } else {
+      localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+    }
+
+    localVarRequestBuilder.header("Content-Type", "application/json");
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    try {
+      byte[] localVarPostBody = memberVarObjectMapper.writeValueAsBytes(writeFileRequest);
+      localVarRequestBuilder.method("PUT", HttpRequest.BodyPublishers.ofByteArray(localVarPostBody));
     } catch (IOException e) {
       throw new ApiException(e);
     }

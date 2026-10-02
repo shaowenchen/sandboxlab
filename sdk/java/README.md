@@ -118,6 +118,8 @@ Class | Method | HTTP request | Description
 *SandboxesApi* | [**createSandboxWithHttpInfo**](docs/SandboxesApi.md#createSandboxWithHttpInfo) | **POST** /api/v1/sandboxes | Create one
 *SandboxesApi* | [**deleteSandbox**](docs/SandboxesApi.md#deleteSandbox) | **DELETE** /api/v1/sandboxes/{id} | Delete one
 *SandboxesApi* | [**deleteSandboxWithHttpInfo**](docs/SandboxesApi.md#deleteSandboxWithHttpInfo) | **DELETE** /api/v1/sandboxes/{id} | Delete one
+*SandboxesApi* | [**execInSandbox**](docs/SandboxesApi.md#execInSandbox) | **POST** /api/v1/sandboxes/{id}/exec | Run a command in a sandbox and wait for it
+*SandboxesApi* | [**execInSandboxWithHttpInfo**](docs/SandboxesApi.md#execInSandboxWithHttpInfo) | **POST** /api/v1/sandboxes/{id}/exec | Run a command in a sandbox and wait for it
 *SandboxesApi* | [**getCatalogEntry**](docs/SandboxesApi.md#getCatalogEntry) | **GET** /api/v1/catalog/{id} | One template
 *SandboxesApi* | [**getCatalogEntryWithHttpInfo**](docs/SandboxesApi.md#getCatalogEntryWithHttpInfo) | **GET** /api/v1/catalog/{id} | One template
 *SandboxesApi* | [**getOverview**](docs/SandboxesApi.md#getOverview) | **GET** /api/v1/overview | Counts of sandboxes by state and template
@@ -132,8 +134,12 @@ Class | Method | HTTP request | Description
 *SandboxesApi* | [**listSandboxesWithHttpInfo**](docs/SandboxesApi.md#listSandboxesWithHttpInfo) | **GET** /api/v1/sandboxes | Every sandbox in the deployment
 *SandboxesApi* | [**proxyToSandbox**](docs/SandboxesApi.md#proxyToSandbox) | **GET** /sandbox/{id}/{port}/ | Proxy to a sandbox&#39;s own port
 *SandboxesApi* | [**proxyToSandboxWithHttpInfo**](docs/SandboxesApi.md#proxyToSandboxWithHttpInfo) | **GET** /sandbox/{id}/{port}/ | Proxy to a sandbox&#39;s own port
+*SandboxesApi* | [**readSandboxFile**](docs/SandboxesApi.md#readSandboxFile) | **GET** /api/v1/sandboxes/{id}/files | Read a file out of a sandbox
+*SandboxesApi* | [**readSandboxFileWithHttpInfo**](docs/SandboxesApi.md#readSandboxFileWithHttpInfo) | **GET** /api/v1/sandboxes/{id}/files | Read a file out of a sandbox
 *SandboxesApi* | [**renewSandbox**](docs/SandboxesApi.md#renewSandbox) | **POST** /api/v1/sandboxes/{id}/renew | Reset a sandbox&#39;s lifetime, measured from now
 *SandboxesApi* | [**renewSandboxWithHttpInfo**](docs/SandboxesApi.md#renewSandboxWithHttpInfo) | **POST** /api/v1/sandboxes/{id}/renew | Reset a sandbox&#39;s lifetime, measured from now
+*SandboxesApi* | [**writeSandboxFile**](docs/SandboxesApi.md#writeSandboxFile) | **PUT** /api/v1/sandboxes/{id}/files | Write a file into a sandbox
+*SandboxesApi* | [**writeSandboxFileWithHttpInfo**](docs/SandboxesApi.md#writeSandboxFileWithHttpInfo) | **PUT** /api/v1/sandboxes/{id}/files | Write a file into a sandbox
 
 
 ## Documentation for Models
@@ -147,6 +153,10 @@ Class | Method | HTTP request | Description
  - [Endpoint](docs/Endpoint.md)
  - [EndpointDescription](docs/EndpointDescription.md)
  - [Error](docs/Error.md)
+ - [ExecRequest](docs/ExecRequest.md)
+ - [ExecResult](docs/ExecResult.md)
+ - [FileContent](docs/FileContent.md)
+ - [FileInfo](docs/FileInfo.md)
  - [GetSandboxLogs200Response](docs/GetSandboxLogs200Response.md)
  - [Overview](docs/Overview.md)
  - [Port](docs/Port.md)
@@ -158,6 +168,7 @@ Class | Method | HTTP request | Description
  - [Status](docs/Status.md)
  - [Template](docs/Template.md)
  - [TemplateList](docs/TemplateList.md)
+ - [WriteFileRequest](docs/WriteFileRequest.md)
 
 
 <a id="documentation-for-authorization"></a>
