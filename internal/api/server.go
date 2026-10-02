@@ -215,6 +215,11 @@ func (s *Server) describe(w http.ResponseWriter, r *http.Request) {
 	endpoints := []map[string]string{
 		{"method": "GET", "path": "/api/v1/describe", "description": "this document; no key required"},
 		{"method": "GET", "path": "/api/v1/config", "description": "the interface version and deployment shape"},
+		// The health routes are part of the contract a deployment depends on —
+		// the chart's probes are these — so a client reading this document to
+		// find out what it may call should find them.
+		{"method": "GET", "path": "/healthz", "description": "the process is up; no key required"},
+		{"method": "GET", "path": "/readyz", "description": "the process can reach the cluster; no key required"},
 		{"method": "GET", "path": "/api/v1/whoami", "description": "which key this is: an administrator or a named user"},
 		{"method": "GET", "path": "/api/v1/catalog", "description": "the templates a sandbox can be created from"},
 		{"method": "GET", "path": "/api/v1/catalog/{id}", "description": "one template"},
@@ -230,9 +235,17 @@ func (s *Server) describe(w http.ResponseWriter, r *http.Request) {
 	if s.users != nil {
 		endpoints = append(endpoints,
 			map[string]string{"method": "GET", "path": "/api/v1/users", "description": "administrator only: every user"},
-			map[string]string{"method": "POST", "path": "/api/v1/users", "description": "administrator only: create one; body {name, quota?}"},
+			// The body is flat, not a nested quota: the three limits are the
+			// same names a PATCH takes, so what a client reads from a user is
+			// what it sends back. Saying {name, quota?} here described a shape
+			// the handler never accepted.
+			map[string]string{"method": "POST", "path": "/api/v1/users", "description": "administrator only: create one; body {name, key?, maxSandboxes?, maxTTL?, templates?}"},
 			map[string]string{"method": "GET", "path": "/api/v1/users/{name}", "description": "administrator only: one user, with their key"},
-			map[string]string{"method": "PATCH", "path": "/api/v1/users/{name}", "description": "administrator only: change their quota"},
+			// PUT is accepted as well as PATCH, and both merge. It is
+			// documented rather than removed because a client that reaches for
+			// PUT is asking for the same thing, and an undocumented route that
+			// works is a contract nobody wrote down.
+			map[string]string{"method": "PATCH", "path": "/api/v1/users/{name}", "description": "administrator only: change their limits; merges, so an omitted field is left alone (PUT is accepted too)"},
 			map[string]string{"method": "DELETE", "path": "/api/v1/users/{name}", "description": "administrator only: remove them"},
 			map[string]string{"method": "POST", "path": "/api/v1/users/{name}/key", "description": "administrator only: issue a new key"},
 		)

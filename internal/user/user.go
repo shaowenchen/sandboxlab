@@ -22,17 +22,28 @@ import (
 
 // Quota is what a user may do. The zero value is "no limits from this user",
 // which still leaves the deployment's own ceilings in force.
+//
+// The JSON names are the same ones UserRequest takes, because they describe the
+// same three limits: a client reads a user, edits a limit, and sends the result
+// back. When these had no tags they went out capitalized — `MaxSandboxes` where
+// the request accepts `maxSandboxes` — so the console read undefined fields,
+// showed every user as unlimited, and wrote the blanks back, clearing the real
+// quota. One field with two wire spellings is the bug that caused it.
 type Quota struct {
 	// MaxSandboxes is how many may exist at once. Zero is no limit.
-	MaxSandboxes int
-	// MaxTTL caps how long a sandbox may be asked for. Zero is no limit — but
-	// the deployment's own maximum always applies, so a zero here does not mean
-	// unbounded.
-	MaxTTL time.Duration
+	MaxSandboxes int `json:"maxSandboxes"`
+	// MaxTTL caps how long a sandbox may be asked for, in nanoseconds — what a
+	// Go time.Duration is on the wire. Zero is no limit — but the deployment's
+	// own maximum always applies, so a zero here does not mean unbounded.
+	MaxTTL time.Duration `json:"maxTTL"`
 	// Templates whitelists what may be created. Empty means every template in
 	// the catalog, which is the useful default for a debugging environment
 	// where the catalog is already curated.
-	Templates []string
+	//
+	// Omitted rather than null when there is no whitelist: the two are the same
+	// thing to this service, but only one of them is a JSON array, and a client
+	// generated from the spec types the field as an array.
+	Templates []string `json:"templates,omitempty"`
 }
 
 // Allows reports whether a template may be created under this quota.
@@ -79,9 +90,14 @@ type User struct {
 
 	CreatedAt time.Time `json:"createdAt"`
 	// LastUsedAt is the last request made with this key, to within the store's
-	// write throttle. Zero means it has never been used, which is the thing an
+	// write throttle. Absent means it has never been used, which is the thing an
 	// administrator most wants to know about a key.
-	LastUsedAt time.Time `json:"lastUsedAt,omitempty"`
+	//
+	// A pointer rather than a value: `omitempty` has no effect on a struct, so
+	// the zero time went out as "0001-01-01T00:00:00Z" and every unused key read
+	// as one last used in the year 1. Absence is what a caller checks, so
+	// absence is what has to be sent — the same bug expiresAt had.
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 
 	Quota Quota `json:"quota"`
 

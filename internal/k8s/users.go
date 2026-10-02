@@ -247,7 +247,10 @@ func (s *UserStore) toSecret(u user.User) (*corev1.Secret, error) {
 		keyDataKey:   []byte(u.Key),
 		quotaDataKey: quota,
 	}
-	if !u.LastUsedAt.IsZero() {
+	// A nil and a zero LastUsedAt mean the same thing here — never used — and
+	// neither is worth storing, so this is a nil test rather than IsZero, which
+	// would dereference the nil.
+	if u.LastUsedAt != nil && !u.LastUsedAt.IsZero() {
 		data[lastUsedKey] = []byte(u.LastUsedAt.UTC().Format(time.RFC3339))
 	}
 	return &corev1.Secret{
@@ -279,7 +282,7 @@ func (s *UserStore) fromSecret(secret *corev1.Secret) (user.User, error) {
 	}
 	if raw, ok := secret.Data[lastUsedKey]; ok {
 		if t, err := time.Parse(time.RFC3339, string(raw)); err == nil {
-			u.LastUsedAt = t
+			u.LastUsedAt = &t
 		}
 	}
 	u.CreatedAt = secret.CreationTimestamp.Time

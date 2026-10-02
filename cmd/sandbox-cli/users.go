@@ -352,7 +352,7 @@ func userLimits(u user.User) string {
 }
 
 func lastUsed(u user.User) string {
-	if u.LastUsedAt.IsZero() {
+	if u.LastUsedAt == nil || u.LastUsedAt.IsZero() {
 		return "never"
 	}
 	return u.LastUsedAt.Local().Format(time.RFC3339)

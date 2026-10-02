@@ -479,8 +479,13 @@
       tr.appendChild(text("td", "mono", u.name));
       tr.appendChild(text("td", "muted", "hidden"));
 
+      // The limits live under u.quota — the API returns a user with the three
+      // limits nested, the same shape the Limits dialog sends back. Reading them
+      // off the top level found undefined, so every user showed as unlimited and
+      // the dialog then wrote those blanks back over the real quota.
+      var q = u.quota || {};
       var count = text("td", "mono", String(u.sandboxes || 0));
-      if (u.maxSandboxes) count.textContent = (u.sandboxes || 0) + " / " + u.maxSandboxes;
+      if (q.maxSandboxes) count.textContent = (u.sandboxes || 0) + " / " + q.maxSandboxes;
       tr.appendChild(count);
 
       tr.appendChild(text("td", "muted", limitsText(u)));
@@ -514,10 +519,12 @@
   }
 
   function limitsText(u) {
+    var q = u.quota || {};
     var parts = [];
-    if (u.maxSandboxes) parts.push(u.maxSandboxes + " sandbox(es)");
-    if (u.maxTTL) parts.push("up to " + (u.maxTTL / 1e9 / 3600) + "h");
-    if (u.templates && u.templates.length) parts.push(u.templates.join(", "));
+    if (q.maxSandboxes) parts.push(q.maxSandboxes + " sandbox(es)");
+    // maxTTL is nanoseconds, which is what a Go time.Duration is on the wire.
+    if (q.maxTTL) parts.push("up to " + (q.maxTTL / 1e9 / 3600) + "h");
+    if (q.templates && q.templates.length) parts.push(q.templates.join(", "));
     return parts.length ? parts.join("; ") : "the deployment's own limits";
   }
 
@@ -606,12 +613,17 @@
 
   function openUser(u) {
     editingUser = u || null;
+    // Prefilled from u.quota, which is where the API puts the limits. These
+    // reads used to look at the top level, find nothing, and prefill empty — so
+    // saving the dialog sent empty limits back and cleared the user's real
+    // quota. A dialog that cannot show what is set will eventually erase it.
+    var q = (u && u.quota) || {};
     $("userTitle").textContent = u ? ("Limits — " + u.name) : "New user";
     $("uName").value = u ? u.name : "";
     $("uName").disabled = !!u;
-    $("uMax").value = (u && u.maxSandboxes) || 0;
-    $("uTTL").value = (u && u.maxTTL) ? (u.maxTTL / 1e9 / 3600) + "h" : "";
-    $("uTemplates").value = (u && u.templates) ? u.templates.join(", ") : "";
+    $("uMax").value = q.maxSandboxes || 0;
+    $("uTTL").value = q.maxTTL ? (q.maxTTL / 1e9 / 3600) + "h" : "";
+    $("uTemplates").value = (q.templates && q.templates.length) ? q.templates.join(", ") : "";
     $("userDialog").showModal();
   }
 

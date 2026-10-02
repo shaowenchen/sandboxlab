@@ -464,4 +464,106 @@ func unmarshalInto(t *testing.T, w *httptest.ResponseRecorder, v any) {
 	}
 }
 
+// The quota goes out under the same names it comes in under.
+//
+// This asserted on structs for a year and proved nothing: a user's Quota had no
+// JSON tags, so it was served as {"MaxSandboxes":2}, while Go's decoder matches
+// field names case-insensitively and read it back into Quota.MaxSandboxes
+// without complaint. The Go tests, the CLI and the server all agreed with each
+// other and were wrong together. The console, which reads JSON by hand, saw
+// undefined, showed every user as unlimited, and wrote those blanks back over
+// the real quota when an administrator opened the Limits dialog and saved.
+//
+// So this reads the wire as a client that is not Go does: by name.
+func TestIntegrationQuotaWireNames(t *testing.T) {
+	s, _ := newIntegrationServer(t)
+	createUser(t, s, `{"name":"alice","maxSandboxes":2,"maxTTL":"30m","templates":["python"]}`)
+
+	w := as(t, s, integrationKey, http.MethodGet, "/api/v1/users/alice", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("reading the user = %d: %s", w.Code, w.Body.String())
+	}
+	var body map[string]any
+	unmarshalInto(t, w, &body)
+
+	quota, ok := body["quota"].(map[string]any)
+	if !ok {
+		t.Fatalf("the user has no quota object: %s", w.Body.String())
+	}
+	// Exactly the three names a PATCH takes, so what a client reads is what it
+	// can send back.
+	if got := quota["maxSandboxes"]; got != float64(2) {
+		t.Errorf("quota.maxSandboxes = %v, want 2", got)
+	}
+	if got := quota["maxTTL"]; got != float64((30 * time.Minute).Nanoseconds()) {
+		t.Errorf("quota.maxTTL = %v, want %d nanoseconds", got, (30 * time.Minute).Nanoseconds())
+	}
+	if got, ok := quota["templates"].([]any); !ok || len(got) != 1 || got[0] != "python" {
+		t.Errorf("quota.templates = %v, want [python]", quota["templates"])
+	}
+
+	// And the capitalized forms must be gone: their presence is the bug, and a
+	// client that reads by name would take them for a second, empty quota.
+	for _, name := range []string{"MaxSandboxes", "MaxTTL", "Templates"} {
+		if _, present := quota[name]; present {
+			t.Errorf("quota carries %q, which is the capitalised form of a request field — "+
+				"one field with two wire spellings is what made the console clear quotas", name)
+		}
+	}
+
+	// A key that has never been used must not claim it was used in the year 1.
+	// omitempty does nothing to a time.Time, so this is the same bug expiresAt
+	// had, and the absence of the field is what a caller checks.
+	if lastUsed, present := body["lastUsedAt"]; present {
+		t.Errorf("lastUsedAt = %v, want it absent for a key that has never been used", lastUsed)
+	}
+}
+
+// An edit round-trips: what the console reads is what it sends back, and the
+// limits survive it.
+//
+// This is the whole bug in one test. The console reads a user, fills its dialog
+// from the response, and PATCHes the result — so a response whose field names do
+// not match the request's are not a display problem, they are a data-loss
+// problem.
+func TestIntegrationQuotaRoundTrip(t *testing.T) {
+	s, _ := newIntegrationServer(t)
+	createUser(t, s, `{"name":"alice","maxSandboxes":2,"maxTTL":"30m","templates":["python"]}`)
+
+	// Read it exactly as a non-Go client would.
+	w := as(t, s, integrationKey, http.MethodGet, "/api/v1/users/alice", "")
+	var body map[string]any
+	unmarshalInto(t, w, &body)
+	quota := body["quota"].(map[string]any)
+
+	// Build the edit body from those names — the console does this by hand.
+	edit := map[string]any{
+		"maxSandboxes": quota["maxSandboxes"],
+		"maxTTL":       "1h", // changed, in the format a request takes
+		"templates":    quota["templates"],
+	}
+	payload, err := json.Marshal(edit)
+	if err != nil {
+		t.Fatalf("building the edit body: %v", err)
+	}
+
+	w = as(t, s, integrationKey, http.MethodPatch, "/api/v1/users/alice", string(payload))
+	if w.Code != http.StatusOK {
+		t.Fatalf("the edit = %d: %s", w.Code, w.Body.String())
+	}
+	var after map[string]any
+	unmarshalInto(t, w, &after)
+	q := after["quota"].(map[string]any)
+
+	if q["maxSandboxes"] != float64(2) {
+		t.Errorf("the edit lost maxSandboxes: %v", q["maxSandboxes"])
+	}
+	if q["maxTTL"] != float64(time.Hour.Nanoseconds()) {
+		t.Errorf("maxTTL = %v, want %d", q["maxTTL"], time.Hour.Nanoseconds())
+	}
+	if got, ok := q["templates"].([]any); !ok || len(got) != 1 || got[0] != "python" {
+		t.Errorf("the edit lost templates: %v", q["templates"])
+	}
+}
+
 var _ = context.Background
