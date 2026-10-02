@@ -106,6 +106,11 @@
   dialog .field { display: flex; flex-direction: column; gap: 4px; }
   dialog .actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
 
+  .check { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 13px; }
+  .check input { width: auto; }
+  .check code { font-family: var(--mono); font-size: 12px; }
+  .exit-bad { color: var(--bad); font-size: 12px; margin-top: 6px; }
+
   pre {
     background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
     padding: 12px; overflow: auto; max-height: 46vh; margin: 0;
@@ -246,6 +251,28 @@
 </dialog>
 
 
+
+<dialog id="execDialog">
+  <form method="dialog" id="execForm">
+    <h3 id="execTitle">Run a command</h3>
+    <!-- A command line, so the shell reads it as one. The API takes an argv, and
+         that is what a script wants; a person at a keyboard wants to type
+         `ls -la` and have it work. -->
+    <div class="field">
+      <label for="execCommand">Command</label>
+      <input id="execCommand" placeholder="e.g. python3 --version" autocomplete="off" spellcheck="false">
+    </div>
+    <label class="check">
+      <input type="checkbox" id="execShell" checked>
+      <span>Run through <code>sh -c</code>, so pipes and quoting work</span>
+    </label>
+    <pre id="execOutput" hidden></pre>
+    <div class="actions">
+      <button value="cancel">Close</button>
+      <button class="primary" value="run">Run</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="logsDialog">
   <form method="dialog">
@@ -414,12 +441,15 @@
 
       var actions = text("td");
       var row = text("div", "row");
+      var exec = text("button", "small", "Exec");
+      exec.onclick = function () { openExec(sb.id); };
       var logs = text("button", "small", "Logs");
       logs.onclick = function () { showLogs(sb.id); };
       var renew = text("button", "small", "Renew");
       renew.onclick = function () { renewSandbox(sb.id); };
       var rm = text("button", "small danger", "Delete");
       rm.onclick = function () { removeSandbox(sb.id); };
+      row.appendChild(exec);
       row.appendChild(logs);
       row.appendChild(renew);
       row.appendChild(rm);
@@ -582,6 +612,62 @@
   }
 
   // ── users ─────────────────────────────────────────────────────────────────
+  // ── running a command ─────────────────────────────────────────────────────
+
+  // openExec asks for a command to run in one sandbox.
+  //
+  // There is no file browser here, deliberately. Files are for the CLI and for
+  // a program; what the console is for is the question "what is actually going
+  // on in there", and running one command answers it without a second surface
+  // to build and keep in step.
+  var execTarget = "";
+
+  function openExec(id) {
+    execTarget = id;
+    $("execTitle").textContent = "Run a command in " + id;
+    $("execCommand").value = "";
+    $("execOutput").hidden = true;
+    $("execOutput").textContent = "";
+    $("execDialog").showModal();
+    $("execCommand").focus();
+  }
+
+  function runExec() {
+    var id = execTarget;
+    var line = $("execCommand").value.trim();
+    if (!line) return;
+
+    // Through a shell, the line is one argument; directly, it is split on
+    // whitespace. Neither is a real command-line parser, which is exactly why
+    // the checkbox is there for the case that needs one.
+    var command = $("execShell").checked ? ["sh", "-c", line] : line.split(/\s+/);
+
+    var out = $("execOutput");
+    out.hidden = false;
+    out.textContent = "running…";
+
+    api("/sandboxes/" + encodeURIComponent(id) + "/exec", {
+      method: "POST",
+      body: { command: command }
+    }).then(function (res) {
+      // The exit status is part of the answer rather than an error, so it is
+      // shown beside the output instead of replacing it.
+      var parts = [];
+      if (res.stdout) parts.push(res.stdout);
+      if (res.stderr) parts.push((parts.length ? "\n" : "") + res.stderr);
+      if (!parts.length) parts.push("(no output)");
+      if (res.stdoutTruncated || res.stderrTruncated) {
+        parts.push("\n[output was cut off at the limit]");
+      }
+      out.textContent = parts.join("");
+      var status = text("div", res.exitCode === 0 ? "muted" : "exit-bad",
+        res.exitCode === 0 ? "exited 0" : "exited " + res.exitCode);
+      out.appendChild(status);
+    }).catch(function (err) {
+      out.textContent = "could not run it: " + err.message;
+    });
+  }
+
   // ── wiring ────────────────────────────────────────────────────────────────
 
   $("createForm").addEventListener("submit", function (ev) {
@@ -589,6 +675,15 @@
     // The dialog is a form with method=dialog, so the default submit closes it.
     // "Create" is the one value that does more than close.
     if (button && button.value === "create") submitCreate();
+  });
+
+  $("execForm").addEventListener("submit", function (ev) {
+    var button = ev.submitter;
+    // method=dialog closes the form on any submit; "Run" also does the work.
+    if (button && button.value === "run") {
+      ev.preventDefault();
+      runExec();
+    }
   });
 
   $("signin-form").addEventListener("submit", function (ev) {
