@@ -27,9 +27,8 @@ class AuthDescription(BaseModel):
     AuthDescription
     """ # noqa: E501
     scheme: Optional[StrictStr] = Field(default=None, description="how a key is presented: `key`")
-    roles: Optional[List[StrictStr]] = None
     headers: Optional[List[StrictStr]] = Field(default=None, description="the headers a key may be sent in")
-    __properties: ClassVar[List[str]] = ["scheme", "roles", "headers"]
+    __properties: ClassVar[List[str]] = ["scheme", "headers"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -83,7 +82,6 @@ class AuthDescription(BaseModel):
 
         _obj = cls.model_validate({
             "scheme": obj.get("scheme"),
-            "roles": obj.get("roles"),
             "headers": obj.get("headers")
         })
         return _obj

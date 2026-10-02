@@ -39,8 +39,7 @@ class Sandbox(BaseModel):
     endpoints: Optional[List[Endpoint]] = None
     env: Optional[Dict[str, StrictStr]] = Field(default=None, description="the non-secret environment the sandbox was created with")
     namespace: Optional[StrictStr] = Field(default=None, description="the namespace the sandbox owns")
-    owner: Optional[StrictStr] = Field(default=None, description="the user who created it; absent means the administrator, which is the deployment's own rather than anyone's")
-    __properties: ClassVar[List[str]] = ["id", "template", "image", "state", "message", "createdAt", "expiresAt", "endpoints", "env", "namespace", "owner"]
+    __properties: ClassVar[List[str]] = ["id", "template", "image", "state", "message", "createdAt", "expiresAt", "endpoints", "env", "namespace"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -109,8 +108,7 @@ class Sandbox(BaseModel):
             "expiresAt": obj.get("expiresAt"),
             "endpoints": [Endpoint.from_dict(_item) for _item in obj["endpoints"]] if obj.get("endpoints") is not None else None,
             "env": obj.get("env"),
-            "namespace": obj.get("namespace"),
-            "owner": obj.get("owner")
+            "namespace": obj.get("namespace")
         })
         return _obj
 

@@ -26,12 +26,6 @@ export interface AuthDescription {
      */
     scheme?: string;
     /**
-     * 
-     * @type {Array<string>}
-     * @memberof AuthDescription
-     */
-    roles?: Array<string>;
-    /**
      * the headers a key may be sent in
      * @type {Array<string>}
      * @memberof AuthDescription
@@ -57,7 +51,6 @@ export function AuthDescriptionFromJSONTyped(json: any, ignoreDiscriminator: boo
     return {
         
         'scheme': json['scheme'] == null ? undefined : json['scheme'],
-        'roles': json['roles'] == null ? undefined : json['roles'],
         'headers': json['headers'] == null ? undefined : json['headers'],
     };
 }
@@ -74,7 +67,6 @@ export function AuthDescriptionToJSONTyped(value?: AuthDescription | null, ignor
     return {
         
         'scheme': value['scheme'],
-        'roles': value['roles'],
         'headers': value['headers'],
     };
 }

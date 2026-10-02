@@ -50,8 +50,7 @@ import com.sandboxlab.client.ApiClient;
   Sandbox.JSON_PROPERTY_EXPIRES_AT,
   Sandbox.JSON_PROPERTY_ENDPOINTS,
   Sandbox.JSON_PROPERTY_ENV,
-  Sandbox.JSON_PROPERTY_NAMESPACE,
-  Sandbox.JSON_PROPERTY_OWNER
+  Sandbox.JSON_PROPERTY_NAMESPACE
 })
 @javax.annotation.Generated(value = "org.openapitools.codegen.languages.JavaClientCodegen", comments = "Generator version: 7.17.0")
 public class Sandbox {
@@ -94,10 +93,6 @@ public class Sandbox {
   public static final String JSON_PROPERTY_NAMESPACE = "namespace";
   @javax.annotation.Nullable
   private String namespace;
-
-  public static final String JSON_PROPERTY_OWNER = "owner";
-  @javax.annotation.Nullable
-  private String owner;
 
   public Sandbox() { 
   }
@@ -358,30 +353,6 @@ public class Sandbox {
   }
 
 
-  public Sandbox owner(@javax.annotation.Nullable String owner) {
-    this.owner = owner;
-    return this;
-  }
-
-  /**
-   * the user who created it; absent means the administrator, which is the deployment&#39;s own rather than anyone&#39;s
-   * @return owner
-   */
-  @javax.annotation.Nullable
-  @JsonProperty(value = JSON_PROPERTY_OWNER, required = false)
-  @JsonInclude(value = JsonInclude.Include.USE_DEFAULTS)
-  public String getOwner() {
-    return owner;
-  }
-
-
-  @JsonProperty(value = JSON_PROPERTY_OWNER, required = false)
-  @JsonInclude(value = JsonInclude.Include.USE_DEFAULTS)
-  public void setOwner(@javax.annotation.Nullable String owner) {
-    this.owner = owner;
-  }
-
-
   /**
    * Return true if this Sandbox object is equal to o.
    */
@@ -403,13 +374,12 @@ public class Sandbox {
         Objects.equals(this.expiresAt, sandbox.expiresAt) &&
         Objects.equals(this.endpoints, sandbox.endpoints) &&
         Objects.equals(this.env, sandbox.env) &&
-        Objects.equals(this.namespace, sandbox.namespace) &&
-        Objects.equals(this.owner, sandbox.owner);
+        Objects.equals(this.namespace, sandbox.namespace);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(id, template, image, state, message, createdAt, expiresAt, endpoints, env, namespace, owner);
+    return Objects.hash(id, template, image, state, message, createdAt, expiresAt, endpoints, env, namespace);
   }
 
   @Override
@@ -426,7 +396,6 @@ public class Sandbox {
     sb.append("    endpoints: ").append(toIndentedString(endpoints)).append("\n");
     sb.append("    env: ").append(toIndentedString(env)).append("\n");
     sb.append("    namespace: ").append(toIndentedString(namespace)).append("\n");
-    sb.append("    owner: ").append(toIndentedString(owner)).append("\n");
     sb.append("}");
     return sb.toString();
   }
@@ -531,11 +500,6 @@ public class Sandbox {
     // add `namespace` to the URL query string
     if (getNamespace() != null) {
       joiner.add(String.format(Locale.ROOT, "%snamespace%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getNamespace()))));
-    }
-
-    // add `owner` to the URL query string
-    if (getOwner() != null) {
-      joiner.add(String.format(Locale.ROOT, "%sowner%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getOwner()))));
     }
 
     return joiner.toString();

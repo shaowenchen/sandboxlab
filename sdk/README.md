@@ -61,9 +61,8 @@ X-Sandbox-Key: <key>
 Authorization: Bearer <key>
 ```
 
-The two kinds of key are worth knowing about before you write anything: an
-administrator holds the deployment's own key and sees every sandbox; a user
-holds a key issued to them and sees only their own.
+There is one key, held by the deployment, and it may do everything. A request
+either presents it or it does not.
 
 ### Go
 
@@ -156,12 +155,11 @@ origin.
 Durations cross the wire as strings — `"30m"`, `"2h"`, `"90s"` — in a create or
 renew request. In a *response* a lifetime is a nanosecond count, because that is
 what a Go `time.Duration` marshals to. So `"ttl": "30m"` goes out, and
-`expiresAt` comes back as an RFC 3339 timestamp; a user's `quota.maxTTL` comes
-back as an integer.
+`expiresAt` comes back as an RFC 3339 timestamp.
 
-`expiresAt` and `lastUsedAt` are absent rather than zero when they do not apply.
-"No expiry" is the absence of `expiresAt`, not a time in the year 1 — check for
-the field, not for a value.
+`expiresAt` is absent rather than zero when it does not apply. "No expiry" is
+the absence of `expiresAt`, not a time in the year 1 — check for the field, not
+for a value.
 
 ## Testing an SDK against a real deployment
 

@@ -18,7 +18,6 @@ import type {
   Config,
   Describe,
   Status,
-  Whoami,
 } from '../models/index';
 import {
     ConfigFromJSON,
@@ -27,8 +26,6 @@ import {
     DescribeToJSON,
     StatusFromJSON,
     StatusToJSON,
-    WhoamiFromJSON,
-    WhoamiToJSON,
 } from '../models/index';
 
 /**
@@ -54,7 +51,7 @@ export interface MetaApiInterface {
     describe(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Describe>;
 
     /**
-     * What this deployment is: the interface version, the lifetimes it enforces, whether it manages users, and where it is served. The console reads it on load to decide what to offer.
+     * What this deployment is: the interface version, the lifetimes it enforces, the ceiling on how many sandboxes may exist, and where it is served. The console reads it on load to decide what to offer.
      * @summary The deployment\'s shape
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
@@ -63,7 +60,7 @@ export interface MetaApiInterface {
     getConfigRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Config>>;
 
     /**
-     * What this deployment is: the interface version, the lifetimes it enforces, whether it manages users, and where it is served. The console reads it on load to decide what to offer.
+     * What this deployment is: the interface version, the lifetimes it enforces, the ceiling on how many sandboxes may exist, and where it is served. The console reads it on load to decide what to offer.
      * The deployment\'s shape
      */
     getConfig(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Config>;
@@ -97,21 +94,6 @@ export interface MetaApiInterface {
      * Readiness
      */
     ready(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Status>;
-
-    /**
-     * Whether the caller holds the administrator\'s key or a user\'s, and for a user, who they are. The console reads it to decide between its two views.
-     * @summary Which key this is
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof MetaApiInterface
-     */
-    whoamiRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Whoami>>;
-
-    /**
-     * Whether the caller holds the administrator\'s key or a user\'s, and for a user, who they are. The console reads it to decide between its two views.
-     * Which key this is
-     */
-    whoami(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Whoami>;
 
 }
 
@@ -152,7 +134,7 @@ export class MetaApi extends runtime.BaseAPI implements MetaApiInterface {
     }
 
     /**
-     * What this deployment is: the interface version, the lifetimes it enforces, whether it manages users, and where it is served. The console reads it on load to decide what to offer.
+     * What this deployment is: the interface version, the lifetimes it enforces, the ceiling on how many sandboxes may exist, and where it is served. The console reads it on load to decide what to offer.
      * The deployment\'s shape
      */
     async getConfigRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Config>> {
@@ -174,7 +156,7 @@ export class MetaApi extends runtime.BaseAPI implements MetaApiInterface {
     }
 
     /**
-     * What this deployment is: the interface version, the lifetimes it enforces, whether it manages users, and where it is served. The console reads it on load to decide what to offer.
+     * What this deployment is: the interface version, the lifetimes it enforces, the ceiling on how many sandboxes may exist, and where it is served. The console reads it on load to decide what to offer.
      * The deployment\'s shape
      */
     async getConfig(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Config> {
@@ -241,49 +223,6 @@ export class MetaApi extends runtime.BaseAPI implements MetaApiInterface {
      */
     async ready(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Status> {
         const response = await this.readyRaw(initOverrides);
-        return await response.value();
-    }
-
-    /**
-     * Whether the caller holds the administrator\'s key or a user\'s, and for a user, who they are. The console reads it to decide between its two views.
-     * Which key this is
-     */
-    async whoamiRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Whoami>> {
-        const queryParameters: any = {};
-
-        const headerParameters: runtime.HTTPHeaders = {};
-
-        if (this.configuration && this.configuration.apiKey) {
-            headerParameters["X-Sandbox-Key"] = await this.configuration.apiKey("X-Sandbox-Key"); // ApiKey authentication
-        }
-
-        if (this.configuration && this.configuration.accessToken) {
-            const token = this.configuration.accessToken;
-            const tokenString = await token("BearerAuth", []);
-
-            if (tokenString) {
-                headerParameters["Authorization"] = `Bearer ${tokenString}`;
-            }
-        }
-
-        let urlPath = `/api/v1/whoami`;
-
-        const response = await this.request({
-            path: urlPath,
-            method: 'GET',
-            headers: headerParameters,
-            query: queryParameters,
-        }, initOverrides);
-
-        return new runtime.JSONApiResponse(response, (jsonValue) => WhoamiFromJSON(jsonValue));
-    }
-
-    /**
-     * Whether the caller holds the administrator\'s key or a user\'s, and for a user, who they are. The console reads it to decide between its two views.
-     * Which key this is
-     */
-    async whoami(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Whoami> {
-        const response = await this.whoamiRaw(initOverrides);
         return await response.value();
     }
 

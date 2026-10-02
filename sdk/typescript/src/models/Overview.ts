@@ -55,18 +55,6 @@ export interface Overview {
      * @memberof Overview
      */
     maxSandboxes?: number;
-    /**
-     * whose sandboxes these are, when the view is a user's rather than the deployment's
-     * @type {string}
-     * @memberof Overview
-     */
-    user?: string;
-    /**
-     * whether the view is a user's rather than the deployment's
-     * @type {boolean}
-     * @memberof Overview
-     */
-    scoped: boolean;
 }
 
 /**
@@ -77,7 +65,6 @@ export function instanceOfOverview(value: object): value is Overview {
     if (!('byState' in value) || value['byState'] === undefined) return false;
     if (!('byTemplate' in value) || value['byTemplate'] === undefined) return false;
     if (!('cluster' in value) || value['cluster'] === undefined) return false;
-    if (!('scoped' in value) || value['scoped'] === undefined) return false;
     return true;
 }
 
@@ -97,8 +84,6 @@ export function OverviewFromJSONTyped(json: any, ignoreDiscriminator: boolean): 
         'byOwner': json['byOwner'] == null ? undefined : json['byOwner'],
         'cluster': json['cluster'],
         'maxSandboxes': json['maxSandboxes'] == null ? undefined : json['maxSandboxes'],
-        'user': json['user'] == null ? undefined : json['user'],
-        'scoped': json['scoped'],
     };
 }
 
@@ -119,8 +104,6 @@ export function OverviewToJSONTyped(value?: Overview | null, ignoreDiscriminator
         'byOwner': value['byOwner'],
         'cluster': value['cluster'],
         'maxSandboxes': value['maxSandboxes'],
-        'user': value['user'],
-        'scoped': value['scoped'],
     };
 }
 

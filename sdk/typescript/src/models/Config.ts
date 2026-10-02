@@ -79,12 +79,6 @@ export interface Config {
      * @memberof Config
      */
     templates: number;
-    /**
-     * whether this deployment manages users
-     * @type {boolean}
-     * @memberof Config
-     */
-    users: boolean;
 }
 
 /**
@@ -100,7 +94,6 @@ export function instanceOfConfig(value: object): value is Config {
     if (!('maxTTL' in value) || value['maxTTL'] === undefined) return false;
     if (!('maxSandboxes' in value) || value['maxSandboxes'] === undefined) return false;
     if (!('templates' in value) || value['templates'] === undefined) return false;
-    if (!('users' in value) || value['users'] === undefined) return false;
     return true;
 }
 
@@ -124,7 +117,6 @@ export function ConfigFromJSONTyped(json: any, ignoreDiscriminator: boolean): Co
         'maxTTL': json['maxTTL'],
         'maxSandboxes': json['maxSandboxes'],
         'templates': json['templates'],
-        'users': json['users'],
     };
 }
 
@@ -149,7 +141,6 @@ export function ConfigToJSONTyped(value?: Config | null, ignoreDiscriminator: bo
         'maxTTL': value['maxTTL'],
         'maxSandboxes': value['maxSandboxes'],
         'templates': value['templates'],
-        'users': value['users'],
     };
 }
 

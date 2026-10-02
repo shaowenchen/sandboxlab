@@ -22,7 +22,6 @@ import com.sandboxlab.model.Config;
 import com.sandboxlab.model.Describe;
 import com.sandboxlab.model.Error;
 import com.sandboxlab.model.Status;
-import com.sandboxlab.model.Whoami;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -263,7 +262,7 @@ public class MetaApi {
 
   /**
    * The deployment&#39;s shape
-   * What this deployment is: the interface version, the lifetimes it enforces, whether it manages users, and where it is served. The console reads it on load to decide what to offer.
+   * What this deployment is: the interface version, the lifetimes it enforces, the ceiling on how many sandboxes may exist, and where it is served. The console reads it on load to decide what to offer.
    * @return Config
    * @throws ApiException if fails to make API call
    */
@@ -273,7 +272,7 @@ public class MetaApi {
 
   /**
    * The deployment&#39;s shape
-   * What this deployment is: the interface version, the lifetimes it enforces, whether it manages users, and where it is served. The console reads it on load to decide what to offer.
+   * What this deployment is: the interface version, the lifetimes it enforces, the ceiling on how many sandboxes may exist, and where it is served. The console reads it on load to decide what to offer.
    * @param headers Optional headers to include in the request
    * @return Config
    * @throws ApiException if fails to make API call
@@ -285,7 +284,7 @@ public class MetaApi {
 
   /**
    * The deployment&#39;s shape
-   * What this deployment is: the interface version, the lifetimes it enforces, whether it manages users, and where it is served. The console reads it on load to decide what to offer.
+   * What this deployment is: the interface version, the lifetimes it enforces, the ceiling on how many sandboxes may exist, and where it is served. The console reads it on load to decide what to offer.
    * @return ApiResponse&lt;Config&gt;
    * @throws ApiException if fails to make API call
    */
@@ -295,7 +294,7 @@ public class MetaApi {
 
   /**
    * The deployment&#39;s shape
-   * What this deployment is: the interface version, the lifetimes it enforces, whether it manages users, and where it is served. The console reads it on load to decide what to offer.
+   * What this deployment is: the interface version, the lifetimes it enforces, the ceiling on how many sandboxes may exist, and where it is served. The console reads it on load to decide what to offer.
    * @param headers Optional headers to include in the request
    * @return ApiResponse&lt;Config&gt;
    * @throws ApiException if fails to make API call
@@ -559,111 +558,6 @@ public class MetaApi {
     HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
 
     String localVarPath = "/readyz";
-
-    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
-
-    localVarRequestBuilder.header("Accept", "application/json");
-
-    localVarRequestBuilder.method("GET", HttpRequest.BodyPublishers.noBody());
-    if (memberVarReadTimeout != null) {
-      localVarRequestBuilder.timeout(memberVarReadTimeout);
-    }
-    // Add custom headers if provided
-    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
-    if (memberVarInterceptor != null) {
-      memberVarInterceptor.accept(localVarRequestBuilder);
-    }
-    return localVarRequestBuilder;
-  }
-
-  /**
-   * Which key this is
-   * Whether the caller holds the administrator&#39;s key or a user&#39;s, and for a user, who they are. The console reads it to decide between its two views.
-   * @return Whoami
-   * @throws ApiException if fails to make API call
-   */
-  public Whoami whoami() throws ApiException {
-    return whoami(null);
-  }
-
-  /**
-   * Which key this is
-   * Whether the caller holds the administrator&#39;s key or a user&#39;s, and for a user, who they are. The console reads it to decide between its two views.
-   * @param headers Optional headers to include in the request
-   * @return Whoami
-   * @throws ApiException if fails to make API call
-   */
-  public Whoami whoami(Map<String, String> headers) throws ApiException {
-    ApiResponse<Whoami> localVarResponse = whoamiWithHttpInfo(headers);
-    return localVarResponse.getData();
-  }
-
-  /**
-   * Which key this is
-   * Whether the caller holds the administrator&#39;s key or a user&#39;s, and for a user, who they are. The console reads it to decide between its two views.
-   * @return ApiResponse&lt;Whoami&gt;
-   * @throws ApiException if fails to make API call
-   */
-  public ApiResponse<Whoami> whoamiWithHttpInfo() throws ApiException {
-    return whoamiWithHttpInfo(null);
-  }
-
-  /**
-   * Which key this is
-   * Whether the caller holds the administrator&#39;s key or a user&#39;s, and for a user, who they are. The console reads it to decide between its two views.
-   * @param headers Optional headers to include in the request
-   * @return ApiResponse&lt;Whoami&gt;
-   * @throws ApiException if fails to make API call
-   */
-  public ApiResponse<Whoami> whoamiWithHttpInfo(Map<String, String> headers) throws ApiException {
-    HttpRequest.Builder localVarRequestBuilder = whoamiRequestBuilder(headers);
-    try {
-      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
-          localVarRequestBuilder.build(),
-          HttpResponse.BodyHandlers.ofInputStream());
-      if (memberVarResponseInterceptor != null) {
-        memberVarResponseInterceptor.accept(localVarResponse);
-      }
-      try {
-        if (localVarResponse.statusCode()/ 100 != 2) {
-          throw getApiException("whoami", localVarResponse);
-        }
-        if (localVarResponse.body() == null) {
-          return new ApiResponse<Whoami>(
-              localVarResponse.statusCode(),
-              localVarResponse.headers().map(),
-              null
-          );
-        }
-
-        
-        
-        String responseBody = new String(localVarResponse.body().readAllBytes());
-        Whoami responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<Whoami>() {});
-        
-        localVarResponse.body().close();
-
-        return new ApiResponse<Whoami>(
-            localVarResponse.statusCode(),
-            localVarResponse.headers().map(),
-            responseValue
-        );
-      } finally {
-      }
-    } catch (IOException e) {
-      throw new ApiException(e);
-    }
-    catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new ApiException(e);
-    }
-  }
-
-  private HttpRequest.Builder whoamiRequestBuilder(Map<String, String> headers) throws ApiException {
-
-    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
-
-    String localVarPath = "/api/v1/whoami";
 
     localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
 

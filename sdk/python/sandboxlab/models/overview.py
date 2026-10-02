@@ -17,7 +17,7 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 from typing import Any, ClassVar, Dict, List, Optional
 from typing import Optional, Set
 from typing_extensions import Self
@@ -32,9 +32,7 @@ class Overview(BaseModel):
     by_owner: Optional[Dict[str, StrictInt]] = Field(default=None, alias="byOwner")
     cluster: StrictBool = Field(description="whether the cluster is reachable")
     max_sandboxes: Optional[StrictInt] = Field(default=None, description="the deployment's ceiling; 0 means none", alias="maxSandboxes")
-    user: Optional[StrictStr] = Field(default=None, description="whose sandboxes these are, when the view is a user's rather than the deployment's")
-    scoped: StrictBool = Field(description="whether the view is a user's rather than the deployment's")
-    __properties: ClassVar[List[str]] = ["total", "byState", "byTemplate", "byOwner", "cluster", "maxSandboxes", "user", "scoped"]
+    __properties: ClassVar[List[str]] = ["total", "byState", "byTemplate", "byOwner", "cluster", "maxSandboxes"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -92,9 +90,7 @@ class Overview(BaseModel):
             "byTemplate": obj.get("byTemplate"),
             "byOwner": obj.get("byOwner"),
             "cluster": obj.get("cluster"),
-            "maxSandboxes": obj.get("maxSandboxes"),
-            "user": obj.get("user"),
-            "scoped": obj.get("scoped")
+            "maxSandboxes": obj.get("maxSandboxes")
         })
         return _obj
 

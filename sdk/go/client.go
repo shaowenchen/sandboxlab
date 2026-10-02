@@ -55,8 +55,9 @@ type Options struct {
 	// "https://sandbox.example.com/sandbox". A trailing slash is ignored.
 	BaseURL string
 
-	// Key is the administrator's key or a user's. It is sent on every request;
-	// leave it empty only to call the routes that take no key.
+	// Key is the deployment's key. It is sent on every request; leave it empty
+	// only to call the routes that take no key — /healthz, /readyz, /describe
+	// and the console.
 	Key string
 
 	// HTTPClient overrides the transport. Leave it nil for the default.

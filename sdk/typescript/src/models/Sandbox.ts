@@ -94,12 +94,6 @@ export interface Sandbox {
      * @memberof Sandbox
      */
     namespace?: string;
-    /**
-     * the user who created it; absent means the administrator, which is the deployment's own rather than anyone's
-     * @type {string}
-     * @memberof Sandbox
-     */
-    owner?: string;
 }
 
 
@@ -136,7 +130,6 @@ export function SandboxFromJSONTyped(json: any, ignoreDiscriminator: boolean): S
         'endpoints': json['endpoints'] == null ? undefined : ((json['endpoints'] as Array<any>).map(EndpointFromJSON)),
         'env': json['env'] == null ? undefined : json['env'],
         'namespace': json['namespace'] == null ? undefined : json['namespace'],
-        'owner': json['owner'] == null ? undefined : json['owner'],
     };
 }
 
@@ -161,7 +154,6 @@ export function SandboxToJSONTyped(value?: Sandbox | null, ignoreDiscriminator: 
         'endpoints': value['endpoints'] == null ? undefined : ((value['endpoints'] as Array<any>).map(EndpointToJSON)),
         'env': value['env'],
         'namespace': value['namespace'],
-        'owner': value['owner'],
     };
 }
 

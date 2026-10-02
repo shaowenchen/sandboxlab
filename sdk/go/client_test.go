@@ -97,13 +97,6 @@ func TestClientSendsTheKeyAndThePath(t *testing.T) {
 		call   func(c *sdk.ClientWithResponses) (*http.Response, error)
 	}{
 		{
-			name:   "whoami",
-			path:   "/api/v1/whoami",
-			status: http.StatusOK,
-			body:   `{"role":"admin","admin":true}`,
-			call:   func(c *sdk.ClientWithResponses) (*http.Response, error) { return c.Whoami(context.Background()) },
-		},
-		{
 			name:   "catalog",
 			path:   "/api/v1/catalog",
 			status: http.StatusOK,
@@ -130,7 +123,7 @@ func TestClientSendsTheKeyAndThePath(t *testing.T) {
 			name:   "overview",
 			path:   "/api/v1/overview",
 			status: http.StatusOK,
-			body:   `{"total":0,"byState":{},"byTemplate":{},"cluster":true,"scoped":false}`,
+			body:   `{"total":0,"byState":{},"byTemplate":{},"cluster":true}`,
 			call:   func(c *sdk.ClientWithResponses) (*http.Response, error) { return c.GetOverview(context.Background()) },
 		},
 		{
@@ -160,22 +153,6 @@ func TestClientSendsTheKeyAndThePath(t *testing.T) {
 			status: http.StatusOK,
 			body:   `{"status":"ready"}`,
 			call:   func(c *sdk.ClientWithResponses) (*http.Response, error) { return c.Ready(context.Background()) },
-		},
-		{
-			name:   "users",
-			path:   "/api/v1/users",
-			status: http.StatusOK,
-			body:   `{"users":[],"count":0}`,
-			call:   func(c *sdk.ClientWithResponses) (*http.Response, error) { return c.ListUsers(context.Background()) },
-		},
-		{
-			name:   "one user",
-			path:   "/api/v1/users/alice",
-			status: http.StatusOK,
-			body:   `{"name":"alice","key":"k","createdAt":"2026-01-01T00:00:00Z","quota":{}}`,
-			call: func(c *sdk.ClientWithResponses) (*http.Response, error) {
-				return c.GetUser(context.Background(), "alice")
-			},
 		},
 	}
 
@@ -340,16 +317,16 @@ func TestNewRefusesAnEmptyAddress(t *testing.T) {
 func TestNewTrimsATrailingSlash(t *testing.T) {
 	// A base URL with a trailing slash would otherwise produce "//api/v1/...",
 	// which some gateways route differently from "/api/v1/...".
-	srv, got := newServer(t, http.StatusOK, `{"role":"admin","admin":true}`)
+	srv, got := newServer(t, http.StatusOK, `{"templates":[]}`)
 	c, err := sdk.New(sdk.Options{BaseURL: srv.URL + "/", Key: "k"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if _, err := c.Whoami(context.Background()); err != nil {
-		t.Fatalf("Whoami: %v", err)
+	if _, err := c.ListCatalog(context.Background()); err != nil {
+		t.Fatalf("ListCatalog: %v", err)
 	}
-	if p := (*got)[0].path; p != "/api/v1/whoami" {
-		t.Errorf("path = %q, want /api/v1/whoami", p)
+	if p := (*got)[0].path; p != "/api/v1/catalog" {
+		t.Errorf("path = %q, want /api/v1/catalog", p)
 	}
 }
 

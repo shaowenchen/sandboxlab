@@ -43,8 +43,7 @@ import com.sandboxlab.client.ApiClient;
   Config.JSON_PROPERTY_DEFAULT_T_T_L,
   Config.JSON_PROPERTY_MAX_T_T_L,
   Config.JSON_PROPERTY_MAX_SANDBOXES,
-  Config.JSON_PROPERTY_TEMPLATES,
-  Config.JSON_PROPERTY_USERS
+  Config.JSON_PROPERTY_TEMPLATES
 })
 @javax.annotation.Generated(value = "org.openapitools.codegen.languages.JavaClientCodegen", comments = "Generator version: 7.17.0")
 public class Config {
@@ -87,10 +86,6 @@ public class Config {
   public static final String JSON_PROPERTY_TEMPLATES = "templates";
   @javax.annotation.Nonnull
   private Integer templates;
-
-  public static final String JSON_PROPERTY_USERS = "users";
-  @javax.annotation.Nonnull
-  private Boolean users;
 
   public Config() { 
   }
@@ -335,30 +330,6 @@ public class Config {
   }
 
 
-  public Config users(@javax.annotation.Nonnull Boolean users) {
-    this.users = users;
-    return this;
-  }
-
-  /**
-   * whether this deployment manages users
-   * @return users
-   */
-  @javax.annotation.Nonnull
-  @JsonProperty(value = JSON_PROPERTY_USERS, required = true)
-  @JsonInclude(value = JsonInclude.Include.ALWAYS)
-  public Boolean getUsers() {
-    return users;
-  }
-
-
-  @JsonProperty(value = JSON_PROPERTY_USERS, required = true)
-  @JsonInclude(value = JsonInclude.Include.ALWAYS)
-  public void setUsers(@javax.annotation.Nonnull Boolean users) {
-    this.users = users;
-  }
-
-
   /**
    * Return true if this Config object is equal to o.
    */
@@ -380,13 +351,12 @@ public class Config {
         Objects.equals(this.defaultTTL, config.defaultTTL) &&
         Objects.equals(this.maxTTL, config.maxTTL) &&
         Objects.equals(this.maxSandboxes, config.maxSandboxes) &&
-        Objects.equals(this.templates, config.templates) &&
-        Objects.equals(this.users, config.users);
+        Objects.equals(this.templates, config.templates);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(apiVersion, build, basePath, publicURL, namespace, dataPlane, defaultTTL, maxTTL, maxSandboxes, templates, users);
+    return Objects.hash(apiVersion, build, basePath, publicURL, namespace, dataPlane, defaultTTL, maxTTL, maxSandboxes, templates);
   }
 
   @Override
@@ -403,7 +373,6 @@ public class Config {
     sb.append("    maxTTL: ").append(toIndentedString(maxTTL)).append("\n");
     sb.append("    maxSandboxes: ").append(toIndentedString(maxSandboxes)).append("\n");
     sb.append("    templates: ").append(toIndentedString(templates)).append("\n");
-    sb.append("    users: ").append(toIndentedString(users)).append("\n");
     sb.append("}");
     return sb.toString();
   }
@@ -499,11 +468,6 @@ public class Config {
     // add `templates` to the URL query string
     if (getTemplates() != null) {
       joiner.add(String.format(Locale.ROOT, "%stemplates%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getTemplates()))));
-    }
-
-    // add `users` to the URL query string
-    if (getUsers() != null) {
-      joiner.add(String.format(Locale.ROOT, "%susers%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getUsers()))));
     }
 
     return joiner.toString();

@@ -49,7 +49,6 @@ All URIs are relative to *https://sandboxlab.example.com/sandbox*
 *MetaApi* | [**getConfig**](docs/MetaApi.md#getconfig) | **GET** /api/v1/config | The deployment\&#39;s shape
 *MetaApi* | [**health**](docs/MetaApi.md#health) | **GET** /healthz | Liveness
 *MetaApi* | [**ready**](docs/MetaApi.md#ready) | **GET** /readyz | Readiness
-*MetaApi* | [**whoami**](docs/MetaApi.md#whoami) | **GET** /api/v1/whoami | Which key this is
 *SandboxesApi* | [**createSandbox**](docs/SandboxesApi.md#createsandboxoperation) | **POST** /api/v1/sandboxes | Create one
 *SandboxesApi* | [**deleteSandbox**](docs/SandboxesApi.md#deletesandbox) | **DELETE** /api/v1/sandboxes/{id} | Delete one
 *SandboxesApi* | [**getCatalogEntry**](docs/SandboxesApi.md#getcatalogentry) | **GET** /api/v1/catalog/{id} | One template
@@ -60,13 +59,6 @@ All URIs are relative to *https://sandboxlab.example.com/sandbox*
 *SandboxesApi* | [**listSandboxes**](docs/SandboxesApi.md#listsandboxes) | **GET** /api/v1/sandboxes | Every sandbox you may see
 *SandboxesApi* | [**proxyToSandbox**](docs/SandboxesApi.md#proxytosandbox) | **GET** /sandbox/{id}/{port}/ | Proxy to a sandbox\&#39;s own port
 *SandboxesApi* | [**renewSandbox**](docs/SandboxesApi.md#renewsandboxoperation) | **POST** /api/v1/sandboxes/{id}/renew | Reset a sandbox\&#39;s lifetime, measured from now
-*UsersApi* | [**createUser**](docs/UsersApi.md#createuser) | **POST** /api/v1/users | Create one, and get its key
-*UsersApi* | [**deleteUser**](docs/UsersApi.md#deleteuser) | **DELETE** /api/v1/users/{name} | Remove a user
-*UsersApi* | [**getUser**](docs/UsersApi.md#getuser) | **GET** /api/v1/users/{name} | One user, with their key
-*UsersApi* | [**listUsers**](docs/UsersApi.md#listusers) | **GET** /api/v1/users | Every user
-*UsersApi* | [**replaceUser**](docs/UsersApi.md#replaceuser) | **PUT** /api/v1/users/{name} | Change a user\&#39;s quota (the same merge as PATCH)
-*UsersApi* | [**rotateUserKey**](docs/UsersApi.md#rotateuserkey) | **POST** /api/v1/users/{name}/key | Issue a new key
-*UsersApi* | [**updateUser**](docs/UsersApi.md#updateuser) | **PATCH** /api/v1/users/{name} | Change a user\&#39;s quota
 
 
 ### Models
@@ -83,20 +75,14 @@ All URIs are relative to *https://sandboxlab.example.com/sandbox*
 - [ModelError](docs/ModelError.md)
 - [Overview](docs/Overview.md)
 - [Port](docs/Port.md)
-- [Quota](docs/Quota.md)
 - [RenewSandboxRequest](docs/RenewSandboxRequest.md)
 - [Resources](docs/Resources.md)
-- [RotateKeyRequest](docs/RotateKeyRequest.md)
 - [Sandbox](docs/Sandbox.md)
 - [SandboxList](docs/SandboxList.md)
 - [SandboxState](docs/SandboxState.md)
 - [Status](docs/Status.md)
 - [Template](docs/Template.md)
 - [TemplateList](docs/TemplateList.md)
-- [User](docs/User.md)
-- [UserList](docs/UserList.md)
-- [UserRequest](docs/UserRequest.md)
-- [Whoami](docs/Whoami.md)
 
 ### Authorization
 

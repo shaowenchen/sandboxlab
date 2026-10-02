@@ -36,8 +36,7 @@ class Config(BaseModel):
     max_ttl: StrictStr = Field(description="a duration, e.g. 8h0m0s", alias="maxTTL")
     max_sandboxes: StrictInt = Field(description="0 means no deployment-wide ceiling", alias="maxSandboxes")
     templates: StrictInt = Field(description="how many templates the catalog holds")
-    users: StrictBool = Field(description="whether this deployment manages users")
-    __properties: ClassVar[List[str]] = ["apiVersion", "build", "basePath", "publicURL", "namespace", "dataPlane", "defaultTTL", "maxTTL", "maxSandboxes", "templates", "users"]
+    __properties: ClassVar[List[str]] = ["apiVersion", "build", "basePath", "publicURL", "namespace", "dataPlane", "defaultTTL", "maxTTL", "maxSandboxes", "templates"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -99,8 +98,7 @@ class Config(BaseModel):
             "defaultTTL": obj.get("defaultTTL"),
             "maxTTL": obj.get("maxTTL"),
             "maxSandboxes": obj.get("maxSandboxes"),
-            "templates": obj.get("templates"),
-            "users": obj.get("users")
+            "templates": obj.get("templates")
         })
         return _obj
 

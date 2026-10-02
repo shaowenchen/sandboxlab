@@ -88,7 +88,6 @@ Class | Method | HTTP request | Description
 *MetaApi* | [**get_config**](docs/MetaApi.md#get_config) | **GET** /api/v1/config | The deployment&#39;s shape
 *MetaApi* | [**health**](docs/MetaApi.md#health) | **GET** /healthz | Liveness
 *MetaApi* | [**ready**](docs/MetaApi.md#ready) | **GET** /readyz | Readiness
-*MetaApi* | [**whoami**](docs/MetaApi.md#whoami) | **GET** /api/v1/whoami | Which key this is
 *SandboxesApi* | [**create_sandbox**](docs/SandboxesApi.md#create_sandbox) | **POST** /api/v1/sandboxes | Create one
 *SandboxesApi* | [**delete_sandbox**](docs/SandboxesApi.md#delete_sandbox) | **DELETE** /api/v1/sandboxes/{id} | Delete one
 *SandboxesApi* | [**get_catalog_entry**](docs/SandboxesApi.md#get_catalog_entry) | **GET** /api/v1/catalog/{id} | One template
@@ -99,13 +98,6 @@ Class | Method | HTTP request | Description
 *SandboxesApi* | [**list_sandboxes**](docs/SandboxesApi.md#list_sandboxes) | **GET** /api/v1/sandboxes | Every sandbox you may see
 *SandboxesApi* | [**proxy_to_sandbox**](docs/SandboxesApi.md#proxy_to_sandbox) | **GET** /sandbox/{id}/{port}/ | Proxy to a sandbox&#39;s own port
 *SandboxesApi* | [**renew_sandbox**](docs/SandboxesApi.md#renew_sandbox) | **POST** /api/v1/sandboxes/{id}/renew | Reset a sandbox&#39;s lifetime, measured from now
-*UsersApi* | [**create_user**](docs/UsersApi.md#create_user) | **POST** /api/v1/users | Create one, and get its key
-*UsersApi* | [**delete_user**](docs/UsersApi.md#delete_user) | **DELETE** /api/v1/users/{name} | Remove a user
-*UsersApi* | [**get_user**](docs/UsersApi.md#get_user) | **GET** /api/v1/users/{name} | One user, with their key
-*UsersApi* | [**list_users**](docs/UsersApi.md#list_users) | **GET** /api/v1/users | Every user
-*UsersApi* | [**replace_user**](docs/UsersApi.md#replace_user) | **PUT** /api/v1/users/{name} | Change a user&#39;s quota (the same merge as PATCH)
-*UsersApi* | [**rotate_user_key**](docs/UsersApi.md#rotate_user_key) | **POST** /api/v1/users/{name}/key | Issue a new key
-*UsersApi* | [**update_user**](docs/UsersApi.md#update_user) | **PATCH** /api/v1/users/{name} | Change a user&#39;s quota
 
 
 ## Documentation For Models
@@ -122,20 +114,14 @@ Class | Method | HTTP request | Description
  - [GetSandboxLogs200Response](docs/GetSandboxLogs200Response.md)
  - [Overview](docs/Overview.md)
  - [Port](docs/Port.md)
- - [Quota](docs/Quota.md)
  - [RenewSandboxRequest](docs/RenewSandboxRequest.md)
  - [Resources](docs/Resources.md)
- - [RotateKeyRequest](docs/RotateKeyRequest.md)
  - [Sandbox](docs/Sandbox.md)
  - [SandboxList](docs/SandboxList.md)
  - [SandboxState](docs/SandboxState.md)
  - [Status](docs/Status.md)
  - [Template](docs/Template.md)
  - [TemplateList](docs/TemplateList.md)
- - [User](docs/User.md)
- - [UserList](docs/UserList.md)
- - [UserRequest](docs/UserRequest.md)
- - [Whoami](docs/Whoami.md)
 
 
 <a id="documentation-for-authorization"></a>

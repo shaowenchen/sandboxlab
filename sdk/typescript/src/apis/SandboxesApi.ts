@@ -131,7 +131,7 @@ export interface SandboxesApiInterface {
     getCatalogEntry(requestParameters: SandboxesApiGetCatalogEntryRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Template>;
 
     /**
-     * What is running, what it is, and who it belongs to. Scoped to what the caller may see: an administrator gets the deployment, a user gets their own.
+     * What is running and what it is: how many sandboxes exist, and how they break down by state and template.
      * @summary Counts of sandboxes by state and template
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
@@ -140,7 +140,7 @@ export interface SandboxesApiInterface {
     getOverviewRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Overview>>;
 
     /**
-     * What is running, what it is, and who it belongs to. Scoped to what the caller may see: an administrator gets the deployment, a user gets their own.
+     * What is running and what it is: how many sandboxes exist, and how they break down by state and template.
      * Counts of sandboxes by state and template
      */
     getOverview(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Overview>;
@@ -398,7 +398,7 @@ export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterfa
     }
 
     /**
-     * What is running, what it is, and who it belongs to. Scoped to what the caller may see: an administrator gets the deployment, a user gets their own.
+     * What is running and what it is: how many sandboxes exist, and how they break down by state and template.
      * Counts of sandboxes by state and template
      */
     async getOverviewRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Overview>> {
@@ -432,7 +432,7 @@ export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterfa
     }
 
     /**
-     * What is running, what it is, and who it belongs to. Scoped to what the caller may see: an administrator gets the deployment, a user gets their own.
+     * What is running and what it is: how many sandboxes exist, and how they break down by state and template.
      * Counts of sandboxes by state and template
      */
     async getOverview(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Overview> {

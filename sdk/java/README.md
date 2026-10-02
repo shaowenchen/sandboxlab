@@ -114,8 +114,6 @@ Class | Method | HTTP request | Description
 *MetaApi* | [**healthWithHttpInfo**](docs/MetaApi.md#healthWithHttpInfo) | **GET** /healthz | Liveness
 *MetaApi* | [**ready**](docs/MetaApi.md#ready) | **GET** /readyz | Readiness
 *MetaApi* | [**readyWithHttpInfo**](docs/MetaApi.md#readyWithHttpInfo) | **GET** /readyz | Readiness
-*MetaApi* | [**whoami**](docs/MetaApi.md#whoami) | **GET** /api/v1/whoami | Which key this is
-*MetaApi* | [**whoamiWithHttpInfo**](docs/MetaApi.md#whoamiWithHttpInfo) | **GET** /api/v1/whoami | Which key this is
 *SandboxesApi* | [**createSandbox**](docs/SandboxesApi.md#createSandbox) | **POST** /api/v1/sandboxes | Create one
 *SandboxesApi* | [**createSandboxWithHttpInfo**](docs/SandboxesApi.md#createSandboxWithHttpInfo) | **POST** /api/v1/sandboxes | Create one
 *SandboxesApi* | [**deleteSandbox**](docs/SandboxesApi.md#deleteSandbox) | **DELETE** /api/v1/sandboxes/{id} | Delete one
@@ -136,20 +134,6 @@ Class | Method | HTTP request | Description
 *SandboxesApi* | [**proxyToSandboxWithHttpInfo**](docs/SandboxesApi.md#proxyToSandboxWithHttpInfo) | **GET** /sandbox/{id}/{port}/ | Proxy to a sandbox&#39;s own port
 *SandboxesApi* | [**renewSandbox**](docs/SandboxesApi.md#renewSandbox) | **POST** /api/v1/sandboxes/{id}/renew | Reset a sandbox&#39;s lifetime, measured from now
 *SandboxesApi* | [**renewSandboxWithHttpInfo**](docs/SandboxesApi.md#renewSandboxWithHttpInfo) | **POST** /api/v1/sandboxes/{id}/renew | Reset a sandbox&#39;s lifetime, measured from now
-*UsersApi* | [**createUser**](docs/UsersApi.md#createUser) | **POST** /api/v1/users | Create one, and get its key
-*UsersApi* | [**createUserWithHttpInfo**](docs/UsersApi.md#createUserWithHttpInfo) | **POST** /api/v1/users | Create one, and get its key
-*UsersApi* | [**deleteUser**](docs/UsersApi.md#deleteUser) | **DELETE** /api/v1/users/{name} | Remove a user
-*UsersApi* | [**deleteUserWithHttpInfo**](docs/UsersApi.md#deleteUserWithHttpInfo) | **DELETE** /api/v1/users/{name} | Remove a user
-*UsersApi* | [**getUser**](docs/UsersApi.md#getUser) | **GET** /api/v1/users/{name} | One user, with their key
-*UsersApi* | [**getUserWithHttpInfo**](docs/UsersApi.md#getUserWithHttpInfo) | **GET** /api/v1/users/{name} | One user, with their key
-*UsersApi* | [**listUsers**](docs/UsersApi.md#listUsers) | **GET** /api/v1/users | Every user
-*UsersApi* | [**listUsersWithHttpInfo**](docs/UsersApi.md#listUsersWithHttpInfo) | **GET** /api/v1/users | Every user
-*UsersApi* | [**replaceUser**](docs/UsersApi.md#replaceUser) | **PUT** /api/v1/users/{name} | Change a user&#39;s quota (the same merge as PATCH)
-*UsersApi* | [**replaceUserWithHttpInfo**](docs/UsersApi.md#replaceUserWithHttpInfo) | **PUT** /api/v1/users/{name} | Change a user&#39;s quota (the same merge as PATCH)
-*UsersApi* | [**rotateUserKey**](docs/UsersApi.md#rotateUserKey) | **POST** /api/v1/users/{name}/key | Issue a new key
-*UsersApi* | [**rotateUserKeyWithHttpInfo**](docs/UsersApi.md#rotateUserKeyWithHttpInfo) | **POST** /api/v1/users/{name}/key | Issue a new key
-*UsersApi* | [**updateUser**](docs/UsersApi.md#updateUser) | **PATCH** /api/v1/users/{name} | Change a user&#39;s quota
-*UsersApi* | [**updateUserWithHttpInfo**](docs/UsersApi.md#updateUserWithHttpInfo) | **PATCH** /api/v1/users/{name} | Change a user&#39;s quota
 
 
 ## Documentation for Models
@@ -166,20 +150,14 @@ Class | Method | HTTP request | Description
  - [GetSandboxLogs200Response](docs/GetSandboxLogs200Response.md)
  - [Overview](docs/Overview.md)
  - [Port](docs/Port.md)
- - [Quota](docs/Quota.md)
  - [RenewSandboxRequest](docs/RenewSandboxRequest.md)
  - [Resources](docs/Resources.md)
- - [RotateKeyRequest](docs/RotateKeyRequest.md)
  - [Sandbox](docs/Sandbox.md)
  - [SandboxList](docs/SandboxList.md)
  - [SandboxState](docs/SandboxState.md)
  - [Status](docs/Status.md)
  - [Template](docs/Template.md)
  - [TemplateList](docs/TemplateList.md)
- - [User](docs/User.md)
- - [UserList](docs/UserList.md)
- - [UserRequest](docs/UserRequest.md)
- - [Whoami](docs/Whoami.md)
 
 
 <a id="documentation-for-authorization"></a>

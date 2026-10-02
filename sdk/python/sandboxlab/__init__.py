@@ -20,7 +20,6 @@ __version__ = "1.0.0"
 __all__ = [
     "MetaApi",
     "SandboxesApi",
-    "UsersApi",
     "ApiResponse",
     "ApiClient",
     "Configuration",
@@ -42,26 +41,19 @@ __all__ = [
     "GetSandboxLogs200Response",
     "Overview",
     "Port",
-    "Quota",
     "RenewSandboxRequest",
     "Resources",
-    "RotateKeyRequest",
     "Sandbox",
     "SandboxList",
     "SandboxState",
     "Status",
     "Template",
     "TemplateList",
-    "User",
-    "UserList",
-    "UserRequest",
-    "Whoami",
 ]
 
 # import apis into sdk package
 from sandboxlab.api.meta_api import MetaApi as MetaApi
 from sandboxlab.api.sandboxes_api import SandboxesApi as SandboxesApi
-from sandboxlab.api.users_api import UsersApi as UsersApi
 
 # import ApiClient
 from sandboxlab.api_response import ApiResponse as ApiResponse
@@ -87,18 +79,12 @@ from sandboxlab.models.error import Error as Error
 from sandboxlab.models.get_sandbox_logs200_response import GetSandboxLogs200Response as GetSandboxLogs200Response
 from sandboxlab.models.overview import Overview as Overview
 from sandboxlab.models.port import Port as Port
-from sandboxlab.models.quota import Quota as Quota
 from sandboxlab.models.renew_sandbox_request import RenewSandboxRequest as RenewSandboxRequest
 from sandboxlab.models.resources import Resources as Resources
-from sandboxlab.models.rotate_key_request import RotateKeyRequest as RotateKeyRequest
 from sandboxlab.models.sandbox import Sandbox as Sandbox
 from sandboxlab.models.sandbox_list import SandboxList as SandboxList
 from sandboxlab.models.sandbox_state import SandboxState as SandboxState
 from sandboxlab.models.status import Status as Status
 from sandboxlab.models.template import Template as Template
 from sandboxlab.models.template_list import TemplateList as TemplateList
-from sandboxlab.models.user import User as User
-from sandboxlab.models.user_list import UserList as UserList
-from sandboxlab.models.user_request import UserRequest as UserRequest
-from sandboxlab.models.whoami import Whoami as Whoami
 

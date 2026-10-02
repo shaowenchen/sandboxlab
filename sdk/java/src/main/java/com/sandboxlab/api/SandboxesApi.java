@@ -511,7 +511,7 @@ public class SandboxesApi {
 
   /**
    * Counts of sandboxes by state and template
-   * What is running, what it is, and who it belongs to. Scoped to what the caller may see: an administrator gets the deployment, a user gets their own.
+   * What is running and what it is: how many sandboxes exist, and how they break down by state and template.
    * @return Overview
    * @throws ApiException if fails to make API call
    */
@@ -521,7 +521,7 @@ public class SandboxesApi {
 
   /**
    * Counts of sandboxes by state and template
-   * What is running, what it is, and who it belongs to. Scoped to what the caller may see: an administrator gets the deployment, a user gets their own.
+   * What is running and what it is: how many sandboxes exist, and how they break down by state and template.
    * @param headers Optional headers to include in the request
    * @return Overview
    * @throws ApiException if fails to make API call
@@ -533,7 +533,7 @@ public class SandboxesApi {
 
   /**
    * Counts of sandboxes by state and template
-   * What is running, what it is, and who it belongs to. Scoped to what the caller may see: an administrator gets the deployment, a user gets their own.
+   * What is running and what it is: how many sandboxes exist, and how they break down by state and template.
    * @return ApiResponse&lt;Overview&gt;
    * @throws ApiException if fails to make API call
    */
@@ -543,7 +543,7 @@ public class SandboxesApi {
 
   /**
    * Counts of sandboxes by state and template
-   * What is running, what it is, and who it belongs to. Scoped to what the caller may see: an administrator gets the deployment, a user gets their own.
+   * What is running and what it is: how many sandboxes exist, and how they break down by state and template.
    * @param headers Optional headers to include in the request
    * @return ApiResponse&lt;Overview&gt;
    * @throws ApiException if fails to make API call

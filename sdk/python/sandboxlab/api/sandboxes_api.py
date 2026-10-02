@@ -882,7 +882,7 @@ class SandboxesApi:
     ) -> Overview:
         """Counts of sandboxes by state and template
 
-        What is running, what it is, and who it belongs to. Scoped to what the caller may see: an administrator gets the deployment, a user gets their own.
+        What is running and what it is: how many sandboxes exist, and how they break down by state and template.
 
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
@@ -946,7 +946,7 @@ class SandboxesApi:
     ) -> ApiResponse[Overview]:
         """Counts of sandboxes by state and template
 
-        What is running, what it is, and who it belongs to. Scoped to what the caller may see: an administrator gets the deployment, a user gets their own.
+        What is running and what it is: how many sandboxes exist, and how they break down by state and template.
 
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
@@ -1010,7 +1010,7 @@ class SandboxesApi:
     ) -> RESTResponseType:
         """Counts of sandboxes by state and template
 
-        What is running, what it is, and who it belongs to. Scoped to what the caller may see: an administrator gets the deployment, a user gets their own.
+        What is running and what it is: how many sandboxes exist, and how they break down by state and template.
 
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request

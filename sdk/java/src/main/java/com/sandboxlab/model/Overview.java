@@ -41,9 +41,7 @@ import com.sandboxlab.client.ApiClient;
   Overview.JSON_PROPERTY_BY_TEMPLATE,
   Overview.JSON_PROPERTY_BY_OWNER,
   Overview.JSON_PROPERTY_CLUSTER,
-  Overview.JSON_PROPERTY_MAX_SANDBOXES,
-  Overview.JSON_PROPERTY_USER,
-  Overview.JSON_PROPERTY_SCOPED
+  Overview.JSON_PROPERTY_MAX_SANDBOXES
 })
 @javax.annotation.Generated(value = "org.openapitools.codegen.languages.JavaClientCodegen", comments = "Generator version: 7.17.0")
 public class Overview {
@@ -70,14 +68,6 @@ public class Overview {
   public static final String JSON_PROPERTY_MAX_SANDBOXES = "maxSandboxes";
   @javax.annotation.Nullable
   private Integer maxSandboxes;
-
-  public static final String JSON_PROPERTY_USER = "user";
-  @javax.annotation.Nullable
-  private String user;
-
-  public static final String JSON_PROPERTY_SCOPED = "scoped";
-  @javax.annotation.Nonnull
-  private Boolean scoped;
 
   public Overview() { 
   }
@@ -250,54 +240,6 @@ public class Overview {
   }
 
 
-  public Overview user(@javax.annotation.Nullable String user) {
-    this.user = user;
-    return this;
-  }
-
-  /**
-   * whose sandboxes these are, when the view is a user&#39;s rather than the deployment&#39;s
-   * @return user
-   */
-  @javax.annotation.Nullable
-  @JsonProperty(value = JSON_PROPERTY_USER, required = false)
-  @JsonInclude(value = JsonInclude.Include.USE_DEFAULTS)
-  public String getUser() {
-    return user;
-  }
-
-
-  @JsonProperty(value = JSON_PROPERTY_USER, required = false)
-  @JsonInclude(value = JsonInclude.Include.USE_DEFAULTS)
-  public void setUser(@javax.annotation.Nullable String user) {
-    this.user = user;
-  }
-
-
-  public Overview scoped(@javax.annotation.Nonnull Boolean scoped) {
-    this.scoped = scoped;
-    return this;
-  }
-
-  /**
-   * whether the view is a user&#39;s rather than the deployment&#39;s
-   * @return scoped
-   */
-  @javax.annotation.Nonnull
-  @JsonProperty(value = JSON_PROPERTY_SCOPED, required = true)
-  @JsonInclude(value = JsonInclude.Include.ALWAYS)
-  public Boolean getScoped() {
-    return scoped;
-  }
-
-
-  @JsonProperty(value = JSON_PROPERTY_SCOPED, required = true)
-  @JsonInclude(value = JsonInclude.Include.ALWAYS)
-  public void setScoped(@javax.annotation.Nonnull Boolean scoped) {
-    this.scoped = scoped;
-  }
-
-
   /**
    * Return true if this Overview object is equal to o.
    */
@@ -315,14 +257,12 @@ public class Overview {
         Objects.equals(this.byTemplate, overview.byTemplate) &&
         Objects.equals(this.byOwner, overview.byOwner) &&
         Objects.equals(this.cluster, overview.cluster) &&
-        Objects.equals(this.maxSandboxes, overview.maxSandboxes) &&
-        Objects.equals(this.user, overview.user) &&
-        Objects.equals(this.scoped, overview.scoped);
+        Objects.equals(this.maxSandboxes, overview.maxSandboxes);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(total, byState, byTemplate, byOwner, cluster, maxSandboxes, user, scoped);
+    return Objects.hash(total, byState, byTemplate, byOwner, cluster, maxSandboxes);
   }
 
   @Override
@@ -335,8 +275,6 @@ public class Overview {
     sb.append("    byOwner: ").append(toIndentedString(byOwner)).append("\n");
     sb.append("    cluster: ").append(toIndentedString(cluster)).append("\n");
     sb.append("    maxSandboxes: ").append(toIndentedString(maxSandboxes)).append("\n");
-    sb.append("    user: ").append(toIndentedString(user)).append("\n");
-    sb.append("    scoped: ").append(toIndentedString(scoped)).append("\n");
     sb.append("}");
     return sb.toString();
   }
@@ -424,16 +362,6 @@ public class Overview {
     // add `maxSandboxes` to the URL query string
     if (getMaxSandboxes() != null) {
       joiner.add(String.format(Locale.ROOT, "%smaxSandboxes%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getMaxSandboxes()))));
-    }
-
-    // add `user` to the URL query string
-    if (getUser() != null) {
-      joiner.add(String.format(Locale.ROOT, "%suser%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getUser()))));
-    }
-
-    // add `scoped` to the URL query string
-    if (getScoped() != null) {
-      joiner.add(String.format(Locale.ROOT, "%sscoped%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getScoped()))));
     }
 
     return joiner.toString();

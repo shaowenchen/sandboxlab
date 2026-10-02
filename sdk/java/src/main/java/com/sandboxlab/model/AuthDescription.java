@@ -37,7 +37,6 @@ import com.sandboxlab.client.ApiClient;
  */
 @JsonPropertyOrder({
   AuthDescription.JSON_PROPERTY_SCHEME,
-  AuthDescription.JSON_PROPERTY_ROLES,
   AuthDescription.JSON_PROPERTY_HEADERS
 })
 @javax.annotation.Generated(value = "org.openapitools.codegen.languages.JavaClientCodegen", comments = "Generator version: 7.17.0")
@@ -45,10 +44,6 @@ public class AuthDescription {
   public static final String JSON_PROPERTY_SCHEME = "scheme";
   @javax.annotation.Nullable
   private String scheme;
-
-  public static final String JSON_PROPERTY_ROLES = "roles";
-  @javax.annotation.Nullable
-  private List<String> roles = new ArrayList<>();
 
   public static final String JSON_PROPERTY_HEADERS = "headers";
   @javax.annotation.Nullable
@@ -78,38 +73,6 @@ public class AuthDescription {
   @JsonInclude(value = JsonInclude.Include.USE_DEFAULTS)
   public void setScheme(@javax.annotation.Nullable String scheme) {
     this.scheme = scheme;
-  }
-
-
-  public AuthDescription roles(@javax.annotation.Nullable List<String> roles) {
-    this.roles = roles;
-    return this;
-  }
-
-  public AuthDescription addRolesItem(String rolesItem) {
-    if (this.roles == null) {
-      this.roles = new ArrayList<>();
-    }
-    this.roles.add(rolesItem);
-    return this;
-  }
-
-  /**
-   * Get roles
-   * @return roles
-   */
-  @javax.annotation.Nullable
-  @JsonProperty(value = JSON_PROPERTY_ROLES, required = false)
-  @JsonInclude(value = JsonInclude.Include.USE_DEFAULTS)
-  public List<String> getRoles() {
-    return roles;
-  }
-
-
-  @JsonProperty(value = JSON_PROPERTY_ROLES, required = false)
-  @JsonInclude(value = JsonInclude.Include.USE_DEFAULTS)
-  public void setRoles(@javax.annotation.Nullable List<String> roles) {
-    this.roles = roles;
   }
 
 
@@ -158,13 +121,12 @@ public class AuthDescription {
     }
     AuthDescription authDescription = (AuthDescription) o;
     return Objects.equals(this.scheme, authDescription.scheme) &&
-        Objects.equals(this.roles, authDescription.roles) &&
         Objects.equals(this.headers, authDescription.headers);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(scheme, roles, headers);
+    return Objects.hash(scheme, headers);
   }
 
   @Override
@@ -172,7 +134,6 @@ public class AuthDescription {
     StringBuilder sb = new StringBuilder();
     sb.append("class AuthDescription {\n");
     sb.append("    scheme: ").append(toIndentedString(scheme)).append("\n");
-    sb.append("    roles: ").append(toIndentedString(roles)).append("\n");
     sb.append("    headers: ").append(toIndentedString(headers)).append("\n");
     sb.append("}");
     return sb.toString();
@@ -224,15 +185,6 @@ public class AuthDescription {
     // add `scheme` to the URL query string
     if (getScheme() != null) {
       joiner.add(String.format(Locale.ROOT, "%sscheme%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getScheme()))));
-    }
-
-    // add `roles` to the URL query string
-    if (getRoles() != null) {
-      for (int i = 0; i < getRoles().size(); i++) {
-        joiner.add(String.format(Locale.ROOT, "%sroles%s%s=%s", prefix, suffix,
-            "".equals(suffix) ? "" : String.format(Locale.ROOT, "%s%d%s", containerPrefix, i, containerSuffix),
-            ApiClient.urlEncode(ApiClient.valueToString(getRoles().get(i)))));
-      }
     }
 
     // add `headers` to the URL query string
