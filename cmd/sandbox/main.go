@@ -224,6 +224,9 @@ func printResolved(cfg config.Config) {
 		"max_ttl", cfg.MaxTTL,
 		"max_sandboxes", cfg.MaxSandboxes,
 		"reap_interval", cfg.ReapInterval,
+		"exec_timeout", cfg.ExecTimeout,
+		"max_exec_timeout", cfg.MaxExecTimeout,
+		"max_file_bytes", cfg.MaxFileBytes,
 		"data_plane", cfg.DataPlane,
 	)
 }

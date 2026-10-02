@@ -153,6 +153,9 @@ to keep them, and delete them by hand.
 | `defaultTTL` / `maxTTL` | `1h` / `8h` | Sandbox lifetimes. |
 | `maxSandboxes` | `0` (no ceiling) | How many may exist at once. |
 | `reapInterval` | `30s` | How often expired sandboxes are collected. |
+| `execTimeout` | `1m` | How long a command run in a sandbox may take by default. |
+| `execTimeoutMax` | `10m` | The longest a caller may ask for. |
+| `maxFileBytes` | `2097152` | The largest file the API reads or writes. |
 | `dataPlane` | `true` | Serve `/sandbox/<id>/<port>/` by proxying into a sandbox. |
 | `catalog` / `catalogDir` | — | Templates to add or replace. |
 | `disableTemplates` | `[]` | Template ids to leave out. |

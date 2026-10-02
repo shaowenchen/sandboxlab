@@ -76,6 +76,14 @@ spec:
               value: {{ .Values.maxSandboxes | quote }}
             - name: SANDBOX_REAP_INTERVAL
               value: {{ .Values.reapInterval | quote }}
+            - name: SANDBOX_EXEC_TIMEOUT
+              value: {{ .Values.execTimeout | quote }}
+            - name: SANDBOX_MAX_EXEC_TIMEOUT
+              value: {{ .Values.execTimeoutMax | quote }}
+            - name: SANDBOX_MAX_FILE_BYTES
+              # int64 rather than the value as given: Helm renders a large
+              # integer as 2.097152e+06, which the process cannot parse.
+              value: {{ .Values.maxFileBytes | int64 | quote }}
             - name: SANDBOX_DATA_PLANE
               value: {{ .Values.dataPlane | quote }}
             - name: SANDBOX_LOG_LEVEL

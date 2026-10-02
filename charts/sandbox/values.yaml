@@ -66,6 +66,20 @@ maxSandboxes: 0
 # How often expired sandboxes are collected.
 reapInterval: 30s
 
+# Running commands in a sandbox, which `sandbox exec`, `sandbox cp` and the
+# console's Exec button all use.
+#
+# execTimeout is how long a command may take when the caller names no time of
+# its own; execTimeoutMax is the ceiling a caller cannot ask past. A command in
+# a sandbox is often a build, so the ceiling is generous — and it is what stops
+# a request holding a connection indefinitely, since nothing else bounds one.
+execTimeout: 1m
+execTimeoutMax: 10m
+# The largest file the API will read or write, in bytes. 2 MiB, which survives
+# the console's and the CLI's own response limits even once base64 has inflated
+# it by a third.
+maxFileBytes: 2097152
+
 # Serve /sandbox/<id>/<port>/... by proxying to the sandbox. Off means the API
 # still works and nothing can be reached inside a sandbox.
 dataPlane: true
