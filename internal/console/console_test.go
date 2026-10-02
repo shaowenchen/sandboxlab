@@ -124,4 +124,48 @@ func TestEveryElementTheScriptUsesExists(t *testing.T) {
 	if len(missing) > 0 {
 		t.Errorf("the script reaches for elements that are not on the page: %s", strings.Join(missing, ", "))
 	}
+
+	// And the reverse, for buttons: one the script never mentions does nothing
+	// when it is clicked, and looks exactly like a button that works.
+	//
+	// The dialog actions have no id — they are identified by their value — so
+	// they are not part of this.
+	var inert []string
+	for _, m := range regexp.MustCompile(`<button[^>]*\bid="([A-Za-z0-9_-]+)"`).FindAllStringSubmatch(page, -1) {
+		if !used[m[1]] {
+			inert = append(inert, m[1])
+		}
+	}
+	sort.Strings(inert)
+	if len(inert) > 0 {
+		t.Errorf("these buttons have no handler, so clicking them does nothing: %s", strings.Join(inert, ", "))
+	}
+}
+
+// The console has no user management left in it.
+//
+// The page is one file with no build step, so nothing else notices a view that
+// was removed from the API but left on the screen: it would draw, fail every
+// call it makes, and read as a broken deployment rather than a deleted feature.
+func TestTheUserInterfaceIsGone(t *testing.T) {
+	h, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
+	page := w.Body.String()
+
+	for _, gone := range []string{"/users", "/whoami", "whoami(", "isAdmin", "owner", "quota"} {
+		if strings.Contains(page, gone) {
+			t.Errorf("the console still mentions %q", gone)
+		}
+	}
+
+	// The sign-in card is still there, and now the eye beside it does something.
+	for _, want := range []string{`id="signin-key"`, `id="signin-reveal"`, `$("signin-reveal").onclick`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the console is missing %q", want)
+		}
+	}
 }

@@ -7,12 +7,6 @@
 <!--
   One page, no build step, no external asset: it is served from inside the
   binary and every request it makes goes to the same /api/v1 the CLI uses.
-
-  It has two views behind one key. It asks /api/v1/whoami who the key belongs to
-  and draws the administrator's view or the user's — the API decides what each
-  may see, and this only decides what to put on the screen. A user who edited
-  their way into the admin view would get 404s, which is the point of the split
-  being in the API rather than here.
 -->
 <style>
   :root {
@@ -39,12 +33,10 @@
   }
   header h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .01em; }
   header .grow { flex: 1; }
-  #who { font-size: 12.5px; }
   main { padding: 20px; max-width: 1180px; margin: 0 auto; }
   section { margin-bottom: 26px; }
   h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
        color: var(--muted); margin: 0 0 10px; font-weight: 600; }
-  h2 .sub { text-transform: none; letter-spacing: 0; font-weight: 400; }
 
   .tiles { display: flex; gap: 10px; flex-wrap: wrap; }
   .tile {
@@ -73,7 +65,6 @@
        color: var(--muted); font-weight: 600; background: transparent; }
   tr:last-child td { border-bottom: 0; }
   td.mono, .mono { font-family: var(--mono); font-size: 12.5px; }
-  .secret { font-family: var(--mono); font-size: 12.5px; }
 
   .badge { display: inline-block; padding: 2px 8px; border-radius: 999px;
            font-size: 11.5px; font-weight: 600; border: 1px solid currentColor; }
@@ -113,7 +104,6 @@
   dialog form { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
   dialog h3 { margin: 0; font-size: 15px; }
   dialog .field { display: flex; flex-direction: column; gap: 4px; }
-  dialog .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   dialog .actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
 
   pre {
@@ -121,12 +111,6 @@
     padding: 12px; overflow: auto; max-height: 46vh; margin: 0;
     font-family: var(--mono); font-size: 12.5px; white-space: pre-wrap; word-break: break-word;
   }
-  .note {
-    background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent);
-    border-radius: 8px; padding: 10px 14px; margin: 0 0 12px; font-size: 13px;
-  }
-  .note.warn { border-left-color: var(--warn); }
-  .note b { font-family: var(--mono); }
   #toast { position: fixed; right: 18px; bottom: 18px; display: flex;
            flex-direction: column; gap: 8px; z-index: 10; }
   #toast div {
@@ -151,7 +135,7 @@
   /* ── sign in ─────────────────────────────────────────────────────────────
      The card is the whole page until a key is accepted, so it centres itself
      in the space below the header. While it is up everything else is hidden,
-     including the header's key row: a form with two places to type the same
+     including the header's refresh: a form with two places to type the same
      credential is two answers to "where do I enter it". */
   #signin {
     display: flex; align-items: center; justify-content: center;
@@ -161,29 +145,43 @@
     width: 100%; max-width: 380px; background: var(--panel);
     border: 1px solid var(--line); border-radius: 10px; padding: 26px;
   }
-  /* The card opens on its one sentence: the header above already says what this
-     is, and repeating it here makes the screen look like two stacked things. */
+  /* The card opens on its one sentence and asks for one thing. It carries no
+     mark of its own — the header above already says what this is — and no
+     explanation of the two kinds of key: which one was typed is the API's
+     answer to give, and the console shows it the moment there is one. */
   .signin-lead { margin: 0 0 16px; font-size: 15px; }
   .signin-form { display: flex; flex-direction: column; gap: 10px; }
   .signin-form input { width: 100%; padding: 9px 11px; }
   .signin-form button { padding: 9px 12px; }
-  /* The two roles, stated where the key is typed in. They are a property of the
-     key, not a choice: nothing here can turn a user's key into an
-     administrator's, and offering it as a selector would suggest otherwise. */
-  .roles { margin: 0 0 16px; display: flex; flex-direction: column; gap: 8px; }
-  .role { display: flex; gap: 9px; align-items: flex-start; font-size: 12.5px; }
-  .role .badge { flex: none; margin-top: 1px; }
-  .role span { color: var(--muted); }
   .signin-error {
-    margin: 0; font-size: 13px; color: var(--bad);
-    border-left: 3px solid var(--bad); padding: 2px 0 2px 10px;
+    margin: 0 0 14px; font-size: 13px; color: var(--bad);
+    background: color-mix(in srgb, var(--bad) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--bad) 40%, transparent);
+    border-radius: 7px; padding: 9px 11px;
+  }
+  .signin-error[hidden] { display: none; }
+
+  /* A field with its eye inside it. The input takes the room and the button
+     rides the right edge, so a long key does not push the control off the row. */
+  .key-field { position: relative; display: flex; }
+  .key-field input { flex: 1; padding-right: 34px; }
+  /* The eye. Quiet by default: it changes a preference about what is on screen,
+     which is not what anyone opened the page to do. */
+  .reveal {
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; padding: 0;
+    border-color: transparent; background: transparent; color: var(--muted);
+  }
+  .reveal:hover { color: var(--ink); background: var(--bg); }
+  .reveal svg { width: 16px; height: 16px; display: block; }
+  .key-field .reveal {
+    position: absolute; top: 50%; right: 2px; transform: translateY(-50%);
   }
 </style>
 </head>
 <body>
 <header>
   <h1>Sandboxes</h1>
-  <span id="who" class="muted"></span>
   <span class="grow"></span>
   <button id="refresh" title="Reload">Refresh</button>
   <button id="signout" hidden>Sign out</button>
@@ -196,58 +194,33 @@
   <section id="signin">
     <div class="signin-card">
       <p class="signin-lead">Enter an API key to continue.</p>
+      <p id="signin-error" class="signin-error" hidden></p>
       <form id="signin-form" class="signin-form" autocomplete="off">
-        <input id="signin-key" type="password" placeholder="API key" autocomplete="off"
-               spellcheck="false" aria-label="API key">
+        <div class="key-field">
+          <input id="signin-key" type="password" placeholder="API key" autocomplete="off"
+                 spellcheck="false" aria-label="API key">
+          <button id="signin-reveal" class="reveal" type="button"></button>
+        </div>
         <button class="primary" type="submit">Sign in</button>
-        <p id="signin-error" class="signin-error" hidden></p>
       </form>
-      <!-- What the two kinds of key are, before one is typed. The role is read
-           from the key rather than chosen here, so this is a description of the
-           two answers rather than a control; saying so up front is what stops
-           "where do I pick administrator" from being the first question. -->
-      <div class="roles">
-        <div class="role">
-          <span class="badge s-Running">admin</span>
-          <span>The deployment's own key: every sandbox, plus users and their
-            limits. Set by <b class="mono">apiKey</b> on the chart, or
-            <b class="mono">SANDBOX_API_KEY</b>.</span>
-        </div>
-        <div class="role">
-          <span class="badge s-Pending">user</span>
-          <span>A key issued to one person: their own sandboxes and no others.
-            An administrator creates these in the Users view.</span>
-        </div>
-      </div>
     </div>
   </section>
 
   <section id="overview" hidden>
-    <h2 id="overviewTitle">Overview</h2>
+    <h2>Overview</h2>
     <div class="tiles" id="tiles"></div>
   </section>
 
   <section id="catalogSection" hidden>
-    <h2>Templates <span class="sub" id="catalogSub"></span></h2>
+    <h2>Templates</h2>
     <div class="cards" id="catalog"></div>
   </section>
 
   <section id="sandboxSection" hidden>
-    <h2>Sandboxes <span class="sub" id="sandboxSub"></span></h2>
+    <h2>Sandboxes</h2>
     <div id="sandboxes"></div>
   </section>
 
-  <section id="usersSection" hidden>
-    <h2>Users</h2>
-    <div class="note">
-      Each user gets a key of their own. They can create sandboxes and see only
-      theirs; this view sees everything.
-    </div>
-    <div class="row" style="margin-bottom:10px">
-      <button class="primary" id="newUser">New user</button>
-    </div>
-    <div id="users"></div>
-  </section>
 </main>
 
 <dialog id="createDialog">
@@ -272,42 +245,7 @@
   </form>
 </dialog>
 
-<dialog id="userDialog">
-  <form method="dialog" id="userForm">
-    <h3 id="userTitle">New user</h3>
-    <div class="field">
-      <label for="uName">Name</label>
-      <input id="uName" placeholder="lowercase letters, digits and -" autocomplete="off">
-    </div>
-    <div class="grid">
-      <div class="field">
-        <label for="uMax">Max sandboxes <span class="muted">(0 = no limit)</span></label>
-        <input id="uMax" type="number" min="0" value="0">
-      </div>
-      <div class="field">
-        <label for="uTTL">Max lifetime <span class="muted">(e.g. 2h)</span></label>
-        <input id="uTTL" placeholder="the deployment's ceiling" autocomplete="off">
-      </div>
-    </div>
-    <div class="field">
-      <label for="uTemplates">Templates <span class="muted">(comma-separated; empty = all)</span></label>
-      <input id="uTemplates" placeholder="all of them" autocomplete="off">
-    </div>
-    <div class="actions">
-      <button value="cancel">Cancel</button>
-      <button class="primary" value="save">Save</button>
-    </div>
-  </form>
-</dialog>
 
-<dialog id="keyDialog">
-  <form method="dialog">
-    <h3 id="keyTitle">Key</h3>
-    <div class="note warn">This is the only time the key is shown.</div>
-    <p class="secret" id="keyValue"></p>
-    <div class="actions"><button value="close">Close</button></div>
-  </form>
-</dialog>
 
 <dialog id="logsDialog">
   <form method="dialog">
@@ -329,7 +267,7 @@
   // SANDBOX_BASE_PATH on the server.
   var API = location.pathname.replace(/\/+$/, "") + "/api/v1";
 
-  var state = { key: "", me: null, config: null, catalog: [], sandboxes: [], users: [] };
+  var state = { key: "", catalog: [], sandboxes: [] };
   var $ = function (id) { return document.getElementById(id); };
 
   // ── plumbing ──────────────────────────────────────────────────────────────
@@ -380,9 +318,6 @@
     if (m < 60) return m + "m left";
     return Math.floor(m / 60) + "h " + (m % 60) + "m left";
   }
-
-  function isAdmin() { return !!(state.me && state.me.admin); }
-
   // ── rendering ─────────────────────────────────────────────────────────────
 
   function renderOverview(ov) {
@@ -395,12 +330,11 @@
       t.appendChild(text("span", null, label));
       tiles.appendChild(t);
     };
-    add(ov.total, isAdmin() ? "sandboxes in total" : "your sandboxes");
+    add(ov.total, "sandboxes");
     Object.keys(ov.byState || {}).sort().forEach(function (s) { add(ov.byState[s], s.toLowerCase()); });
     add(ov.cluster ? "up" : "unreachable", "cluster");
-    if (ov.maxSandboxes) add(ov.maxSandboxes, isAdmin() ? "deployment limit" : "your limit");
+    if (ov.maxSandboxes) add(ov.maxSandboxes, "limit");
 
-    $("overviewTitle").textContent = isAdmin() ? "Overview" : "Your sandboxes";
     $("overview").hidden = false;
   }
 
@@ -423,7 +357,6 @@
       card.appendChild(foot);
       wrap.appendChild(card);
     });
-    $("catalogSub").textContent = isAdmin() ? "" : "— what you may create";
     $("catalogSection").hidden = false;
   }
 
@@ -442,7 +375,6 @@
     }
 
     var header = ["name", "template", "state", "lifetime"];
-    if (isAdmin()) header.push("owner");
     header.push("addresses", "");
 
     var table = text("table");
@@ -465,10 +397,6 @@
       tr.appendChild(stateTd);
 
       tr.appendChild(text("td", "muted", ttlText(sb)));
-
-      if (isAdmin()) {
-        tr.appendChild(text("td", "mono", sb.owner || "(the deployment)"));
-      }
 
       var links = text("td");
       var box = text("div", "links");
@@ -506,87 +434,10 @@
     scroller.appendChild(table);
     wrap.appendChild(scroller);
 
-    $("sandboxSub").textContent = isAdmin() ? "" : "— yours";
     $("sandboxSection").hidden = false;
   }
 
-  function renderUsers() {
-    var wrap = $("users");
-    wrap.replaceChildren();
 
-    if (!state.users.length) {
-      var empty = text("div", "empty");
-      empty.appendChild(text("p", null, "No users yet."));
-      empty.appendChild(text("p", "muted",
-        "Create one and give them the key it prints. They will only see their own sandboxes."));
-      wrap.appendChild(empty);
-      $("usersSection").hidden = false;
-      return;
-    }
-
-    var table = text("table");
-    var thead = text("thead");
-    var hr = text("tr");
-    ["user", "key", "sandboxes", "limits", "last used", ""].forEach(function (h) {
-      hr.appendChild(text("th", null, h));
-    });
-    thead.appendChild(hr);
-    table.appendChild(thead);
-
-    var tbody = text("tbody");
-    state.users.forEach(function (u) {
-      var tr = text("tr");
-      tr.appendChild(text("td", "mono", u.name));
-      tr.appendChild(text("td", "muted", "hidden"));
-
-      // The limits live under u.quota — the API returns a user with the three
-      // limits nested, the same shape the Limits dialog sends back. Reading them
-      // off the top level found undefined, so every user showed as unlimited and
-      // the dialog then wrote those blanks back over the real quota.
-      var q = u.quota || {};
-      var count = text("td", "mono", String(u.sandboxes || 0));
-      if (q.maxSandboxes) count.textContent = (u.sandboxes || 0) + " / " + q.maxSandboxes;
-      tr.appendChild(count);
-
-      tr.appendChild(text("td", "muted", limitsText(u)));
-      tr.appendChild(text("td", "muted", u.lastUsedAt ? new Date(u.lastUsedAt).toLocaleString() : "never"));
-
-      var actions = text("td");
-      var row = text("div", "row");
-      var reveal = text("button", "small", "Show key");
-      reveal.onclick = function () { revealKey(u.name); };
-      var rotate = text("button", "small", "Rotate");
-      rotate.onclick = function () { rotateKey(u.name); };
-      var edit = text("button", "small", "Limits");
-      edit.onclick = function () { openUser(u); };
-      var rm = text("button", "small danger", "Delete");
-      rm.onclick = function () { removeUser(u.name); };
-      row.appendChild(reveal);
-      row.appendChild(rotate);
-      row.appendChild(edit);
-      row.appendChild(rm);
-      actions.appendChild(row);
-      tr.appendChild(actions);
-
-      tbody.appendChild(tr);
-    });
-    table.appendChild(tbody);
-
-    var scroller = text("div", "scroll");
-    scroller.appendChild(table);
-    wrap.appendChild(scroller);
-    $("usersSection").hidden = false;
-  }
-
-  function limitsText(u) {
-    var q = u.quota || {};
-    var parts = [];
-    if (q.maxSandboxes) parts.push(q.maxSandboxes + " sandbox(es)");
-    // maxTTL is nanoseconds, which is what a Go time.Duration is on the wire.
-    if (q.maxTTL) parts.push("up to " + (q.maxTTL / 1e9 / 3600) + "h");
-    if (q.templates && q.templates.length) parts.push(q.templates.join(", "));
-    return parts.length ? parts.join("; ") : "the deployment's own limits";
-  }
 
   // ── actions ───────────────────────────────────────────────────────────────
 
@@ -620,11 +471,10 @@
   function showSignedIn(signedIn) {
     $("signin").hidden = signedIn;
     $("signout").hidden = !signedIn;
-    ["overview", "catalogSection", "sandboxSection", "usersSection"].forEach(function (id) {
+    ["overview", "catalogSection", "sandboxSection"].forEach(function (id) {
       if (!signedIn) $(id).hidden = true;
     });
     if (!signedIn) {
-      $("who").textContent = "";
       $("signin-key").value = "";
       $("signin-key").focus();
     }
@@ -633,7 +483,6 @@
   function signOut() {
     clearKey();
     state.key = "";
-    state.me = null;
     setSigninError("");
     showSignedIn(false);
   }
@@ -663,24 +512,24 @@
     });
   }
 
+  // refresh draws everything from the key the page is holding.
+  //
+  // There is no whoami in front of it. With one key and no roles, the question
+  // it would ask — "whose key is this, and what may it do" — has one answer for
+  // every caller, and a 401 from any of these calls says the only thing left to
+  // say: the key is wrong. So signing in is this same call, and a rejected key
+  // is answered where it was typed rather than by a second round trip.
   function refresh() {
-    return api("/whoami").then(function (me) {
-      state.me = me;
-      // The role, in the words the sign-in card used for it.
-      $("who").textContent = "— signed in as " + (me.admin ? "admin" : "user " + me.user);
-
-      var wanted = [api("/overview"), api("/catalog"), api("/sandboxes")];
-      if (me.canManageUsers) wanted.push(api("/users"));
-      return Promise.all(wanted);
-    }).then(function (r) {
+    return Promise.all([
+      api("/overview"),
+      api("/catalog"),
+      api("/sandboxes")
+    ]).then(function (r) {
       renderOverview(r[0]);
       state.catalog = r[1].templates || [];
       state.sandboxes = r[2].sandboxes || [];
-      state.users = r[3] ? (r[3].users || []) : [];
       renderCatalog();
       renderSandboxes();
-      if (state.me.canManageUsers) renderUsers();
-      else $("usersSection").hidden = true;
     });
   }
 
@@ -733,72 +582,6 @@
   }
 
   // ── users ─────────────────────────────────────────────────────────────────
-
-  var editingUser = null;
-
-  function openUser(u) {
-    editingUser = u || null;
-    // Prefilled from u.quota, which is where the API puts the limits. These
-    // reads used to look at the top level, find nothing, and prefill empty — so
-    // saving the dialog sent empty limits back and cleared the user's real
-    // quota. A dialog that cannot show what is set will eventually erase it.
-    var q = (u && u.quota) || {};
-    $("userTitle").textContent = u ? ("Limits — " + u.name) : "New user";
-    $("uName").value = u ? u.name : "";
-    $("uName").disabled = !!u;
-    $("uMax").value = q.maxSandboxes || 0;
-    $("uTTL").value = q.maxTTL ? (q.maxTTL / 1e9 / 3600) + "h" : "";
-    $("uTemplates").value = (q.templates && q.templates.length) ? q.templates.join(", ") : "";
-    $("userDialog").showModal();
-  }
-
-  function submitUser() {
-    var name = $("uName").value.trim();
-    var body = {
-      maxSandboxes: parseInt($("uMax").value, 10) || 0,
-      maxTTL: $("uTTL").value.trim(),
-      templates: $("uTemplates").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean)
-    };
-    var call;
-    if (editingUser) {
-      call = api("/users/" + encodeURIComponent(editingUser.name), { method: "PATCH", body: body });
-    } else {
-      body.name = name;
-      call = api("/users", { method: "POST", body: body });
-    }
-    call.then(function (u) {
-      if (u.key) showKey(u.name, u.key);
-      else toast("Saved " + u.name);
-      return refresh();
-    }).catch(function (err) { toast("Could not save: " + err.message, true); });
-  }
-
-  function revealKey(name) {
-    api("/users/" + encodeURIComponent(name))
-      .then(function (u) { showKey(u.name, u.key || "(no key stored)"); })
-      .catch(function (err) { toast("Could not read the key: " + err.message, true); });
-  }
-
-  function rotateKey(name) {
-    if (!confirm("Issue a new key for " + name + "? The old one stops working immediately.")) return;
-    api("/users/" + encodeURIComponent(name) + "/key", { method: "POST", body: {} })
-      .then(function (u) { showKey(u.name, u.key); return refresh(); })
-      .catch(function (err) { toast("Could not rotate: " + err.message, true); });
-  }
-
-  function showKey(name, key) {
-    $("keyTitle").textContent = "Key for " + name;
-    $("keyValue").textContent = key;
-    $("keyDialog").showModal();
-  }
-
-  function removeUser(name) {
-    if (!confirm("Delete " + name + "? Their key stops working. Their sandboxes keep running until their own lifetimes run out.")) return;
-    api("/users/" + encodeURIComponent(name), { method: "DELETE" })
-      .then(function () { toast("Deleted " + name); return refresh(); })
-      .catch(function (err) { toast("Could not delete: " + err.message, true); });
-  }
-
   // ── wiring ────────────────────────────────────────────────────────────────
 
   $("createForm").addEventListener("submit", function (ev) {
@@ -808,19 +591,40 @@
     if (button && button.value === "create") submitCreate();
   });
 
-  $("userForm").addEventListener("submit", function (ev) {
-    var button = ev.submitter;
-    if (button && button.value === "save") submitUser();
-  });
-
-  $("newUser").onclick = function () { openUser(null); };
-
   $("signin-form").addEventListener("submit", function (ev) {
     ev.preventDefault();
     var key = $("signin-key").value.trim();
     if (!key) { setSigninError("An API key is required."); return; }
     connect(key);
   });
+
+  // The eye, on the field it belongs to.
+  //
+  // It flips the input between password and text and swaps its own icon to say
+  // which way it is. An API key is a long string nobody can check while it is
+  // dotted out, and the alternative — paste it into a text editor to see what
+  // went wrong — puts it somewhere it should not be.
+  var EYE_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var EYE_CLOSED = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/><line x1="4" y1="20" x2="20" y2="4"/></svg>';
+
+  $("signin-reveal").onclick = function () {
+    var field = $("signin-key");
+    var wasShown = field.type === "text";
+    field.type = wasShown ? "password" : "text";
+    // The icon says what the next click does, not what the last one did.
+    this.innerHTML = wasShown ? EYE_OPEN : EYE_CLOSED;
+    this.setAttribute("aria-label", wasShown ? "Show the key" : "Hide the key");
+    this.setAttribute("aria-pressed", String(!wasShown));
+    field.focus();
+  };
+  // Drawn by the same code that toggles it, so the icon and the input's type
+  // cannot start out disagreeing.
+  (function () {
+    var b = $("signin-reveal");
+    b.innerHTML = EYE_OPEN;
+    b.setAttribute("aria-label", "Show the key");
+    b.setAttribute("aria-pressed", "false");
+  })();
 
   $("signout").onclick = signOut;
   $("refresh").onclick = function () {
