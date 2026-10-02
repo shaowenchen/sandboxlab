@@ -92,7 +92,13 @@ func (a *Authenticator) Identity(ctx context.Context, r *http.Request) (Identity
 }
 
 // IdentityURL is Identity, also accepting the key in the query string. It is for
-// the routes a browser opens directly.
+// the routes a browser opens directly — the data plane, where a link to a
+// sandbox's own port is followed by navigating to it.
+//
+// The console is not one of those any more: its document is served without a
+// key, and the page then presents the key itself on every call it makes. The
+// query string is still what its ?key= link arrives in, and the page reads that
+// and uses it as a key rather than the server accepting it here.
 func (a *Authenticator) IdentityURL(ctx context.Context, r *http.Request) (Identity, bool) {
 	if id, ok := a.Identity(ctx, r); ok {
 		return id, true

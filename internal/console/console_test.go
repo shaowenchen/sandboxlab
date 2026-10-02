@@ -3,6 +3,8 @@ package console
 import (
 	"net/http"
 	"net/http/httptest"
+	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -72,5 +74,54 @@ func TestThePageIsSelfContained(t *testing.T) {
 	}
 	if len(body) < 1000 {
 		t.Fatalf("the console page is only %d bytes; it does not look like a whole page", len(body))
+	}
+}
+
+// Every element the script looks up is on the page.
+//
+// There is no build step and no bundler, so nothing else notices a renamed id:
+// the script reaches for null, the console half-draws, and the failure is a
+// blank section rather than an error. The sign-in work renamed several ids and
+// deleted the whole key row, which is exactly the change this would have
+// caught.
+func TestEveryElementTheScriptUsesExists(t *testing.T) {
+	h, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
+	page := w.Body.String()
+
+	script := page[strings.Index(page, "<script>"):]
+
+	// $("x") is the page's own helper for getElementById.
+	used := map[string]bool{}
+	for _, re := range []*regexp.Regexp{
+		regexp.MustCompile(`\$\("([A-Za-z0-9_-]+)"\)`),
+		regexp.MustCompile(`getElementById\("([A-Za-z0-9_-]+)"\)`),
+	} {
+		for _, m := range re.FindAllStringSubmatch(script, -1) {
+			used[m[1]] = true
+		}
+	}
+	if len(used) == 0 {
+		t.Fatal("found no element lookups in the script; the pattern above is probably wrong")
+	}
+
+	declared := map[string]bool{}
+	for _, m := range regexp.MustCompile(`id="([A-Za-z0-9_-]+)"`).FindAllStringSubmatch(page, -1) {
+		declared[m[1]] = true
+	}
+
+	var missing []string
+	for id := range used {
+		if !declared[id] {
+			missing = append(missing, id)
+		}
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 {
+		t.Errorf("the script reaches for elements that are not on the page: %s", strings.Join(missing, ", "))
 	}
 }

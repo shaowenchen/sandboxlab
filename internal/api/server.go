@@ -139,11 +139,24 @@ func (s *Server) routes(d Deps) {
 	}
 
 	// The console is the fallback, so a client-side route inside it resolves on
-	// a reload rather than 404ing. Behind the same key as the API, because a
-	// console that could be read without one would list every sandbox to anyone
-	// who found the hostname.
+	// a reload rather than 404ing.
+	//
+	// Served without a key, deliberately, and it is the only route that is. The
+	// document is a static page carrying nothing: everything it shows comes from
+	// /api/v1, and every one of those calls is authenticated as before. A caller
+	// with no key gets an empty console and a sign-in form.
+	//
+	// It has to be this way round for the sign-in form to exist at all. Serving
+	// the page only to an already-authenticated caller means the browser — which
+	// has no way to send a key on a navigation — is refused before it can render
+	// the form that would ask for one. The console behind a key is a console
+	// nobody can reach.
+	//
+	// The earlier note here said the opposite, on the reasoning that a readable
+	// console "would list every sandbox to anyone who found the hostname". It
+	// would not: listing is an API call, and the API still answers 401.
 	if d.Console != nil {
-		s.mux.Handle("/", s.console(d.Console))
+		s.mux.Handle("/", d.Console)
 	} else {
 		s.mux.HandleFunc("/", s.placeholder())
 	}
@@ -516,20 +529,6 @@ func (s *Server) adminOnly(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	})
-}
-
-func (s *Server) console(h http.Handler) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// A browser navigation cannot set a header, so the console accepts the
-		// key in the query string. It is then read by the page and used for the
-		// API calls it makes, which do carry a header.
-		if _, ok := s.auth.IdentityURL(r.Context(), r); !ok {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="sandboxlab"`)
-			writeJSON(w, http.StatusUnauthorized, errorBody{Error: "a valid API key is required"})
-			return
-		}
-		h.ServeHTTP(w, r)
-	}
 }
 
 // ── users ───────────────────────────────────────────────────────────────────

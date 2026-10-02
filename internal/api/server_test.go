@@ -14,6 +14,7 @@ import (
 	"github.com/shaowenchen/sandboxlab/internal/auth"
 	"github.com/shaowenchen/sandboxlab/internal/catalog"
 	"github.com/shaowenchen/sandboxlab/internal/config"
+	"github.com/shaowenchen/sandboxlab/internal/console"
 	"github.com/shaowenchen/sandboxlab/internal/model"
 	"github.com/shaowenchen/sandboxlab/internal/sandbox"
 )
@@ -488,6 +489,68 @@ func TestBasePath(t *testing.T) {
 			t.Errorf("GET /sandbox = %d, want 200", w.Code)
 		}
 	})
+}
+
+// The console's document is served without a key, and it is the only thing that
+// is.
+//
+// It has to be: the sign-in form lives in that document, so serving it only to
+// an already-authenticated caller means a browser — which cannot put a key on a
+// navigation — is refused before it can render the form that would ask for one.
+// The page carries nothing; every call it makes is authenticated as before,
+// which is what the rest of this test checks.
+func TestTheConsoleDocumentNeedsNoKey(t *testing.T) {
+	c, err := catalog.Loader{}.Load()
+	if err != nil {
+		t.Fatalf("loading the catalog: %v", err)
+	}
+	cfg := config.Config{Namespace: "ops-system", BasePath: "/sandbox", APIKey: testKey}
+	con, err := console.New()
+	if err != nil {
+		t.Fatalf("building the console: %v", err)
+	}
+	s := New(Deps{
+		Config:  cfg,
+		Service: newStubService(cfg, c),
+		Auth:    auth.New(cfg.APIKey, newStubService(cfg, c)),
+		Log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Console: con,
+	})
+
+	// Without a key, and with a wrong one: the document is still served. A
+	// browser has no way to send a key on a navigation, so "no key" is the
+	// normal case here rather than an error.
+	for _, key := range []string{"", "not-the-key"} {
+		w := do(t, s, http.MethodGet, "/sandbox/", key, "")
+		if w.Code != http.StatusOK {
+			t.Errorf("GET /sandbox/ with key %q = %d, want 200", key, w.Code)
+		}
+		if !strings.Contains(w.Body.String(), "<form") {
+			t.Errorf("GET /sandbox/ with key %q did not serve the page", key)
+		}
+	}
+
+	// What the document gives away is what it must: the API behind it refuses
+	// every one of its calls without a key. This is the assertion that makes the
+	// document being open uninteresting — it lists nothing on its own.
+	//
+	// Only the routes that exist without a user store. The user routes are
+	// registered conditionally, and an unregistered one falls through to the
+	// console's own fallback — so it answers 200 with a page rather than 401,
+	// which would be a fact about this server rather than about the console.
+	for _, path := range []string{"/sandbox/api/v1/sandboxes", "/sandbox/api/v1/whoami", "/sandbox/api/v1/overview", "/sandbox/api/v1/catalog"} {
+		if w := do(t, s, http.MethodGet, path, "", ""); w.Code != http.StatusUnauthorized {
+			t.Errorf("GET %s with no key = %d, want 401", path, w.Code)
+		}
+	}
+	// And the sign-in form's own call cannot be used to probe for keys.
+	if w := do(t, s, http.MethodGet, "/sandbox/api/v1/whoami", "not-the-key", ""); w.Code != http.StatusUnauthorized {
+		t.Errorf("whoami with a wrong key = %d, want 401", w.Code)
+	}
+	// A working key still works, so the console can actually do something.
+	if w := do(t, s, http.MethodGet, "/sandbox/api/v1/whoami", testKey, ""); w.Code != http.StatusOK {
+		t.Errorf("whoami with the real key = %d, want 200", w.Code)
+	}
 }
 
 func TestTrimBasePath(t *testing.T) {

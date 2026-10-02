@@ -42,7 +42,6 @@
   #who { font-size: 12.5px; }
   main { padding: 20px; max-width: 1180px; margin: 0 auto; }
   section { margin-bottom: 26px; }
-  section[hidden] { display: none; }
   h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
        color: var(--muted); margin: 0 0 10px; font-weight: 600; }
   h2 .sub { text-transform: none; letter-spacing: 0; font-weight: 400; }
@@ -140,7 +139,45 @@
            border-radius: 10px; padding: 18px; text-align: center; }
   .muted { color: var(--muted); }
   .hidden { display: none !important; }
+  /* The `hidden` attribute hides by way of the browser's own
+     `[hidden] { display: none }`, which any author rule on the same element
+     outranks — and `button { display: inline-block }` above is one. So the Sign
+     out button, set to `hidden` until a key is accepted, was drawn from the
+     start. Stated once here rather than repeated as a `[hidden]` rule beside
+     every element that needs it. */
+  [hidden] { display: none !important; }
   .scroll { overflow-x: auto; }
+
+  /* ── sign in ─────────────────────────────────────────────────────────────
+     The card is the whole page until a key is accepted, so it centres itself
+     in the space below the header. While it is up everything else is hidden,
+     including the header's key row: a form with two places to type the same
+     credential is two answers to "where do I enter it". */
+  #signin {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 64vh; padding: 24px 0;
+  }
+  .signin-card {
+    width: 100%; max-width: 380px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; padding: 26px;
+  }
+  /* The card opens on its one sentence: the header above already says what this
+     is, and repeating it here makes the screen look like two stacked things. */
+  .signin-lead { margin: 0 0 16px; font-size: 15px; }
+  .signin-form { display: flex; flex-direction: column; gap: 10px; }
+  .signin-form input { width: 100%; padding: 9px 11px; }
+  .signin-form button { padding: 9px 12px; }
+  /* The two roles, stated where the key is typed in. They are a property of the
+     key, not a choice: nothing here can turn a user's key into an
+     administrator's, and offering it as a selector would suggest otherwise. */
+  .roles { margin: 0 0 16px; display: flex; flex-direction: column; gap: 8px; }
+  .role { display: flex; gap: 9px; align-items: flex-start; font-size: 12.5px; }
+  .role .badge { flex: none; margin-top: 1px; }
+  .role span { color: var(--muted); }
+  .signin-error {
+    margin: 0; font-size: 13px; color: var(--bad);
+    border-left: 3px solid var(--bad); padding: 2px 0 2px 10px;
+  }
 </style>
 </head>
 <body>
@@ -148,13 +185,43 @@
   <h1>Sandboxes</h1>
   <span id="who" class="muted"></span>
   <span class="grow"></span>
-  <label for="key">API key</label>
-  <input id="key" type="password" size="22" placeholder="paste the key" autocomplete="off">
-  <button id="connect">Connect</button>
   <button id="refresh" title="Reload">Refresh</button>
+  <button id="signout" hidden>Sign out</button>
 </header>
 
 <main>
+  <!-- Sign in. Shown until a key is accepted, and the only thing on the page
+       while it is: everything below is hidden, so there is no half-drawn
+       console behind a credential prompt. -->
+  <section id="signin">
+    <div class="signin-card">
+      <p class="signin-lead">Enter an API key to continue.</p>
+      <form id="signin-form" class="signin-form" autocomplete="off">
+        <input id="signin-key" type="password" placeholder="API key" autocomplete="off"
+               spellcheck="false" aria-label="API key">
+        <button class="primary" type="submit">Sign in</button>
+        <p id="signin-error" class="signin-error" hidden></p>
+      </form>
+      <!-- What the two kinds of key are, before one is typed. The role is read
+           from the key rather than chosen here, so this is a description of the
+           two answers rather than a control; saying so up front is what stops
+           "where do I pick administrator" from being the first question. -->
+      <div class="roles">
+        <div class="role">
+          <span class="badge s-Running">admin</span>
+          <span>The deployment's own key: every sandbox, plus users and their
+            limits. Set by <b class="mono">apiKey</b> on the chart, or
+            <b class="mono">SANDBOX_API_KEY</b>.</span>
+        </div>
+        <div class="role">
+          <span class="badge s-Pending">user</span>
+          <span>A key issued to one person: their own sandboxes and no others.
+            An administrator creates these in the Users view.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section id="overview" hidden>
     <h2 id="overviewTitle">Overview</h2>
     <div class="tiles" id="tiles"></div>
@@ -180,13 +247,6 @@
       <button class="primary" id="newUser">New user</button>
     </div>
     <div id="users"></div>
-  </section>
-
-  <section id="welcome">
-    <div class="empty">
-      <p>Enter an API key to manage sandboxes.</p>
-      <p class="muted" id="welcomeHint"></p>
-    </div>
   </section>
 </main>
 
@@ -530,11 +590,84 @@
 
   // ── actions ───────────────────────────────────────────────────────────────
 
+  // ── session ───────────────────────────────────────────────────────────────
+
+  // The key is the whole credential; nothing else identifies a caller. It is
+  // kept in localStorage so a reload does not ask again, which is the same
+  // choice the CLI makes with its own config file — a credential you have to
+  // paste back on every visit is one that ends up in a chat message.
+  function saveKey(key) {
+    try { localStorage.setItem("sandbox.key", key); } catch (e) { /* private mode */ }
+  }
+
+  function savedKey() {
+    try { return localStorage.getItem("sandbox.key") || ""; } catch (e) { return ""; }
+  }
+
+  function clearKey() {
+    try { localStorage.removeItem("sandbox.key"); } catch (e) { /* private mode */ }
+  }
+
+  function setSigninError(message) {
+    var el = $("signin-error");
+    el.textContent = message || "";
+    el.hidden = !message;
+  }
+
+  // Show the console or the sign-in card, never both. One function because the
+  // two must not disagree: a page showing the sign-in card over a drawn console
+  // is how a stale key looks like a working session.
+  function showSignedIn(signedIn) {
+    $("signin").hidden = signedIn;
+    $("signout").hidden = !signedIn;
+    ["overview", "catalogSection", "sandboxSection", "usersSection"].forEach(function (id) {
+      if (!signedIn) $(id).hidden = true;
+    });
+    if (!signedIn) {
+      $("who").textContent = "";
+      $("signin-key").value = "";
+      $("signin-key").focus();
+    }
+  }
+
+  function signOut() {
+    clearKey();
+    state.key = "";
+    state.me = null;
+    setSigninError("");
+    showSignedIn(false);
+  }
+
+  // connect checks the key before anything is drawn from it, so a bad one is
+  // answered on the form that asked rather than by an empty console.
+  function connect(key) {
+    setSigninError("");
+    state.key = key;
+    return refresh().then(function () {
+      saveKey(key);
+      showSignedIn(true);
+      return true;
+    }).catch(function (err) {
+      // The key is dropped on failure: keeping one that did not work would make
+      // the next load retry it and show the same error, behind a card that had
+      // already been filled in from storage.
+      clearKey();
+      state.key = "";
+      if (err.status === 401 || err.status === 403) {
+        setSigninError("That key was not accepted. Check it and try again.");
+      } else {
+        setSigninError(err.message);
+      }
+      showSignedIn(false);
+      return false;
+    });
+  }
+
   function refresh() {
     return api("/whoami").then(function (me) {
       state.me = me;
-      var who = me.admin ? "administrator" : ("user " + me.user);
-      $("who").textContent = "— " + who;
+      // The role, in the words the sign-in card used for it.
+      $("who").textContent = "— signed in as " + (me.admin ? "admin" : "user " + me.user);
 
       var wanted = [api("/overview"), api("/catalog"), api("/sandboxes")];
       if (me.canManageUsers) wanted.push(api("/users"));
@@ -548,14 +681,6 @@
       renderSandboxes();
       if (state.me.canManageUsers) renderUsers();
       else $("usersSection").hidden = true;
-      $("welcome").hidden = true;
-    }).catch(function (err) {
-      $("welcome").hidden = false;
-      $("welcomeHint").textContent = err.message;
-      $("who").textContent = "";
-      ["overview", "catalogSection", "sandboxSection", "usersSection"].forEach(function (id) {
-        $(id).hidden = true;
-      });
     });
   }
 
@@ -690,29 +815,55 @@
 
   $("newUser").onclick = function () { openUser(null); };
 
-  $("connect").onclick = function () {
-    state.key = $("key").value.trim();
-    if (!state.key) { toast("Paste the API key first", true); return; }
-    try { localStorage.setItem("sandbox.key", state.key); } catch (e) { /* private mode */ }
-    refresh().then(function () { toast("Connected as " + (state.me.admin ? "administrator" : state.me.user)); });
+  $("signin-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var key = $("signin-key").value.trim();
+    if (!key) { setSigninError("An API key is required."); return; }
+    connect(key);
+  });
+
+  $("signout").onclick = signOut;
+  $("refresh").onclick = function () {
+    refresh().catch(function (err) {
+      // A key that stopped working — rotated, or the user deleted — ends the
+      // session rather than leaving a console that fails every click.
+      if (err.status === 401 || err.status === 403) {
+        setSigninError("That key is no longer accepted.");
+        signOut();
+        return;
+      }
+      toast("Could not refresh: " + err.message, true);
+    });
   };
 
-  $("refresh").onclick = function () { refresh(); };
-
-  try {
-    var saved = localStorage.getItem("sandbox.key");
-    if (saved) { $("key").value = saved; state.key = saved; refresh(); }
-  } catch (e) { /* private mode: no remembered key, which is fine */ }
+  // Sign in from a key in the query string, which is how the link the API and
+  // the CLI print works: a browser navigation cannot set a header, so `?key=`
+  // is the only way the address can carry the credential. It is stripped from
+  // the address bar afterwards — a key in a URL ends up in history, in a
+  // screenshot and in whatever was pasted into chat.
+  (function () {
+    var fromURL = "";
+    try { fromURL = new URLSearchParams(location.search).get("key") || ""; } catch (e) { /* no URLSearchParams */ }
+    if (fromURL) {
+      try {
+        var u = new URL(location.href);
+        u.searchParams.delete("key");
+        history.replaceState(null, "", u.pathname + (u.searchParams.toString() ? "?" + u.searchParams : "") + u.hash);
+      } catch (e) { /* the address bar keeps it; the session still works */ }
+      connect(fromURL);
+      return;
+    }
+    var saved = savedKey();
+    if (saved) { connect(saved); return; }
+    showSignedIn(false);
+  })();
 
   // Refresh on an interval so a sandbox that expires disappears without a
   // click. Thirty seconds is the reaper's own period, so the page never lags
   // what the cluster shows by more than one sweep.
-  setInterval(function () { if (state.key) refresh(); }, 30000);
-
-  fetch(API + "/config").then(function (r) { return r.json(); }).then(function (cfg) {
-    $("welcomeHint").textContent = "This deployment serves " + cfg.templates +
-      " templates" + (cfg.publicURL ? " at " + cfg.publicURL : "") + ".";
-  }).catch(function () { /* the hint is a courtesy; its absence changes nothing */ });
+  setInterval(function () {
+    if (state.key) refresh().catch(function () { /* a transient failure is not a sign-out */ });
+  }, 30000);
 })();
 </script>
 </body>
