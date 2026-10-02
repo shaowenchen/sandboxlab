@@ -233,6 +233,15 @@ open_tunnel() {
     cloudflare)
       if [ -n "$CLOUDFLARE_TOKEN" ]; then
         log "opening a Cloudflare named tunnel"
+        # The ingress is Cloudflare's, not this script's: a named tunnel routes
+        # by the rules configured for it, and a --url passed here would be
+        # ignored. So what this connects *to* is not something this run can see
+        # or set — which is why the wait below is worth doing, and why the
+        # agent's output is printed when it does not come up. A 530 is
+        # Cloudflare saying it accepted the hostname and found no origin for it,
+        # and the fix is an ingress rule (public hostname -> http://127.0.0.1:${SANDBOXLAB_GATEWAY_NODEPORT})
+        # in the tunnel's configuration, not anything in this repository.
+        log "  its ingress is configured in Cloudflare: ${SANDBOXLAB_DOMAIN} -> http://127.0.0.1:${SANDBOXLAB_GATEWAY_NODEPORT}"
         cloudflared tunnel --no-autoupdate run --token "$CLOUDFLARE_TOKEN" >"$TUNNEL_LOG" 2>&1 &
       else
         log "opening a Cloudflare quick tunnel (no account needed)"
@@ -319,6 +328,29 @@ record SANDBOX_BASE_PATH "$SANDBOXLAB_BASE_PATH"
 # script's own checks use — and what an environment with no tunnel is reached
 # through.
 record SANDBOX_GATEWAY_URL "http://127.0.0.1:${SANDBOXLAB_GATEWAY_NODEPORT}"
+
+# Start the tunnel agent here, once the address is known and before anything
+# waits on it.
+#
+# The named-tunnel case used to leave this to section 9, and section 8 waits for
+# the tunnel to serve the console at the end of the run — so the wait was for
+# something that had not been started. The sequence was:
+#
+#     [sandboxlab] waiting for the tunnel to serve the console at https://...
+#     curl: (22) ... 530
+#
+# Two minutes of 530s, a warning, and a finished-looking run whose link did not
+# work yet. The agent came up a few lines later, so the link usually started
+# working shortly after — which is exactly the kind of fault that gets left
+# alone, because the symptom is a delay rather than a failure.
+#
+# Here rather than in section 9 because the check and the thing checked are the
+# same fact: an agent is running, so waiting for it to serve is meaningful. It
+# is also harmless to start now — cloudflared connects out and the local address
+# answers once the cluster is up, and it reconnects until then.
+if [ -z "$SANDBOXLAB_PUBLIC_HOST" ] && [ -z "${tunnel_pid:-}" ]; then
+  open_tunnel
+fi
 
 # ── 5. the cluster ──────────────────────────────────────────────────────────
 
@@ -495,6 +527,23 @@ secret_name=$(chart_object_name secret)
 API_KEY=$(kubectl -n "$SANDBOXLAB_NAMESPACE" get secret "$secret_name" \
   -o jsonpath='{.data.api-key}' | base64 -d)
 [ -n "$API_KEY" ] || die "the API key Secret ${secret_name} has no api-key in it"
+# The value in the Secret and the value the running pod is using are two
+# different things, and the chart gives the pod that value through an env var
+# rather than reading the Secret again — so a Secret updated without the pod
+# being restarted leaves a pod authenticating with the old key while this script
+# holds the new one. Every request then fails 401, and the 401 is the only
+# symptom: the API is up, the route exists, and the key looks right.
+#
+# Compared here rather than left to the first request, because at that point the
+# answer is "the API refused the key the chart installed" and the real cause —
+# a Deployment that was never rolled — is three steps back.
+pod_key=$(kubectl -n "$SANDBOXLAB_NAMESPACE" get deploy \
+  -l app.kubernetes.io/instance=sandbox \
+  -o jsonpath='{.items[0].spec.template.spec.containers[0].env[?(@.name=="SANDBOX_API_KEY")].valueFrom.secretKeyRef.name}')
+[ -n "$pod_key" ] || pod_key="$secret_name"
+if [ "$pod_key" != "$secret_name" ]; then
+  warn "the Deployment reads its key from '${pod_key}' but the chart made '${secret_name}'; a request with the new key will be refused"
+fi
 record SANDBOX_API_KEY "$API_KEY"
 record SANDBOX_CONSOLE_URL "${PUBLIC_URL}${SANDBOXLAB_BASE_PATH}"
 
@@ -530,8 +579,11 @@ if ! curl -fsS -H "Host: ${TUNNEL_HOST}" -H "X-Sandbox-Key: ${API_KEY}" "${local
   die "the API refused the key the chart installed; the Secret and the environment do not agree"
 fi
 # And that it refuses the wrong one, which is what says the check above meant
-# something.
-if curl -fsS -H "Host: ${TUNNEL_HOST}" -H "X-Sandbox-Key: wrong" "${local_url}/api/v1/catalog" >/dev/null; then
+# something. This request is *supposed* to fail, so its curl error is expected
+# output rather than a symptom — printed to nowhere so the job log does not
+# carry a `curl: (22) ... 401` that reads like a fault next to the real ones.
+if curl -fsS -o /dev/null -H "Host: ${TUNNEL_HOST}" -H "X-Sandbox-Key: wrong" \
+  "${local_url}/api/v1/catalog" 2>/dev/null; then
   die "the API accepted a wrong key"
 fi
 record SANDBOX_CATALOG "$(curl -fsS -H "Host: ${TUNNEL_HOST}" -H "X-Sandbox-Key: ${API_KEY}" \
@@ -553,6 +605,12 @@ if [ -z "$SANDBOXLAB_PUBLIC_HOST" ]; then
   if [ "$tunnel_served" = "true" ]; then
     log "the tunnel is serving the environment"
   else
+    # What the agent said, before the warning about it. A link that does not
+    # work is the one failure a person notices from outside the run, and the
+    # reason is always in the agent's own output — a token that expired, a
+    # tunnel name that no longer exists, an ingress rule pointing somewhere
+    # else. The log is a few lines and it is the whole diagnosis.
+    show "the tunnel agent's last output" tail -30 "$TUNNEL_LOG"
     warn "the tunnel has not served the environment yet; the link may work shortly"
   fi
 fi
@@ -579,16 +637,9 @@ show "the sandboxes" kubectl get namespaces -l app.kubernetes.io/managed-by=sand
 
 # ── 9. publish ──────────────────────────────────────────────────────────────
 
-# The tunnel comes up now rather than at the start. Everything above is the
-# cluster's own business and is already proven — the pods, the Service, the
-# VirtualService and the API's answers — so a tunnel that fails here fails on
-# its own, and cannot be mistaken for the platform not having come up. The
-# exception is a quick tunnel or ngrok, whose hostname had to be known before
-# the control plane was installed; the earlier resolve started that one already,
-# and open_tunnel notices and does nothing.
-if [ -z "$SANDBOXLAB_PUBLIC_HOST" ] && [ -z "${tunnel_pid:-}" ]; then
-  open_tunnel
-fi
+# The tunnel was started back in section 4, once its address was known and
+# before anything waited on it — see the note there for what went wrong when it
+# was not.
 
 # The summary, and the banner below, are published from here rather than from a
 # step after this script. The script holds the session open for hours, so a step
