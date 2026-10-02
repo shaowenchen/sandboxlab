@@ -300,6 +300,109 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
 
+  /api/v1/sandboxes/{id}/exec:
+    post:
+      tags: [sandboxes]
+      operationId: execInSandbox
+      summary: Run a command in a sandbox and wait for it
+      description: >-
+        The command is an argv, not a command line: pass ["sh", "-c", "..."] to
+        have a shell interpret it, and pass anything else to have it not. This
+        is the way into a sandbox whose template serves no port — python and
+        node are a workspace with no URL, and this is what reaches them.
+
+
+        **A non-zero exitCode is not a failure.** The command ran and that is
+        what it returned, so the response is a 200 carrying the output and the
+        status. Only an error response means the command could not be run at
+        all — no pod yet, no permission, or the timeout below.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ExecRequest"}
+      responses:
+        "200":
+          description: the command's output and its exit status
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ExecResult"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "504": {$ref: "#/components/responses/Timeout"}
+
+  /api/v1/sandboxes/{id}/files:
+    get:
+      tags: [sandboxes]
+      operationId: readSandboxFile
+      summary: Read a file out of a sandbox
+      description: >-
+        content is the file's bytes: UTF-8 verbatim when the file is text, and
+        base64 when it is not. encoding says which, so a caller reads a field
+        rather than sniffing the content. A file over the deployment's limit is
+        413 rather than a truncated read.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+        - name: path
+          in: query
+          required: true
+          description: an absolute path inside the sandbox
+          schema: {type: string}
+      responses:
+        "200":
+          description: the file
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FileContent"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "413": {$ref: "#/components/responses/TooLarge"}
+    put:
+      tags: [sandboxes]
+      operationId: writeSandboxFile
+      summary: Write a file into a sandbox
+      description: >-
+        It creates the file if it is absent and replaces it if it is. Parent
+        directories are not created unless createParents is set: a silently
+        created directory turns a mistyped path into a file nobody will find,
+        where a refusal names the directory that is missing.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+        - name: path
+          in: query
+          required: true
+          description: an absolute path inside the sandbox
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/WriteFileRequest"}
+      responses:
+        "200":
+          description: where it was written, and how much
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FileInfo"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "413": {$ref: "#/components/responses/TooLarge"}
+
   /sandbox/{id}/{port}/:
     get:
       tags: [sandboxes]
@@ -380,6 +483,18 @@ components:
           schema: {$ref: "#/components/schemas/Error"}
     LimitReached:
       description: the caller, or the deployment, is at its ceiling
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    TooLarge:
+      description: the file or the request body is larger than this API carries
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    Timeout:
+      description: >-
+        nothing is broken — the command was still running when its time ran
+        out, and it can be asked for again with a longer one
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}
@@ -618,6 +733,106 @@ components:
           type: object
           additionalProperties: {type: string}
           description: environment overrides, merged over the template's own
+
+    ExecRequest:
+      type: object
+      required: [command]
+      properties:
+        command:
+          type: array
+          minItems: 1
+          items: {type: string}
+          description: >-
+            the command and its arguments, as separate values. Pass
+            ["sh", "-c", "..."] to have a shell interpret a command line;
+            anything else is executed directly.
+        stdin:
+          type: string
+          description: input for the command, decoded per encoding
+        cwd:
+          type: string
+          description: >-
+            the working directory; the image's own when omitted
+        timeout:
+          type: string
+          description: >-
+            how long the command may take, e.g. "30s". Clamped to the
+            deployment's own ceiling however large it is.
+        encoding:
+          type: string
+          enum: [utf8, base64]
+          description: how stdin is spelled; utf8 is the default
+
+    ExecResult:
+      type: object
+      required: [exitCode, stdout, stderr, stdoutEncoding, stderrEncoding]
+      properties:
+        exitCode:
+          type: integer
+          description: >-
+            the command's exit status. A non-zero value is not a failure of
+            this request: the command ran. Only an error response means it
+            could not be run.
+        stdout: {type: string}
+        stderr: {type: string}
+        stdoutEncoding:
+          type: string
+          enum: [utf8, base64]
+          description: >-
+            how stdout is spelled: utf8 for text, base64 for anything that is
+            not valid UTF-8. Chosen per stream, so a command that printed text
+            to one and bytes to the other is spelled correctly in both.
+        stderrEncoding:
+          type: string
+          enum: [utf8, base64]
+        stdoutTruncated:
+          type: boolean
+          description: the output hit the deployment's cap and was cut off
+        stderrTruncated:
+          type: boolean
+
+    FileContent:
+      type: object
+      required: [path, content, encoding, size]
+      properties:
+        path: {type: string}
+        content:
+          type: string
+          description: the file's bytes, decoded per encoding
+        encoding:
+          type: string
+          enum: [utf8, base64]
+          description: >-
+            utf8 when the file is valid UTF-8 text, base64 when it is not —
+            a caller reads this rather than guessing from the content
+        size:
+          type: integer
+          description: the length of the file's bytes, before encoding
+
+    WriteFileRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          description: the file's bytes, decoded per encoding
+        encoding:
+          type: string
+          enum: [utf8, base64]
+          description: how content is spelled; utf8 is the default
+        createParents:
+          type: boolean
+          description: >-
+            create the directories above the path when they are missing.
+            Off by default, so a mistyped directory is a 400 naming it rather
+            than a file written somewhere unexpected.
+
+    FileInfo:
+      type: object
+      required: [path, size]
+      properties:
+        path: {type: string}
+        size: {type: integer, description: "how many bytes were written"}
 
     RenewSandboxRequest:
       type: object

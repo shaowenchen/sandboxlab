@@ -10,6 +10,7 @@ import (
 	"github.com/shaowenchen/sandboxlab/internal/auth"
 	"github.com/shaowenchen/sandboxlab/internal/buildinfo"
 	"github.com/shaowenchen/sandboxlab/internal/config"
+	"github.com/shaowenchen/sandboxlab/internal/k8s"
 	"github.com/shaowenchen/sandboxlab/internal/model"
 	"github.com/shaowenchen/sandboxlab/internal/sandbox"
 )
@@ -44,6 +45,10 @@ type SandboxService interface {
 	Renew(ctx context.Context, id string, in sandbox.RenewInput) (model.Sandbox, error)
 	Logs(ctx context.Context, id string, tail int64) (string, error)
 	Overview(ctx context.Context) (sandbox.Overview, error)
+	// The three that reach into a running sandbox rather than describing it.
+	Exec(ctx context.Context, id string, in sandbox.ExecInput) (sandbox.ExecResult, error)
+	ReadFile(ctx context.Context, id, path string) (k8s.FileContent, error)
+	WriteFile(ctx context.Context, id, path string, data []byte, createParents bool) (k8s.FileInfo, error)
 }
 
 // DataPlane reaches into a sandbox. The API layer owns routing and
@@ -174,6 +179,15 @@ func (s *Server) routes(d Deps) {
 	})
 	s.handle("/api/v1/sandboxes/{id}/renew", "POST", map[string]http.HandlerFunc{"POST": s.authenticated(s.renewSandbox)})
 	s.handle("/api/v1/sandboxes/{id}/logs", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.sandboxLogs)})
+	// Reaching into a running sandbox. These are the control plane's own
+	// operations on the pod, not proxying to something the sandbox serves, so
+	// they are here rather than under /sandbox/ — a portless sandbox has no URL
+	// for a data-plane route to reach it at all.
+	s.handle("/api/v1/sandboxes/{id}/exec", "POST", map[string]http.HandlerFunc{"POST": s.authenticated(s.execSandbox)})
+	s.handle("/api/v1/sandboxes/{id}/files", "GET, PUT", map[string]http.HandlerFunc{
+		"GET": s.authenticated(s.sandboxFiles),
+		"PUT": s.authenticated(s.sandboxFiles),
+	})
 
 	// The data plane: a browser opens these directly, so the key may come from
 	// the query string as well as a header. Every method is forwarded — see
@@ -333,6 +347,9 @@ func (s *Server) describe(w http.ResponseWriter, r *http.Request) {
 		{"method": "DELETE", "path": "/api/v1/sandboxes/{id}", "description": "delete one"},
 		{"method": "POST", "path": "/api/v1/sandboxes/{id}/renew", "description": "reset its expiry; body {ttl}"},
 		{"method": "GET", "path": "/api/v1/sandboxes/{id}/logs", "description": "the tail of its output; ?tail=<lines>"},
+		{"method": "POST", "path": "/api/v1/sandboxes/{id}/exec", "description": "run a command in it and wait; body {command, stdin?, cwd?, timeout?}"},
+		{"method": "GET", "path": "/api/v1/sandboxes/{id}/files", "description": "read a file: ?path=/abs/path"},
+		{"method": "PUT", "path": "/api/v1/sandboxes/{id}/files", "description": "write a file: ?path=/abs/path, body {content, encoding?, createParents?}"},
 		{"method": "GET", "path": "/sandbox/{id}/{port}/", "description": "proxy to a sandbox's own port"},
 	}
 	writeJSON(w, http.StatusOK, map[string]any{

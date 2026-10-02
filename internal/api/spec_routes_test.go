@@ -14,9 +14,11 @@ package api_test
 // property rather than a claim.
 
 import (
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -223,4 +225,60 @@ func contains(hay []string, needle string) bool {
 		}
 	}
 	return false
+}
+
+// TestDescribeListsTheRoutesThatExist is the third copy, checked.
+//
+// describe() is a hand-written list of endpoints served without a key — it is
+// what a client reads to learn the API's shape. Nothing compared it against
+// anything, and it drifted: it advertised /api/v1/whoami for a while after that
+// route was deleted, which is a contract document promising an endpoint that is
+// not there.
+//
+// The spec check above cannot catch it, because describe() is not the spec. So
+// this reads the document the server actually serves and compares it with the
+// routes the server actually registered.
+func TestDescribeListsTheRoutesThatExist(t *testing.T) {
+	s := aFullDeployment(t)
+
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/describe", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /api/v1/describe = %d, want 200", w.Code)
+	}
+	var body struct {
+		Endpoints []struct {
+			Method string `json:"method"`
+			Path   string `json:"path"`
+		} `json:"endpoints"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("describe is not JSON: %v", err)
+	}
+	if len(body.Endpoints) == 0 {
+		t.Fatal("describe lists no endpoints")
+	}
+
+	// The routes that answer without a key. Everything else is behind one, and
+	// describe is not a place to advertise what a caller cannot yet reach.
+	routes := serverRoutes(s)
+
+	for _, ep := range body.Endpoints {
+		if _, ok := routes[normPath(ep.Path)]; !ok {
+			t.Errorf("describe advertises %s %s, which this server does not answer", ep.Method, ep.Path)
+		}
+	}
+
+	// And the other way, for the routes a client most needs to find: every
+	// sandbox operation should be described, or a client reading only describe
+	// would not know it exists.
+	described := map[string]bool{}
+	for _, ep := range body.Endpoints {
+		described[normPath(ep.Path)] = true
+	}
+	for pattern := range routes {
+		if strings.HasPrefix(pattern, "/api/v1/sandboxes") && !described[pattern] {
+			t.Errorf("the route %s is not in describe, so a client reading describe cannot find it", pattern)
+		}
+	}
 }

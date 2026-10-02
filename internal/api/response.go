@@ -40,12 +40,18 @@ func writeError(w http.ResponseWriter, log *slog.Logger, err error) {
 	switch {
 	case errors.Is(err, sandbox.ErrInvalid):
 		status = http.StatusBadRequest
-	case errors.Is(err, sandbox.ErrNotFound):
+	case errors.Is(err, sandbox.ErrNotFound), errors.Is(err, sandbox.ErrNoSuchFile):
 		status = http.StatusNotFound
 	case errors.Is(err, sandbox.ErrConflict):
 		status = http.StatusConflict
+	case errors.Is(err, sandbox.ErrTooLarge):
+		status = http.StatusRequestEntityTooLarge
 	case errors.Is(err, sandbox.ErrLimit):
 		status = http.StatusTooManyRequests
+	case errors.Is(err, sandbox.ErrTimeout):
+		// 504 rather than 500: nothing is broken. The command is still running
+		// and the caller can ask again with longer.
+		status = http.StatusGatewayTimeout
 	}
 	if status >= 500 {
 		log.Error("request failed", "error", err)
@@ -59,12 +65,30 @@ func writeError(w http.ResponseWriter, log *slog.Logger, err error) {
 // silently ignored line — the failure it would otherwise cause is a create call
 // that succeeds without the setting that was meant to be there.
 func decodeJSON(r *http.Request, v any) error {
+	return decodeJSONLimited(nil, r, 1<<20, v)
+}
+
+// errBodyTooLarge reports that the body went past the limit for its route.
+var errBodyTooLarge = errors.New("the request body is too large")
+
+// decodeJSONLimited is decodeJSON with the cap named.
+//
+// A file write is the one body whose size is a property of the request rather
+// than of the API, so it says so instead of inheriting the 1 MiB default. When
+// w is given the connection is closed on overflow — MaxBytesReader does that
+// only if it can reach the ResponseWriter — which stops a client writing a
+// large body into a socket nobody is reading.
+func decodeJSONLimited(w http.ResponseWriter, r *http.Request, limit int64, v any) error {
 	if r.Body == nil {
 		return errors.New("a request body is required")
 	}
-	dec := json.NewDecoder(http.MaxBytesReader(nil, r.Body, 1<<20))
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			return errBodyTooLarge
+		}
 		return err
 	}
 	return nil

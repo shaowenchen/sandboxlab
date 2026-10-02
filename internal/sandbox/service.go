@@ -35,6 +35,23 @@ var ErrConflict = errors.New("conflict")
 // ErrLimit is returned when the deployment is at its sandbox ceiling.
 var ErrLimit = errors.New("sandbox limit reached")
 
+// ErrTimeout is returned when a command outlived the time it was given.
+//
+// It is separate from the other failures because nothing is wrong: the command
+// is still running, and the caller can ask again with longer — or set it going
+// in the background. Reporting it as a server error would suggest the control
+// plane broke.
+var ErrTimeout = errors.New("the command did not finish in time")
+
+// ErrTooLarge is returned when a file is over the size this API carries.
+var ErrTooLarge = k8s.ErrTooLarge
+
+// ErrNoSuchFile is returned for a path that is not there.
+//
+// Distinct from ErrNotFound, which means "no such sandbox". Both are 404s, and
+// the message has to name the right missing thing.
+var ErrNoSuchFile = k8s.ErrNoSuchFile
+
 // Service creates and manages sandboxes.
 type Service struct {
 	cfg     config.Config
@@ -273,6 +290,116 @@ func (s *Service) Overview(ctx context.Context) (Overview, error) {
 		ov.ByTemplate[sb.Template]++
 	}
 	return ov, nil
+}
+
+// Exec runs one command in a sandbox and waits for it.
+//
+// The timeout is applied here rather than left to the caller, because nothing
+// else bounds it: the HTTP server has no write deadline (the data-plane proxy
+// streams for as long as it likes) so a command that never returns would hold a
+// goroutine and a connection until the process restarts.
+//
+// A command that exits non-zero is not an error — see k8s.Exec. Only running it
+// at all can fail.
+func (s *Service) Exec(ctx context.Context, id string, in ExecInput) (ExecResult, error) {
+	sb, err := s.lookup(ctx, id)
+	if err != nil {
+		return ExecResult{}, err
+	}
+
+	timeout := in.Timeout
+	if timeout <= 0 {
+		timeout = s.cfg.ExecTimeout
+	}
+	if s.cfg.MaxExecTimeout > 0 && timeout > s.cfg.MaxExecTimeout {
+		timeout = s.cfg.MaxExecTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	out, err := s.client.Exec(ctx, sb.ID, k8s.ExecInput{
+		Command: in.Command,
+		Stdin:   in.Stdin,
+		Cwd:     in.Cwd,
+	})
+	if err != nil {
+		return ExecResult{}, wrapExecErr(err, id)
+	}
+	return ExecResult{
+		Stdout:          out.Stdout,
+		Stderr:          out.Stderr,
+		ExitCode:        out.ExitCode,
+		StdoutTruncated: out.StdoutTruncated,
+		StderrTruncated: out.StderrTruncated,
+	}, nil
+}
+
+// ReadFile reads a file out of a sandbox.
+func (s *Service) ReadFile(ctx context.Context, id, path string) (k8s.FileContent, error) {
+	sb, err := s.lookup(ctx, id)
+	if err != nil {
+		return k8s.FileContent{}, err
+	}
+	return s.client.ReadFile(ctx, sb.ID, path, s.cfg.MaxFileBytes)
+}
+
+// WriteFile writes a file into a sandbox.
+func (s *Service) WriteFile(ctx context.Context, id, path string, data []byte, createParents bool) (k8s.FileInfo, error) {
+	sb, err := s.lookup(ctx, id)
+	if err != nil {
+		return k8s.FileInfo{}, err
+	}
+	return s.client.WriteFile(ctx, sb.ID, path, data, createParents)
+}
+
+// wrapExecErr turns a transport failure into something the HTTP layer can map.
+//
+// The one worth naming is a sandbox whose pod is not up yet. A new sandbox is
+// Pending for a few seconds while its image is pulled, and an exec into it
+// fails — that is the ordinary state right after a create, not a fault, and a
+// caller polling should be told to come back rather than that something broke.
+// It is the same distinction Logs makes, for the same reason.
+func wrapExecErr(err error, id string) error {
+	if errors.Is(err, k8s.ErrInvalid) || errors.Is(err, k8s.ErrNoSuchFile) || errors.Is(err, k8s.ErrTooLarge) {
+		return err
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("%w: the command in %q was still running when its time ran out", ErrTimeout, id)
+	}
+	// The transport reports "no pod yet" as a plain error, so the message is the
+	// only signal — but it is this package's own message from sandboxPod, not a
+	// cluster's, which is what makes matching on it safe here and nowhere else.
+	if strings.Contains(err.Error(), "has no pod yet") {
+		return fmt.Errorf("%w: the sandbox %q is still starting; try again in a moment", ErrConflict, id)
+	}
+	return err
+}
+
+// ExecInput is one command to run in a sandbox.
+type ExecInput struct {
+	// Command is an argv, not a command line. A shell is something a caller
+	// asks for by naming one — ["sh", "-c", "..."] — rather than something this
+	// API imposes on every command.
+	Command []string
+	// Stdin is fed to the command. Empty means no stdin stream at all.
+	Stdin []byte
+	// Cwd is the working directory. Empty means the image's own.
+	Cwd string
+	// Timeout bounds the command. Zero means the deployment's default, and the
+	// deployment's ceiling caps whatever is asked for.
+	Timeout time.Duration
+}
+
+// ExecResult is what a command produced.
+//
+// A non-zero ExitCode is not an error: the command ran. Only a command that
+// could not be run at all is an error.
+type ExecResult struct {
+	Stdout          []byte `json:"-"`
+	Stderr          []byte `json:"-"`
+	ExitCode        int    `json:"exitCode"`
+	StdoutTruncated bool   `json:"stdoutTruncated,omitempty"`
+	StderrTruncated bool   `json:"stderrTruncated,omitempty"`
 }
 
 // generateID makes an id for a sandbox nobody named: the template's first word

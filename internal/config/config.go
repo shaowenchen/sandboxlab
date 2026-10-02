@@ -63,6 +63,16 @@ type Config struct {
 	// MaxSandboxes caps how many sandboxes may exist at once. Zero is no cap.
 	MaxSandboxes int
 
+	// ExecTimeout is how long a command run in a sandbox may take when the
+	// caller names no time of its own.
+	ExecTimeout time.Duration
+	// MaxExecTimeout is the ceiling a caller cannot ask past. Zero is no
+	// ceiling, which is how a request holds a connection indefinitely.
+	MaxExecTimeout time.Duration
+	// MaxFileBytes caps a file read and a write body. Zero means the package
+	// default in internal/k8s.
+	MaxFileBytes int64
+
 	// ReapInterval is how often expired sandboxes are collected.
 	ReapInterval time.Duration
 
@@ -120,6 +130,15 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if cfg.MaxSandboxes, err = intEnv("SANDBOX_MAX_SANDBOXES", 0); err != nil {
+		return Config{}, err
+	}
+	if cfg.ExecTimeout, err = durationEnv("SANDBOX_EXEC_TIMEOUT", time.Minute); err != nil {
+		return Config{}, err
+	}
+	if cfg.MaxExecTimeout, err = durationEnv("SANDBOX_MAX_EXEC_TIMEOUT", 10*time.Minute); err != nil {
+		return Config{}, err
+	}
+	if cfg.MaxFileBytes, err = intEnv64("SANDBOX_MAX_FILE_BYTES", 2<<20); err != nil {
 		return Config{}, err
 	}
 	if cfg.DataPlane, err = boolEnv("SANDBOX_DATA_PLANE", true); err != nil {
@@ -241,6 +260,21 @@ func intEnv(key string, def int) (int, error) {
 		return def, nil
 	}
 	n, err := strconv.Atoi(v)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", key, err)
+	}
+	if n < 0 {
+		return 0, fmt.Errorf("%s: %d is negative", key, n)
+	}
+	return n, nil
+}
+
+func intEnv64(key string, def int64) (int64, error) {
+	v, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(v) == "" {
+		return def, nil
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", key, err)
 	}

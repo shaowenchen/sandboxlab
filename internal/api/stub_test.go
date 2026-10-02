@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/shaowenchen/sandboxlab/internal/config"
+	"github.com/shaowenchen/sandboxlab/internal/k8s"
 	"github.com/shaowenchen/sandboxlab/internal/model"
 	"github.com/shaowenchen/sandboxlab/internal/sandbox"
 )
@@ -28,6 +29,14 @@ type stubService struct {
 	clusterUp bool
 	logs      string
 	now       func() time.Time
+
+	// The exec and file surface, so a test can set what it wants back.
+	execExitCode int
+	execErr      error
+	readErr      error
+	writeErr     error
+	fileContent  string
+	wrote        []stubWrite
 }
 
 func newStubService(cfg config.Config, c *model.Catalog) *stubService {
@@ -158,6 +167,54 @@ func (s *stubService) Logs(ctx context.Context, id string, _ int64) (string, err
 		return "", err
 	}
 	return s.logs, nil
+}
+
+// Exec answers with canned output, and echoes the command back so a test can
+// assert what the API passed through.
+func (s *stubService) Exec(ctx context.Context, id string, in sandbox.ExecInput) (sandbox.ExecResult, error) {
+	if _, err := s.Get(ctx, id); err != nil {
+		return sandbox.ExecResult{}, err
+	}
+	if len(in.Command) == 0 {
+		return sandbox.ExecResult{}, fmt.Errorf("%w: no command to run", sandbox.ErrInvalid)
+	}
+	if s.execErr != nil {
+		return sandbox.ExecResult{}, s.execErr
+	}
+	return sandbox.ExecResult{
+		Stdout:   []byte("ran: " + strings.Join(in.Command, " ")),
+		ExitCode: s.execExitCode,
+	}, nil
+}
+
+// ReadFile answers with canned bytes shaped the way the real one shapes them.
+func (s *stubService) ReadFile(ctx context.Context, id, path string) (k8s.FileContent, error) {
+	if _, err := s.Get(ctx, id); err != nil {
+		return k8s.FileContent{}, err
+	}
+	if s.readErr != nil {
+		return k8s.FileContent{}, s.readErr
+	}
+	return k8s.FileContent{Content: s.fileContent, Encoding: "utf8", Size: int64(len(s.fileContent))}, nil
+}
+
+// WriteFile records what it was given, so a test can check the bytes arrived.
+func (s *stubService) WriteFile(ctx context.Context, id, path string, data []byte, createParents bool) (k8s.FileInfo, error) {
+	if _, err := s.Get(ctx, id); err != nil {
+		return k8s.FileInfo{}, err
+	}
+	if s.writeErr != nil {
+		return k8s.FileInfo{}, s.writeErr
+	}
+	s.wrote = append(s.wrote, stubWrite{path: path, data: append([]byte(nil), data...), parents: createParents})
+	return k8s.FileInfo{Size: int64(len(data))}, nil
+}
+
+// stubWrite is one recorded WriteFile call.
+type stubWrite struct {
+	path    string
+	data    []byte
+	parents bool
 }
 
 func (s *stubService) Overview(_ context.Context) (sandbox.Overview, error) {
