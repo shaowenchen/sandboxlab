@@ -90,6 +90,10 @@ The control plane's ClusterRole grants, cluster-wide:
 - `secrets`: **get only**. Nothing in the process writes a Secret — the key is
   created at install and read from the environment — so the grant stopped at
   read rather than being widened to the set above out of habit.
+- `pods/exec`: get, create. This is the one that lets `sandbox exec` and the
+  file endpoints run anything inside a sandbox, so it is worth knowing it is
+  there: whoever holds the deployment's key can execute in any sandbox this
+  ServiceAccount can reach.
 
 `delete` on namespaces is the one worth reviewing: deleting a namespace
 reclaims everything in it. That is the design — one operation, nothing to miss —

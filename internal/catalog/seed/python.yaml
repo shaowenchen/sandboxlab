@@ -1,6 +1,7 @@
 # A Python workspace, kept alive so work can be done in it rather than around
-# it: the container runs no service and serves no port, and everything happens
-# through `sandbox exec` and the file endpoints.
+# it: the container runs no service and serves no port, so everything happens
+# through `sandbox exec` and the file endpoints — which is what a sandbox like
+# this is for.
 #
 # `sleep infinity` is deliberate. Python's own default command reads stdin and
 # exits when there is none, so the container would start and immediately finish

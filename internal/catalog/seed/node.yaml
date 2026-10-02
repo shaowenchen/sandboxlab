@@ -1,5 +1,5 @@
 # A Node workspace, on the same terms as the Python one: kept alive, reached
-# through exec and the file endpoints, no port of its own.
+# through `sandbox exec` and the file endpoints, no port of its own.
 id: node
 title: Node sandbox
 description: >-

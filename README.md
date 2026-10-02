@@ -100,6 +100,8 @@ sandbox create -t python --name scratch  # create one
 sandbox list                             # what is running, and where
 sandbox url scratch                      # just the address, for a script
 sandbox logs scratch                     # what it has printed
+sandbox exec scratch -- ls -la /workspace # run something in it
+sandbox cp scratch:/workspace/out.txt .  # take a file out
 sandbox renew scratch --ttl 2h           # keep it longer
 sandbox rm scratch                       # stop it now
 ```
@@ -127,6 +129,9 @@ curl -s https://<the link>/sandbox/api/v1/describe | jq
 | `DELETE` | `/api/v1/sandboxes/{id}` | delete one |
 | `POST` | `/api/v1/sandboxes/{id}/renew` | reset its expiry |
 | `GET` | `/api/v1/sandboxes/{id}/logs` | the tail of its output |
+| `POST` | `/api/v1/sandboxes/{id}/exec` | run a command in it and wait; `{command, stdin?, cwd?, timeout?}` |
+| `GET` | `/api/v1/sandboxes/{id}/files` | read a file: `?path=/abs/path` |
+| `PUT` | `/api/v1/sandboxes/{id}/files` | write a file: `?path=/abs/path`, `{content, encoding?, createParents?}` |
 | `GET` | `/api/v1/overview` | counts by state and template |
 | `GET` | `/sandbox/{id}/{port}/` | proxy to a sandbox's own port |
 
@@ -203,18 +208,30 @@ All four are public Docker Hub images, deliberately: nothing here has to be
 pulled from a registry with an account, so an environment works the moment it
 starts.
 
-Templates with no ports — `python` and `node` — serve no URL, because their image
-serves nothing. They are a workspace to run things in rather than a service to
-open, and they are reached by going into the cluster:
+Templates with no ports — `python` and `node` — serve no URL, because their
+image serves nothing. They are a workspace to run things in rather than a
+service to open, and they are reached through the API:
 
 ```bash
-kubectl -n sbx-scratch exec -it deploy/sandbox -- python3
+sandbox exec scratch -- python3 -c 'print("hi")'
+sandbox cp ./setup.sh scratch:/workspace/setup.sh
+sandbox cp scratch:/workspace/report.csv .
 ```
 
-An API for that — a `sandbox exec` that shells in without needing cluster
-credentials — is the natural next step and is not built yet. Today a sandbox with
-a port is reachable by anyone holding the key, and one without is reachable by
-whoever can reach the cluster.
+`exec` runs one command and waits. A shell is something you ask for by naming
+one, so `-- sh -c 'a | b'` is how you get a pipeline and everything else is
+executed directly. Its exit status becomes the command's own, which makes
+`sandbox exec x -- test -f /workspace/ready` a condition in a script rather
+than something to parse.
+
+`cp` moves a file in whichever direction the side naming a sandbox says. `-`
+on the local side means stdin or stdout, so it composes with a pipe.
+
+This is also how an agent reaches a sandbox: the same two primitives over HTTP
+at `POST /api/v1/sandboxes/{id}/exec` and `GET`/`PUT /api/v1/sandboxes/{id}/files`,
+with the deployment's key. A sandbox with a port is a URL you can open, and one
+without is a machine you can run things on — which is what a workspace was
+always meant to be.
 
 ## How it works
 
