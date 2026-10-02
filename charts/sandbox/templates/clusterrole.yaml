@@ -37,8 +37,15 @@ rules:
     resources: ["deployments"]
     verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
   - apiGroups: [""]
-    resources: ["services", "resourcequotas", "limitranges", "pods", "configmaps", "secrets", "persistentvolumeclaims"]
+    resources: ["services", "resourcequotas", "limitranges", "pods", "configmaps", "persistentvolumeclaims"]
     verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+  # Sandbox namespaces and the control plane's own are the same cluster, so the
+  # grant is cluster-wide and includes the Secret holding the deployment's key.
+  # Nothing here writes one: the key is made by the chart's install and read by
+  # the process from its environment. The read is what makes it explicit.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
   # Reading a sandbox's output. `pods/log` is a separate resource from `pods`
   # and is easy to leave out, which shows up as `sandbox logs` failing on an
   # otherwise working deployment.

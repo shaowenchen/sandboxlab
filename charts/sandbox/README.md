@@ -85,8 +85,11 @@ The control plane's ClusterRole grants, cluster-wide:
 
 - `namespaces`: get, list, watch, create, update, patch, delete
 - `deployments`, `services`, `resourcequotas`, `limitranges`, `pods`,
-  `configmaps`, `secrets`, `persistentvolumeclaims`, `pods/log`,
-  `networkpolicies`: the full set, inside the namespaces it creates
+  `configmaps`, `persistentvolumeclaims`, `pods/log`, `networkpolicies`: the
+  full set, inside the namespaces it creates
+- `secrets`: **get only**. Nothing in the process writes a Secret — the key is
+  created at install and read from the environment — so the grant stopped at
+  read rather than being widened to the set above out of habit.
 
 `delete` on namespaces is the one worth reviewing: deleting a namespace
 reclaims everything in it. That is the design — one operation, nothing to miss —

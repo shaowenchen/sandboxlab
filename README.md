@@ -52,42 +52,19 @@ the tunnel options.
 Everything is deleted when the run ends: the cluster, the control plane, and
 every sandbox in it.
 
-## Keys: an administrator and users
+## The key
 
-There are two kinds of key, and which one you hold decides what you see.
+There is one key, held by the deployment. It is generated at install and printed
+in the environment's summary, and it may do everything: create a sandbox, read
+any sandbox, reach any sandbox's ports.
 
-| | Administrator | User |
-|---|---|---|
-| Sees | every sandbox | only its own |
-| Creates | sandboxes | sandboxes, within its limits |
-| Manages | users, keys, limits | — |
+Authorization is "is the key right" and nothing else. A deployment is a personal
+or small-team debugging environment rather than a multi-tenant one — there are no
+users to keep apart, so there is nothing for a request to be authorized against
+beyond the key itself.
 
-The administrator's key is the deployment's own: it is generated at install and
-printed in the environment's summary. Users are created by the administrator,
-each with a key of their own.
-
-```bash
-# As the administrator:
-sandbox users create alice --max-sandboxes 3 --max-ttl 2h --templates python,node
-#   created alice
-#     key   9f3c1a7e20b845dd...
-
-# As alice, with that key:
-sandbox create -t python --name scratch
-sandbox list          # only hers, however many other users there are
-```
-
-A user's sandbox is invisible to every other user — and to the API, not just to
-the console: asking for one you do not own is a **404**, not a 403, so a user
-cannot map the deployment by watching which names are refused. The same holds
-for reaching another user's port through the data plane.
-
-Per-user limits are optional and all-or-nothing per field: a maximum number of
-sandboxes, a maximum lifetime, and a list of templates they may use. Anything
-left unset falls back to the deployment's own.
-
-`sandbox whoami` says which kind of key you are holding, which is the quickest
-answer to "why can I not see that sandbox".
+The only ceiling is the deployment's own: `SANDBOX_MAX_SANDBOXES` caps how many
+sandboxes may exist at once.
 
 ## The four interfaces
 
@@ -103,16 +80,10 @@ failure rather than a client that quietly describes the old API. See
 
 ### The console
 
-One page served from inside the binary, with two views behind one key:
-
-- **A user** sees their own sandboxes, the templates they may create from, and
-  how long each has left, with a link to each one's ports.
-- **An administrator** sees every sandbox with its owner, and a **Users** view:
-  create a user and copy the key it prints, rotate a key, edit limits, delete.
-
-Which one you get is decided by the server — the page asks `/api/v1/whoami` and
-draws accordingly, and a user who edited their way into the admin view would get
-404s.
+One page served from inside the binary. It asks for the key, keeps it in
+`localStorage` so a reload does not ask again, and then draws the sandboxes, the
+templates they can be created from and how long each has left, with a link to
+each one's ports.
 
 ### The CLI
 
@@ -124,7 +95,6 @@ go install github.com/shaowenchen/sandboxlab/cmd/sandbox-cli@latest
 export SANDBOX_URL='https://<the link>/sandbox'
 export SANDBOX_KEY='<the key>'
 
-sandbox whoami                           # which key am I, and what may it do
 sandbox catalog                          # what can be created
 sandbox create -t python --name scratch  # create one
 sandbox list                             # what is running, and where
@@ -132,17 +102,6 @@ sandbox url scratch                      # just the address, for a script
 sandbox logs scratch                     # what it has printed
 sandbox renew scratch --ttl 2h           # keep it longer
 sandbox rm scratch                       # stop it now
-```
-
-Administrators also get the user commands:
-
-```bash
-sandbox users list                       # who exists, and what they have
-sandbox users create alice --max-ttl 2h  # make one and print its key
-sandbox users show alice                 # read that key back
-sandbox users limit alice --max-sandboxes 5
-sandbox users key alice                  # rotate: the old key stops working
-sandbox users rm alice                   # revoke
 ```
 
 `sandbox url` prints one line and nothing else, so a shell can capture it:
@@ -161,33 +120,21 @@ curl -s https://<the link>/sandbox/api/v1/describe | jq
 
 | Method | Path | |
 |---|---|---|
-| `GET` | `/api/v1/whoami` | which key this is: an administrator or a named user |
 | `GET` | `/api/v1/catalog` | the templates a sandbox can be created from |
 | `POST` | `/api/v1/sandboxes` | create one: `{template, name?, ttl?, env?}` |
-| `GET` | `/api/v1/sandboxes` | every sandbox you may see |
+| `GET` | `/api/v1/sandboxes` | every sandbox in the deployment |
 | `GET` | `/api/v1/sandboxes/{id}` | one, with its addresses and remaining time |
 | `DELETE` | `/api/v1/sandboxes/{id}` | delete one |
 | `POST` | `/api/v1/sandboxes/{id}/renew` | reset its expiry |
 | `GET` | `/api/v1/sandboxes/{id}/logs` | the tail of its output |
 | `GET` | `/api/v1/overview` | counts by state and template |
 | `GET` | `/sandbox/{id}/{port}/` | proxy to a sandbox's own port |
-| `GET` | `/api/v1/users` | **admin** — every user |
-| `POST` | `/api/v1/users` | **admin** — create one: `{name, maxSandboxes?, maxTTL?, templates?}` |
-| `GET` | `/api/v1/users/{name}` | **admin** — one user, with its key |
-| `PATCH` | `/api/v1/users/{name}` | **admin** — change its limits |
-| `DELETE` | `/api/v1/users/{name}` | **admin** — remove it |
-| `POST` | `/api/v1/users/{name}/key` | **admin** — issue a new key |
 
 Every route takes the key in `Authorization: Bearer <key>` or `X-Sandbox-Key`.
 The `/sandbox/` routes also take `?key=`, because a browser navigation cannot set
 a header — which is what makes the addresses the console and the CLI print
 clickable.
 
-A `PATCH` merges: it changes the limits it names and leaves the rest alone. To
-remove a limit rather than change it, send it as empty — `{"maxTTL": ""}`.
-
-The user routes answer **404**, not 403, to a user's key. A distinct status would
-confirm that a user list exists and where it is.
 
 ### The SDK
 
@@ -304,15 +251,10 @@ something a process remembers. A control plane that restarts loses no schedule
 and forgets no sandbox — which is what lets this run on a throwaway runner, where
 the process and the cluster disappear together.
 
-**Users are Secrets in the control plane's namespace**, like everything else
-here: the cluster is the record, so a restart loses no issued key and there is no
-database to back up. It is also the right object — a user record holds a
+**The deployment's key is a Secret in the control plane's namespace**, like
+everything else here: the cluster is the record, so a restart loses no credential
+and there is no database to back up. It is also the right object — a key is a
 credential, and a Secret is where a credential belongs.
-
-**A sandbox carries its owner as a label**, and a user's listing is a label query
-for it. The isolation is therefore in the API rather than in the console: a user's
-request never has another user's sandbox in memory at all, and asking for one is
-a 404 rather than a refusal.
 
 **Sandboxes are reached through the control plane** at `/sandbox/<id>/<port>/`,
 not through an ingress object of their own. Three things follow: creating a
