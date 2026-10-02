@@ -54,6 +54,8 @@ func main() {
 		getCmd(),
 		urlCmd(),
 		logsCmd(),
+		execCmd(),
+		cpCmd(),
 		renewCmd(),
 		rmCmd(),
 		envCmd(),
@@ -61,6 +63,12 @@ func main() {
 	)
 
 	if err := root.ExecuteContext(ctx); err != nil {
+		// `exec` ran a command and is reporting its status, which is not this
+		// program's failure and needs no message of its own.
+		var ec exitCodeError
+		if errors.As(err, &ec) {
+			os.Exit(ec.code)
+		}
 		// A command that has already explained itself — `rm` reporting which
 		// names it could not delete, one line each — returns this to set a
 		// non-zero status without a second, empty message under its own.
@@ -103,6 +111,12 @@ func jsonOut(cmd *cobra.Command) bool {
 // isNotFound reports whether an error is the API's 404, so a command can turn
 // it into its own message rather than echoing a status.
 func isNotFound(err error) bool { return client.IsNotFound(err) }
+
+// exitCodeError carries a child process's exit status up to main, so `sandbox
+// exec` becomes the command it ran rather than always reporting 1.
+type exitCodeError struct{ code int }
+
+func (e exitCodeError) Error() string { return fmt.Sprintf("exit status %d", e.code) }
 
 // errExitQuiet is returned when a command has already printed what went wrong,
 // line by line, and only needs to set a non-zero status.

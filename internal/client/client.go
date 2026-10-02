@@ -145,6 +145,63 @@ func (c *Client) Logs(ctx context.Context, id string, tail int) (string, error) 
 	return out.Logs, err
 }
 
+// ExecInput is a command to run in a sandbox.
+type ExecInput struct {
+	Command []string `json:"command"`
+	Stdin   string   `json:"stdin,omitempty"`
+	Cwd     string   `json:"cwd,omitempty"`
+	Timeout string   `json:"timeout,omitempty"`
+}
+
+// ExecResult is what a command produced.
+//
+// A non-zero ExitCode is not an error. The command ran; this is what it said.
+type ExecResult struct {
+	ExitCode       int    `json:"exitCode"`
+	Stdout         string `json:"stdout"`
+	Stderr         string `json:"stderr"`
+	StdoutEncoding string `json:"stdoutEncoding"`
+	StderrEncoding string `json:"stderrEncoding"`
+}
+
+// Exec runs a command in a sandbox and waits for it.
+func (c *Client) Exec(ctx context.Context, id string, in ExecInput) (ExecResult, error) {
+	var out ExecResult
+	err := c.do(ctx, http.MethodPost, "/api/v1/sandboxes/"+url.PathEscape(id)+"/exec", in, &out, true)
+	return out, err
+}
+
+// FileContent is a file read out of a sandbox.
+type FileContent struct {
+	Path     string `json:"path"`
+	Content  string `json:"content"`
+	Encoding string `json:"encoding"`
+	Size     int64  `json:"size"`
+}
+
+// ReadFile reads a file out of a sandbox.
+//
+// The response goes through do, which reads at most 4 MiB — comfortably over
+// the 2 MiB file limit even once base64 has inflated it by a third. Raising the
+// limit past that would need a per-call cap here, because a truncated read
+// fails as invalid JSON and says nothing about the size that caused it.
+func (c *Client) ReadFile(ctx context.Context, id, path string) (FileContent, error) {
+	var out FileContent
+	err := c.do(ctx, http.MethodGet,
+		"/api/v1/sandboxes/"+url.PathEscape(id)+"/files?path="+url.QueryEscape(path), nil, &out, true)
+	return out, err
+}
+
+// WriteFile writes a file into a sandbox.
+func (c *Client) WriteFile(ctx context.Context, id, path, content, encoding string, createParents bool) error {
+	body := map[string]any{"content": content, "createParents": createParents}
+	if encoding != "" && encoding != "utf8" {
+		body["encoding"] = encoding
+	}
+	return c.do(ctx, http.MethodPut,
+		"/api/v1/sandboxes/"+url.PathEscape(id)+"/files?path="+url.QueryEscape(path), body, nil, true)
+}
+
 // Overview summarises the deployment.
 func (c *Client) Overview(ctx context.Context) (sandbox.Overview, error) {
 	var out sandbox.Overview
