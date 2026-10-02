@@ -17,6 +17,78 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for ExecRequestEncoding.
+const (
+	ExecRequestEncodingBase64 ExecRequestEncoding = "base64"
+	ExecRequestEncodingUTF8   ExecRequestEncoding = "utf8"
+)
+
+// Valid indicates whether the value is a known member of the ExecRequestEncoding enum.
+func (e ExecRequestEncoding) Valid() bool {
+	switch e {
+	case ExecRequestEncodingBase64:
+		return true
+	case ExecRequestEncodingUTF8:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExecResultStderrEncoding.
+const (
+	ExecResultStderrEncodingBase64 ExecResultStderrEncoding = "base64"
+	ExecResultStderrEncodingUTF8   ExecResultStderrEncoding = "utf8"
+)
+
+// Valid indicates whether the value is a known member of the ExecResultStderrEncoding enum.
+func (e ExecResultStderrEncoding) Valid() bool {
+	switch e {
+	case ExecResultStderrEncodingBase64:
+		return true
+	case ExecResultStderrEncodingUTF8:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExecResultStdoutEncoding.
+const (
+	ExecResultStdoutEncodingBase64 ExecResultStdoutEncoding = "base64"
+	ExecResultStdoutEncodingUTF8   ExecResultStdoutEncoding = "utf8"
+)
+
+// Valid indicates whether the value is a known member of the ExecResultStdoutEncoding enum.
+func (e ExecResultStdoutEncoding) Valid() bool {
+	switch e {
+	case ExecResultStdoutEncodingBase64:
+		return true
+	case ExecResultStdoutEncodingUTF8:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FileContentEncoding.
+const (
+	FileContentEncodingBase64 FileContentEncoding = "base64"
+	FileContentEncodingUTF8   FileContentEncoding = "utf8"
+)
+
+// Valid indicates whether the value is a known member of the FileContentEncoding enum.
+func (e FileContentEncoding) Valid() bool {
+	switch e {
+	case FileContentEncodingBase64:
+		return true
+	case FileContentEncodingUTF8:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SandboxState.
 const (
 	StateExpired SandboxState = "Expired"
@@ -35,6 +107,24 @@ func (e SandboxState) Valid() bool {
 	case StatePending:
 		return true
 	case StateRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WriteFileRequestEncoding.
+const (
+	WriteFileRequestEncodingBase64 WriteFileRequestEncoding = "base64"
+	WriteFileRequestEncodingUTF8   WriteFileRequestEncoding = "utf8"
+)
+
+// Valid indicates whether the value is a known member of the WriteFileRequestEncoding enum.
+func (e WriteFileRequestEncoding) Valid() bool {
+	switch e {
+	case WriteFileRequestEncodingBase64:
+		return true
+	case WriteFileRequestEncodingUTF8:
 		return true
 	default:
 		return false
@@ -127,6 +217,73 @@ type EndpointDescription struct {
 type Error struct {
 	// Error what went wrong, in a sentence meant for the person who made the request
 	Error string `json:"error"`
+}
+
+// ExecRequest defines model for ExecRequest.
+type ExecRequest struct {
+	// Command the command and its arguments, as separate values. Pass ["sh", "-c", "..."] to have a shell interpret a command line; anything else is executed directly.
+	Command []string `json:"command"`
+
+	// Cwd the working directory; the image's own when omitted
+	Cwd string `json:"cwd,omitempty"`
+
+	// Encoding how stdin is spelled; utf8 is the default
+	Encoding ExecRequestEncoding `json:"encoding,omitempty"`
+
+	// Stdin input for the command, decoded per encoding
+	Stdin string `json:"stdin,omitempty"`
+
+	// Timeout how long the command may take, e.g. "30s". Clamped to the deployment's own ceiling however large it is.
+	Timeout string `json:"timeout,omitempty"`
+}
+
+// ExecRequestEncoding how stdin is spelled; utf8 is the default
+type ExecRequestEncoding string
+
+// ExecResult defines model for ExecResult.
+type ExecResult struct {
+	// ExitCode the command's exit status. A non-zero value is not a failure of this request: the command ran. Only an error response means it could not be run.
+	ExitCode        int                      `json:"exitCode"`
+	Stderr          string                   `json:"stderr"`
+	StderrEncoding  ExecResultStderrEncoding `json:"stderrEncoding"`
+	StderrTruncated bool                     `json:"stderrTruncated,omitempty"`
+	Stdout          string                   `json:"stdout"`
+
+	// StdoutEncoding how stdout is spelled: utf8 for text, base64 for anything that is not valid UTF-8. Chosen per stream, so a command that printed text to one and bytes to the other is spelled correctly in both.
+	StdoutEncoding ExecResultStdoutEncoding `json:"stdoutEncoding"`
+
+	// StdoutTruncated the output hit the deployment's cap and was cut off
+	StdoutTruncated bool `json:"stdoutTruncated,omitempty"`
+}
+
+// ExecResultStderrEncoding defines model for ExecResult.StderrEncoding.
+type ExecResultStderrEncoding string
+
+// ExecResultStdoutEncoding how stdout is spelled: utf8 for text, base64 for anything that is not valid UTF-8. Chosen per stream, so a command that printed text to one and bytes to the other is spelled correctly in both.
+type ExecResultStdoutEncoding string
+
+// FileContent defines model for FileContent.
+type FileContent struct {
+	// Content the file's bytes, decoded per encoding
+	Content string `json:"content"`
+
+	// Encoding utf8 when the file is valid UTF-8 text, base64 when it is not — a caller reads this rather than guessing from the content
+	Encoding FileContentEncoding `json:"encoding"`
+	Path     string              `json:"path"`
+
+	// Size the length of the file's bytes, before encoding
+	Size int `json:"size"`
+}
+
+// FileContentEncoding utf8 when the file is valid UTF-8 text, base64 when it is not — a caller reads this rather than guessing from the content
+type FileContentEncoding string
+
+// FileInfo defines model for FileInfo.
+type FileInfo struct {
+	Path string `json:"path"`
+
+	// Size how many bytes were written
+	Size int `json:"size"`
 }
 
 // Overview defines model for Overview.
@@ -245,6 +402,21 @@ type TemplateList struct {
 	Templates []Template `json:"templates"`
 }
 
+// WriteFileRequest defines model for WriteFileRequest.
+type WriteFileRequest struct {
+	// Content the file's bytes, decoded per encoding
+	Content string `json:"content"`
+
+	// CreateParents create the directories above the path when they are missing. Off by default, so a mistyped directory is a 400 naming it rather than a file written somewhere unexpected.
+	CreateParents bool `json:"createParents,omitempty"`
+
+	// Encoding how content is spelled; utf8 is the default
+	Encoding WriteFileRequestEncoding `json:"encoding,omitempty"`
+}
+
+// WriteFileRequestEncoding how content is spelled; utf8 is the default
+type WriteFileRequestEncoding string
+
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
 
@@ -257,8 +429,26 @@ type LimitReached = Error
 // NotFound defines model for NotFound.
 type NotFound = Error
 
+// Timeout defines model for Timeout.
+type Timeout = Error
+
+// TooLarge defines model for TooLarge.
+type TooLarge = Error
+
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
+
+// ReadSandboxFileParams defines parameters for ReadSandboxFile.
+type ReadSandboxFileParams struct {
+	// Path an absolute path inside the sandbox
+	Path string `form:"path" json:"path"`
+}
+
+// WriteSandboxFileParams defines parameters for WriteSandboxFile.
+type WriteSandboxFileParams struct {
+	// Path an absolute path inside the sandbox
+	Path string `form:"path" json:"path"`
+}
 
 // GetSandboxLogsParams defines parameters for GetSandboxLogs.
 type GetSandboxLogsParams struct {
@@ -268,6 +458,12 @@ type GetSandboxLogsParams struct {
 
 // CreateSandboxJSONRequestBody defines body for CreateSandbox for application/json ContentType.
 type CreateSandboxJSONRequestBody = CreateSandboxRequest
+
+// ExecInSandboxJSONRequestBody defines body for ExecInSandbox for application/json ContentType.
+type ExecInSandboxJSONRequestBody = ExecRequest
+
+// WriteSandboxFileJSONRequestBody defines body for WriteSandboxFile for application/json ContentType.
+type WriteSandboxFileJSONRequestBody = WriteFileRequest
 
 // RenewSandboxJSONRequestBody defines body for RenewSandbox for application/json ContentType.
 type RenewSandboxJSONRequestBody = RenewSandboxRequest
@@ -407,6 +603,53 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/v1/sandboxes/{id} (the `GetSandbox` operationId).
 	GetSandbox(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ExecInSandboxWithBody Run a command in a sandbox and wait for it
+	//
+	// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.
+	//
+	// **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/sandboxes/{id}/exec (the `ExecInSandbox` operationId).
+	ExecInSandboxWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ExecInSandbox Run a command in a sandbox and wait for it
+	//
+	// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.
+	//
+	// **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/sandboxes/{id}/exec (the `ExecInSandbox` operationId).
+	ExecInSandbox(ctx context.Context, id string, body ExecInSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReadSandboxFile Read a file out of a sandbox
+	//
+	// content is the file's bytes: UTF-8 verbatim when the file is text, and base64 when it is not. encoding says which, so a caller reads a field rather than sniffing the content. A file over the deployment's limit is 413 rather than a truncated read.
+	//
+	// Corresponds with GET /api/v1/sandboxes/{id}/files (the `ReadSandboxFile` operationId).
+	ReadSandboxFile(ctx context.Context, id string, params *ReadSandboxFileParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WriteSandboxFileWithBody Write a file into a sandbox
+	//
+	// It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /api/v1/sandboxes/{id}/files (the `WriteSandboxFile` operationId).
+	WriteSandboxFileWithBody(ctx context.Context, id string, params *WriteSandboxFileParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WriteSandboxFile Write a file into a sandbox
+	//
+	// It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /api/v1/sandboxes/{id}/files (the `WriteSandboxFile` operationId).
+	WriteSandboxFile(ctx context.Context, id string, params *WriteSandboxFileParams, body WriteSandboxFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetSandboxLogs The tail of a sandbox's output
 	//
@@ -607,6 +850,103 @@ func (c *Client) DeleteSandbox(ctx context.Context, id string, reqEditors ...Req
 // Corresponds with GET /api/v1/sandboxes/{id} (the `GetSandbox` operationId).
 func (c *Client) GetSandbox(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSandboxRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ExecInSandboxWithBody Run a command in a sandbox and wait for it
+//
+// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.
+//
+// **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/sandboxes/{id}/exec (the `ExecInSandbox` operationId).
+func (c *Client) ExecInSandboxWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExecInSandboxRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ExecInSandbox Run a command in a sandbox and wait for it
+//
+// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.
+//
+// **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/sandboxes/{id}/exec (the `ExecInSandbox` operationId).
+func (c *Client) ExecInSandbox(ctx context.Context, id string, body ExecInSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExecInSandboxRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReadSandboxFile Read a file out of a sandbox
+//
+// content is the file's bytes: UTF-8 verbatim when the file is text, and base64 when it is not. encoding says which, so a caller reads a field rather than sniffing the content. A file over the deployment's limit is 413 rather than a truncated read.
+//
+// Corresponds with GET /api/v1/sandboxes/{id}/files (the `ReadSandboxFile` operationId).
+func (c *Client) ReadSandboxFile(ctx context.Context, id string, params *ReadSandboxFileParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReadSandboxFileRequest(c.Server, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// WriteSandboxFileWithBody Write a file into a sandbox
+//
+// It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /api/v1/sandboxes/{id}/files (the `WriteSandboxFile` operationId).
+func (c *Client) WriteSandboxFileWithBody(ctx context.Context, id string, params *WriteSandboxFileParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWriteSandboxFileRequestWithBody(c.Server, id, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// WriteSandboxFile Write a file into a sandbox
+//
+// It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /api/v1/sandboxes/{id}/files (the `WriteSandboxFile` operationId).
+func (c *Client) WriteSandboxFile(ctx context.Context, id string, params *WriteSandboxFileParams, body WriteSandboxFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWriteSandboxFileRequest(c.Server, id, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1000,6 +1340,180 @@ func NewGetSandboxRequest(server string, id string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewExecInSandboxRequest calls the generic ExecInSandbox builder with application/json body
+func NewExecInSandboxRequest(server string, id string, body ExecInSandboxJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewExecInSandboxRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewExecInSandboxRequestWithBody constructs an http.Request for the ExecInSandbox method, with any body, and a specified content type
+func NewExecInSandboxRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/sandboxes/%s/exec", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewReadSandboxFileRequest constructs an http.Request for the ReadSandboxFile method
+func NewReadSandboxFileRequest(server string, id string, params *ReadSandboxFileParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/sandboxes/%s/files", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "path", params.Path, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewWriteSandboxFileRequest calls the generic WriteSandboxFile builder with application/json body
+func NewWriteSandboxFileRequest(server string, id string, params *WriteSandboxFileParams, body WriteSandboxFileJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWriteSandboxFileRequestWithBody(server, id, params, "application/json", bodyReader)
+}
+
+// NewWriteSandboxFileRequestWithBody constructs an http.Request for the WriteSandboxFile method, with any body, and a specified content type
+func NewWriteSandboxFileRequestWithBody(server string, id string, params *WriteSandboxFileParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/sandboxes/%s/files", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "path", params.Path, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetSandboxLogsRequest constructs an http.Request for the GetSandboxLogs method
 func NewGetSandboxLogsRequest(server string, id string, params *GetSandboxLogsParams) (*http.Request, error) {
 	var err error
@@ -1320,6 +1834,55 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/v1/sandboxes/{id} (the `GetSandbox` operationId).
 	GetSandboxWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetSandboxResponse, error)
+
+	// ExecInSandboxWithBodyWithResponse Run a command in a sandbox and wait for it
+	//
+	// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.
+	//
+	// **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/sandboxes/{id}/exec (the `ExecInSandbox` operationId).
+	ExecInSandboxWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExecInSandboxResponse, error)
+
+	// ExecInSandboxWithResponse Run a command in a sandbox and wait for it
+	//
+	// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.
+	//
+	// **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/sandboxes/{id}/exec (the `ExecInSandbox` operationId).
+	ExecInSandboxWithResponse(ctx context.Context, id string, body ExecInSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*ExecInSandboxResponse, error)
+
+	// ReadSandboxFileWithResponse Read a file out of a sandbox
+	//
+	// content is the file's bytes: UTF-8 verbatim when the file is text, and base64 when it is not. encoding says which, so a caller reads a field rather than sniffing the content. A file over the deployment's limit is 413 rather than a truncated read.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/sandboxes/{id}/files (the `ReadSandboxFile` operationId).
+	ReadSandboxFileWithResponse(ctx context.Context, id string, params *ReadSandboxFileParams, reqEditors ...RequestEditorFn) (*ReadSandboxFileResponse, error)
+
+	// WriteSandboxFileWithBodyWithResponse Write a file into a sandbox
+	//
+	// It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/sandboxes/{id}/files (the `WriteSandboxFile` operationId).
+	WriteSandboxFileWithBodyWithResponse(ctx context.Context, id string, params *WriteSandboxFileParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WriteSandboxFileResponse, error)
+
+	// WriteSandboxFileWithResponse Write a file into a sandbox
+	//
+	// It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/sandboxes/{id}/files (the `WriteSandboxFile` operationId).
+	WriteSandboxFileWithResponse(ctx context.Context, id string, params *WriteSandboxFileParams, body WriteSandboxFileJSONRequestBody, reqEditors ...RequestEditorFn) (*WriteSandboxFileResponse, error)
 
 	// GetSandboxLogsWithResponse The tail of a sandbox's output
 	//
@@ -1842,6 +2405,220 @@ func (r GetSandboxResponse) ContentType() string {
 	return ""
 }
 
+type ExecInSandboxResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ExecResult
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON504 the response for an HTTP 504 `application/json` response
+	JSON504 *Timeout
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ExecInSandboxResponse) GetJSON200() *ExecResult {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ExecInSandboxResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ExecInSandboxResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ExecInSandboxResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ExecInSandboxResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON504 returns the response for an HTTP 504 `application/json` response
+func (r ExecInSandboxResponse) GetJSON504() *Timeout {
+	return r.JSON504
+}
+
+// GetBody returns the raw response body bytes
+func (r ExecInSandboxResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ExecInSandboxResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ExecInSandboxResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ExecInSandboxResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ReadSandboxFileResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *FileContent
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON413 the response for an HTTP 413 `application/json` response
+	JSON413 *TooLarge
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ReadSandboxFileResponse) GetJSON200() *FileContent {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ReadSandboxFileResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ReadSandboxFileResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ReadSandboxFileResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON413 returns the response for an HTTP 413 `application/json` response
+func (r ReadSandboxFileResponse) GetJSON413() *TooLarge {
+	return r.JSON413
+}
+
+// GetBody returns the raw response body bytes
+func (r ReadSandboxFileResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ReadSandboxFileResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReadSandboxFileResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReadSandboxFileResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type WriteSandboxFileResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *FileInfo
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON413 the response for an HTTP 413 `application/json` response
+	JSON413 *TooLarge
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r WriteSandboxFileResponse) GetJSON200() *FileInfo {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r WriteSandboxFileResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r WriteSandboxFileResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r WriteSandboxFileResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON413 returns the response for an HTTP 413 `application/json` response
+func (r WriteSandboxFileResponse) GetJSON413() *TooLarge {
+	return r.JSON413
+}
+
+// GetBody returns the raw response body bytes
+func (r WriteSandboxFileResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r WriteSandboxFileResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WriteSandboxFileResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r WriteSandboxFileResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetSandboxLogsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -2236,6 +3013,85 @@ func (c *ClientWithResponses) GetSandboxWithResponse(ctx context.Context, id str
 		return nil, err
 	}
 	return ParseGetSandboxResponse(rsp)
+}
+
+// ExecInSandboxWithBodyWithResponse Run a command in a sandbox and wait for it
+//
+// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.
+//
+// **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/sandboxes/{id}/exec (the `ExecInSandbox` operationId).
+func (c *ClientWithResponses) ExecInSandboxWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExecInSandboxResponse, error) {
+	rsp, err := c.ExecInSandboxWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseExecInSandboxResponse(rsp)
+}
+
+// ExecInSandboxWithResponse Run a command in a sandbox and wait for it
+//
+// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.
+//
+// **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/sandboxes/{id}/exec (the `ExecInSandbox` operationId).
+func (c *ClientWithResponses) ExecInSandboxWithResponse(ctx context.Context, id string, body ExecInSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*ExecInSandboxResponse, error) {
+	rsp, err := c.ExecInSandbox(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseExecInSandboxResponse(rsp)
+}
+
+// ReadSandboxFileWithResponse Read a file out of a sandbox
+//
+// content is the file's bytes: UTF-8 verbatim when the file is text, and base64 when it is not. encoding says which, so a caller reads a field rather than sniffing the content. A file over the deployment's limit is 413 rather than a truncated read.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/sandboxes/{id}/files (the `ReadSandboxFile` operationId).
+func (c *ClientWithResponses) ReadSandboxFileWithResponse(ctx context.Context, id string, params *ReadSandboxFileParams, reqEditors ...RequestEditorFn) (*ReadSandboxFileResponse, error) {
+	rsp, err := c.ReadSandboxFile(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReadSandboxFileResponse(rsp)
+}
+
+// WriteSandboxFileWithBodyWithResponse Write a file into a sandbox
+//
+// It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/sandboxes/{id}/files (the `WriteSandboxFile` operationId).
+func (c *ClientWithResponses) WriteSandboxFileWithBodyWithResponse(ctx context.Context, id string, params *WriteSandboxFileParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WriteSandboxFileResponse, error) {
+	rsp, err := c.WriteSandboxFileWithBody(ctx, id, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWriteSandboxFileResponse(rsp)
+}
+
+// WriteSandboxFileWithResponse Write a file into a sandbox
+//
+// It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/sandboxes/{id}/files (the `WriteSandboxFile` operationId).
+func (c *ClientWithResponses) WriteSandboxFileWithResponse(ctx context.Context, id string, params *WriteSandboxFileParams, body WriteSandboxFileJSONRequestBody, reqEditors ...RequestEditorFn) (*WriteSandboxFileResponse, error) {
+	rsp, err := c.WriteSandboxFile(ctx, id, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWriteSandboxFileResponse(rsp)
 }
 
 // GetSandboxLogsWithResponse The tail of a sandbox's output
@@ -2650,6 +3506,175 @@ func ParseGetSandboxResponse(rsp *http.Response) (*GetSandboxResponse, error) {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseExecInSandboxResponse parses an HTTP response from a ExecInSandboxWithResponse call
+func ParseExecInSandboxResponse(rsp *http.Response) (*ExecInSandboxResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ExecInSandboxResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ExecResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 504:
+		var dest Timeout
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON504 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReadSandboxFileResponse parses an HTTP response from a ReadSandboxFileWithResponse call
+func ParseReadSandboxFileResponse(rsp *http.Response) (*ReadSandboxFileResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReadSandboxFileResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FileContent
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest TooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWriteSandboxFileResponse parses an HTTP response from a WriteSandboxFileWithResponse call
+func ParseWriteSandboxFileResponse(rsp *http.Response) (*WriteSandboxFileResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WriteSandboxFileResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FileInfo
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest TooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
 
 	}
 

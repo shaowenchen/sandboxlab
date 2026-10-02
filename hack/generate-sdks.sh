@@ -104,9 +104,16 @@ if [ -z "$want" ] || [ "$want" = "go" ]; then
   generate_go
 fi
 
+# Naming a language means that one. "go" is handled above and leaves nothing
+# here, which is what makes `hack/generate-sdks.sh go` a request for the Go SDK
+# rather than for the Go SDK and then the other three.
 languages=(python typescript java)
-if [ -n "$want" ] && [ "$want" != "go" ]; then
-  languages=("$want")
+if [ -n "$want" ]; then
+  if [ "$want" = "go" ]; then
+    languages=()
+  else
+    languages=("$want")
+  fi
 fi
 
 if [ "${#languages[@]}" -gt 0 ]; then
