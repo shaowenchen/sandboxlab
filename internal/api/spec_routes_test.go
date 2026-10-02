@@ -38,7 +38,6 @@ import (
 	"github.com/shaowenchen/sandboxlab/internal/config"
 	"github.com/shaowenchen/sandboxlab/internal/k8s"
 	"github.com/shaowenchen/sandboxlab/internal/sandbox"
-	"github.com/shaowenchen/sandboxlab/internal/userservice"
 )
 
 // specPath is the document, relative to this package's directory.
@@ -78,13 +77,10 @@ func aFullDeployment(t *testing.T) *api.Server {
 	if err != nil {
 		t.Fatalf("loading the catalog: %v", err)
 	}
-	users := userservice.New(client.Users(), client)
-
 	return api.New(api.Deps{
 		Config:    cfg,
-		Service:   sandbox.New(cfg, templates, client, users),
-		Users:     users,
-		Auth:      auth.New(cfg.APIKey, users),
+		Service:   sandbox.New(cfg, templates, client),
+		Auth:      auth.New(cfg.APIKey),
 		Log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
 		DataPlane: planeStub{},
 	})
@@ -208,23 +204,15 @@ func TestTheSpecMatchesTheRoutes(t *testing.T) {
 	}
 }
 
-// The comparison includes the routes that come and go.
+// The comparison includes the one route that comes and goes.
 //
-// The user routes are registered only when the deployment has a user store, and
-// the data-plane route only when it has a plane, so a server built without one
-// of them would leave those routes out of the comparison above and still pass.
-// This asserts aFullDeployment really is a full deployment.
+// The data-plane route is registered only when the deployment has a plane, so a
+// server built without one would leave it out of the comparison above and still
+// pass. This asserts aFullDeployment really is a full deployment.
 func TestTheComparisonIncludesTheConditionalRoutes(t *testing.T) {
 	routes := serverRoutes(aFullDeployment(t))
-	for _, pattern := range []string{
-		"/api/v1/users",
-		"/api/v1/users/{name}",
-		"/api/v1/users/{name}/key",
-		"/sandbox/{id}/{port}/",
-	} {
-		if _, ok := routes[normPath(pattern)]; !ok {
-			t.Errorf("%s is absent, so the spec check is not covering it", pattern)
-		}
+	if _, ok := routes[normPath("/sandbox/{id}/{port}/")]; !ok {
+		t.Error("/sandbox/{id}/{port}/ is absent, so the spec check is not covering it")
 	}
 }
 

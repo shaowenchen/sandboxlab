@@ -57,11 +57,11 @@ func newServer(t *testing.T, cfg config.Config, res api.DataPlane) (*api.Server,
 	// A fake clientset: the proxy routes are the subject here, and none of them
 	// touch the cluster — the resolver the proxy holds is what answers.
 	client := k8s.NewWithClientset(fake.NewClientset(), cfg)
-	svc := sandbox.New(cfg, c, client, nil)
+	svc := sandbox.New(cfg, c, client)
 	return api.New(api.Deps{
 		Config:    cfg,
 		Service:   svc,
-		Auth:      auth.New(cfg.APIKey, nil),
+		Auth:      auth.New(cfg.APIKey),
 		Log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
 		DataPlane: res,
 	}), svc
@@ -83,7 +83,7 @@ func newProxyServer(t *testing.T, cfg config.Config, res *resolver) *api.Server 
 func newProxyServerWithSandbox(t *testing.T, cfg config.Config, res *resolver) *api.Server {
 	t.Helper()
 	s, svc := newServer(t, cfg, proxy.New(cfg, res, slog.New(slog.NewTextHandler(io.Discard, nil))))
-	if _, err := svc.Create(context.Background(), auth.Identity{Role: auth.RoleAdmin}, sandbox.CreateInput{
+	if _, err := svc.Create(context.Background(), sandbox.CreateInput{
 		Template: "code-server",
 		Name:     "demo",
 	}); err != nil {

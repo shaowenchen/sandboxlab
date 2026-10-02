@@ -85,7 +85,7 @@ func (tc *testCluster) expire(t *testing.T, id string, expiredAt time.Time) {
 
 func (tc *testCluster) list(t *testing.T) []model.Sandbox {
 	t.Helper()
-	all, err := tc.client.List(context.Background(), "")
+	all, err := tc.client.List(context.Background())
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}

@@ -19,7 +19,6 @@ import (
 
 	"github.com/shaowenchen/sandboxlab/internal/model"
 	"github.com/shaowenchen/sandboxlab/internal/sandbox"
-	"github.com/shaowenchen/sandboxlab/internal/user"
 )
 
 // Client talks to one deployment.
@@ -221,105 +220,4 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any, nee
 		return fmt.Errorf("the response was not the JSON expected: %w", err)
 	}
 	return nil
-}
-
-// ── identity ────────────────────────────────────────────────────────────────
-
-// Whoami is what GET /api/v1/whoami returns.
-type Whoami struct {
-	Role           string `json:"role"`
-	Admin          bool   `json:"admin"`
-	User           string `json:"user,omitempty"`
-	CanManageUsers bool   `json:"canManageUsers,omitempty"`
-}
-
-// Whoami reports which kind of key this client holds.
-func (c *Client) Whoami(ctx context.Context) (Whoami, error) {
-	var out Whoami
-	err := c.do(ctx, http.MethodGet, "/api/v1/whoami", nil, &out, true)
-	return out, err
-}
-
-// ── users ───────────────────────────────────────────────────────────────────
-
-// CreateUserInput is what creating or updating a user sends.
-//
-// The Set fields exist because a limit of zero is a real value — "no limit" —
-// so an absent flag and a zero one are different things, and an update that
-// could not tell them apart would clear every limit it was not asked about.
-type CreateUserInput struct {
-	Name string `json:"name,omitempty"`
-	Key  string `json:"key,omitempty"`
-
-	SetMaxSandboxes bool `json:"-"`
-	SetMaxTTL       bool `json:"-"`
-	SetTemplates    bool `json:"-"`
-
-	MaxSandboxes int    `json:"maxSandboxes"`
-	MaxTTL       string `json:"maxTTL,omitempty"`
-	Templates    string `json:"templates,omitempty"`
-}
-
-// Users lists the users.
-func (c *Client) Users(ctx context.Context) ([]user.User, error) {
-	var out struct {
-		Users []user.User `json:"users"`
-	}
-	err := c.do(ctx, http.MethodGet, "/api/v1/users", nil, &out, true)
-	return out.Users, err
-}
-
-// User reads one user, with its key.
-func (c *Client) User(ctx context.Context, name string) (user.User, error) {
-	var out user.User
-	err := c.do(ctx, http.MethodGet, "/api/v1/users/"+url.PathEscape(name), nil, &out, true)
-	return out, err
-}
-
-// CreateUser makes a user.
-func (c *Client) CreateUser(ctx context.Context, in CreateUserInput) (user.User, error) {
-	var out user.User
-	err := c.do(ctx, http.MethodPost, "/api/v1/users", in, &out, true)
-	return out, err
-}
-
-// UpdateUser changes a user's limits, sending only the ones that were set.
-func (c *Client) UpdateUser(ctx context.Context, name string, in CreateUserInput) (user.User, error) {
-	body := map[string]any{}
-	if in.SetMaxSandboxes {
-		body["maxSandboxes"] = in.MaxSandboxes
-	}
-	if in.SetMaxTTL {
-		body["maxTTL"] = in.MaxTTL
-	}
-	if in.SetTemplates {
-		body["templates"] = splitTemplates(in.Templates)
-	}
-	var out user.User
-	err := c.do(ctx, http.MethodPatch, "/api/v1/users/"+url.PathEscape(name), body, &out, true)
-	return out, err
-}
-
-// RotateUserKey issues a new key for a user.
-func (c *Client) RotateUserKey(ctx context.Context, name, key string) (user.User, error) {
-	var out user.User
-	err := c.do(ctx, http.MethodPost, "/api/v1/users/"+url.PathEscape(name)+"/key",
-		map[string]string{"key": key}, &out, true)
-	return out, err
-}
-
-// DeleteUser removes a user.
-func (c *Client) DeleteUser(ctx context.Context, name string) error {
-	return c.do(ctx, http.MethodDelete, "/api/v1/users/"+url.PathEscape(name), nil, nil, true)
-}
-
-// splitTemplates reads a comma-separated list into the array the API expects.
-func splitTemplates(s string) []string {
-	var out []string
-	for _, part := range strings.Split(s, ",") {
-		if p := strings.TrimSpace(part); p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
 }

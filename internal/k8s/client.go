@@ -46,10 +46,6 @@ const (
 	templateLabel  = "sandbox.sandboxlab/template"
 	sandboxIDLabel = "sandbox.sandboxlab/id"
 	appLabelKey    = "sandbox.sandboxlab/app"
-	// ownerLabel records which user created a sandbox. It is what a user's
-	// listing filters on, so it is load-bearing for isolation rather than
-	// informational: without it every user would see every sandbox.
-	ownerLabel = "sandbox.sandboxlab/owner"
 
 	createdAtAnnotation = "sandbox.sandboxlab/created-at"
 	expiresAtAnnotation = "sandbox.sandboxlab/expires-at"
@@ -136,11 +132,6 @@ func restConfig(kubeconfig string) (*rest.Config, error) {
 type CreateRequest struct {
 	ID       string
 	Template model.Template
-	// Owner is the user who asked for the sandbox, and is written as a label so
-	// their listing can find it. Empty means the administrator, whose sandboxes
-	// carry no owner — they are the deployment's own, and reachable by everyone
-	// who administers it.
-	Owner string
 	// TTL is how long the sandbox may live. Zero means it has no expiry.
 	TTL time.Duration
 	// Env is the caller's environment, merged over the template's.
@@ -220,7 +211,6 @@ func (c *Client) createNamespace(ctx context.Context, req CreateRequest, created
 				managedByLabel: managedByValue,
 				sandboxIDLabel: req.ID,
 				templateLabel:  req.Template.ID,
-				ownerLabel:     req.Owner,
 			},
 			Annotations: annotations,
 		},
@@ -365,18 +355,10 @@ func (c *Client) Get(ctx context.Context, id string) (model.Sandbox, error) {
 	return c.describe(ctx, obj)
 }
 
-// List returns every sandbox this control plane manages, or — when owner is
-// not empty — only that owner's.
-//
-// The filter is a label selector rather than a pass over the result, so a user's
-// listing never holds another user's sandbox in memory at all.
-func (c *Client) List(ctx context.Context, owner string) ([]model.Sandbox, error) {
-	selector := managedByLabel + "=" + managedByValue
-	if owner != "" {
-		selector += "," + ownerLabel + "=" + owner
-	}
+// List returns every sandbox this control plane manages.
+func (c *Client) List(ctx context.Context) ([]model.Sandbox, error) {
 	list, err := c.cs.CoreV1().Namespaces().List(ctx, metav1.ListOptions{
-		LabelSelector: selector,
+		LabelSelector: managedByLabel + "=" + managedByValue,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing sandboxes: %w", err)
@@ -391,7 +373,6 @@ func (c *Client) List(ctx context.Context, owner string) ([]model.Sandbox, error
 			sb = model.Sandbox{
 				ID:        list.Items[i].Labels[sandboxIDLabel],
 				Template:  list.Items[i].Labels[templateLabel],
-				Owner:     list.Items[i].Labels[ownerLabel],
 				Namespace: list.Items[i].Name,
 				State:     model.StateFailed,
 				Message:   err.Error(),
@@ -414,7 +395,6 @@ func (c *Client) describe(ctx context.Context, ns *corev1.Namespace) (model.Sand
 		ID:        ns.Labels[sandboxIDLabel],
 		Template:  ns.Labels[templateLabel],
 		Image:     ns.Annotations[imageAnnotation],
-		Owner:     ns.Labels[ownerLabel],
 		Namespace: ns.Name,
 		State:     model.StatePending,
 	}
@@ -538,37 +518,13 @@ func (c *Client) Renew(ctx context.Context, id string, ttl time.Duration) (model
 	return c.describe(ctx, obj)
 }
 
-// CountByOwner counts sandboxes per owner.
-//
-// It reads the namespaces directly rather than going through List, because List
-// builds a full Sandbox for each — a deployment and a service read apiece — and
-// a count needs none of that. On the admin roster this is the difference between
-// a page that renders and one that reads every pod spec in the cluster.
-//
-// The empty key is the administrator's own sandboxes, which carry no owner.
-func (c *Client) CountByOwner(ctx context.Context) (map[string]int, error) {
-	list, err := c.cs.CoreV1().Namespaces().List(ctx, metav1.ListOptions{
-		LabelSelector: managedByLabel + "=" + managedByValue,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("counting sandboxes: %w", err)
-	}
-	out := make(map[string]int, len(list.Items))
-	for i := range list.Items {
-		out[list.Items[i].Labels[ownerLabel]]++
-	}
-	return out, nil
-}
-
 // Expired returns the sandboxes whose TTL has passed.
 //
 // The check reads the annotation rather than anything a reaper remembers, so it
 // is correct after a restart and correct for a sandbox this process never
 // created — which is the whole reason the TTL is stored on the object.
 func (c *Client) Expired(ctx context.Context) ([]model.Sandbox, error) {
-	// Every sandbox, not one owner's: this is the reaper, and a sandbox nobody
-	// can see is still a sandbox taking up a node.
-	all, err := c.List(ctx, "")
+	all, err := c.List(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -3,10 +3,8 @@
 // cluster, which knows about namespaces.
 //
 // Everything that is a policy decision lives here — which ids are allowed, how
-// long a sandbox may live, how many may exist, and who may see which — so the
-// same decisions apply however a sandbox was asked for, the console and the CLI
-// included. A handler that forgot an ownership check would still be handed a
-// sandbox it should not have.
+// long a sandbox may live, and how many may exist — so the same decisions apply
+// however a sandbox was asked for, the console and the CLI included.
 package sandbox
 
 import (
@@ -18,11 +16,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/shaowenchen/sandboxlab/internal/auth"
 	"github.com/shaowenchen/sandboxlab/internal/config"
 	"github.com/shaowenchen/sandboxlab/internal/k8s"
 	"github.com/shaowenchen/sandboxlab/internal/model"
-	"github.com/shaowenchen/sandboxlab/internal/user"
 )
 
 // ErrNotFound is returned for a sandbox that does not exist.
@@ -36,27 +32,20 @@ var ErrInvalid = errors.New("invalid request")
 // not be satisfied — an id already taken, a sandbox past its TTL.
 var ErrConflict = errors.New("conflict")
 
-// ErrLimit is returned when a deployment or a user is at its sandbox ceiling.
+// ErrLimit is returned when the deployment is at its sandbox ceiling.
 var ErrLimit = errors.New("sandbox limit reached")
-
-// Quotas resolves the quota a user is under. The user store implements it.
-type Quotas interface {
-	// QuotaFor returns a user's quota, and whether the user exists.
-	QuotaFor(ctx context.Context, name string) (user.Quota, bool)
-}
 
 // Service creates and manages sandboxes.
 type Service struct {
 	cfg     config.Config
 	catalog *model.Catalog
 	client  *k8s.Client
-	quotas  Quotas
 	now     func() time.Time
 }
 
 // New builds the service.
-func New(cfg config.Config, catalog *model.Catalog, client *k8s.Client, quotas Quotas) *Service {
-	return &Service{cfg: cfg, catalog: catalog, client: client, quotas: quotas, now: time.Now}
+func New(cfg config.Config, catalog *model.Catalog, client *k8s.Client) *Service {
+	return &Service{cfg: cfg, catalog: catalog, client: client, now: time.Now}
 }
 
 // Catalog returns the templates a sandbox can be created from.
@@ -78,19 +67,11 @@ type CreateInput struct {
 	Env map[string]string
 }
 
-// Create resolves an input into a sandbox and creates it, on behalf of who.
-func (s *Service) Create(ctx context.Context, who auth.Identity, in CreateInput) (model.Sandbox, error) {
-	quota := s.quotaFor(ctx, who)
-
+// Create resolves an input into a sandbox and creates it.
+func (s *Service) Create(ctx context.Context, in CreateInput) (model.Sandbox, error) {
 	tmpl, ok := s.catalog.Get(strings.TrimSpace(in.Template))
 	if !ok {
 		return model.Sandbox{}, fmt.Errorf("%w: no template named %q", ErrInvalid, in.Template)
-	}
-	// Checked before anything is built, so a template a user may not have is
-	// refused without a namespace ever being created for it.
-	if !quota.Allows(tmpl.ID) {
-		return model.Sandbox{}, fmt.Errorf("%w: the template %q is not available to you; your templates are: %s",
-			ErrInvalid, tmpl.ID, strings.Join(quota.Templates, ", "))
 	}
 
 	id, err := s.resolveID(in.Name, tmpl)
@@ -98,12 +79,12 @@ func (s *Service) Create(ctx context.Context, who auth.Identity, in CreateInput)
 		return model.Sandbox{}, err
 	}
 
-	ttl, err := s.resolveTTL(tmpl, in.TTL, quota)
+	ttl, err := s.resolveTTL(tmpl, in.TTL)
 	if err != nil {
 		return model.Sandbox{}, err
 	}
 
-	if err := s.checkLimit(ctx, who, quota); err != nil {
+	if err := s.checkLimit(ctx); err != nil {
 		return model.Sandbox{}, err
 	}
 
@@ -115,7 +96,6 @@ func (s *Service) Create(ctx context.Context, who auth.Identity, in CreateInput)
 		Template: tmpl,
 		TTL:      ttl,
 		Env:      in.Env,
-		Owner:    ownerOf(who),
 	})
 	if err != nil {
 		if errors.Is(err, k8s.ErrAlreadyExists) {
@@ -124,30 +104,6 @@ func (s *Service) Create(ctx context.Context, who auth.Identity, in CreateInput)
 		return model.Sandbox{}, err
 	}
 	return sb, nil
-}
-
-// ownerOf is the owner recorded on a sandbox: a user's name, or empty for the
-// administrator.
-//
-// Empty rather than "admin" is deliberate. An administrator's sandboxes belong
-// to the deployment, and a listing for a user named "admin" — which they could
-// be — must not turn up the deployment's own.
-func ownerOf(who auth.Identity) string {
-	if who.IsAdmin() {
-		return ""
-	}
-	return who.Name
-}
-
-// quotaFor is the quota a caller is under. An administrator has none, and a
-// user's comes from their record — which is looked up per request rather than
-// cached, so revoking it takes effect on the next call rather than on a restart.
-func (s *Service) quotaFor(ctx context.Context, who auth.Identity) user.Quota {
-	if who.IsAdmin() || who.Name == "" || s.quotas == nil {
-		return user.Quota{}
-	}
-	q, _ := s.quotas.QuotaFor(ctx, who.Name)
-	return q
 }
 
 // resolveID decides what a sandbox is called.
@@ -162,12 +118,11 @@ func (s *Service) resolveID(name string, tmpl model.Template) (string, error) {
 	return id, nil
 }
 
-// resolveTTL applies the template default and every ceiling: the template's, the
-// user's, and the deployment's.
+// resolveTTL applies the template's default and then every ceiling: the
+// template's own, and the deployment's.
 //
-// The user's is applied last so it cannot be raised by a template's, and the
-// deployment's last of all so nothing can exceed it.
-func (s *Service) resolveTTL(tmpl model.Template, requested time.Duration, quota user.Quota) (time.Duration, error) {
+// The deployment's is applied last so nothing can exceed it.
+func (s *Service) resolveTTL(tmpl model.Template, requested time.Duration) (time.Duration, error) {
 	tmplDefault, err := tmpl.ParsedTTLDefault()
 	if err != nil {
 		return 0, fmt.Errorf("template %q: %w", tmpl.ID, err)
@@ -182,35 +137,20 @@ func (s *Service) resolveTTL(tmpl model.Template, requested time.Duration, quota
 	if requested == 0 {
 		requested = s.cfg.DefaultTTLFor(tmplDefault)
 	}
-	ttl := s.cfg.ClampTTL(requested, tmplMax)
-	if quota.MaxTTL > 0 && (ttl == 0 || ttl > quota.MaxTTL) {
-		ttl = quota.MaxTTL
-	}
-	return ttl, nil
+	return s.cfg.ClampTTL(requested, tmplMax), nil
 }
 
-// checkLimit enforces both ceilings: the deployment's, and the caller's own.
+// checkLimit enforces the deployment's ceiling.
 //
 // It is a count of what exists rather than a reservation, so two creates racing
 // can both pass and land one over the limit. That is the right trade for a
-// ceiling that exists to stop a runaway loop, not to enforce a hard quota —
-// nothing here is billing anyone.
-func (s *Service) checkLimit(ctx context.Context, who auth.Identity, quota user.Quota) error {
-	// The user's own ceiling first, so the message is about the limit they hit
-	// rather than about a deployment-wide one they cannot see.
-	if !who.IsAdmin() && quota.MaxSandboxes > 0 {
-		mine, err := s.client.List(ctx, who.Name)
-		if err != nil {
-			return err
-		}
-		if len(mine) >= quota.MaxSandboxes {
-			return fmt.Errorf("%w: you have %d of %d sandboxes; delete one first", ErrLimit, len(mine), quota.MaxSandboxes)
-		}
-	}
+// ceiling that exists to stop a runaway loop rather than to enforce a hard
+// quota — nothing here is billing anyone.
+func (s *Service) checkLimit(ctx context.Context) error {
 	if s.cfg.MaxSandboxes <= 0 {
 		return nil
 	}
-	all, err := s.client.List(ctx, "")
+	all, err := s.client.List(ctx)
 	if err != nil {
 		return err
 	}
@@ -220,41 +160,32 @@ func (s *Service) checkLimit(ctx context.Context, who auth.Identity, quota user.
 	return nil
 }
 
-// Get returns one sandbox, if the caller may see it.
-func (s *Service) Get(ctx context.Context, who auth.Identity, id string) (model.Sandbox, error) {
-	return s.owned(ctx, who, id)
+// Get returns one sandbox.
+func (s *Service) Get(ctx context.Context, id string) (model.Sandbox, error) {
+	return s.lookup(ctx, id)
 }
 
-// owned reads a sandbox and checks the caller may have it.
+// lookup reads a sandbox by id, rejecting an id that could not name one.
 //
-// A sandbox the caller does not own is reported as missing rather than as
-// forbidden. That is the deliberate half of this: a 403 would confirm the
-// sandbox exists, so a user could enumerate the deployment's other users' names
-// by watching which ones 403 instead of 404.
-func (s *Service) owned(ctx context.Context, who auth.Identity, id string) (model.Sandbox, error) {
+// The id is validated before the cluster is asked, so a malformed one is a 400
+// rather than a 404 — the request was wrong, and saying "no such sandbox" would
+// suggest a well-formed name that simply is not there.
+func (s *Service) lookup(ctx context.Context, id string) (model.Sandbox, error) {
 	id = model.NormalizeID(id)
 	if !model.IsValidID(id) {
 		return model.Sandbox{}, fmt.Errorf("%w: %q is not a sandbox id", ErrInvalid, id)
 	}
-	sb, err := s.client.Get(ctx, id)
-	if err != nil {
-		return model.Sandbox{}, err
-	}
-	if !who.Owns(sb.Owner) {
-		return model.Sandbox{}, fmt.Errorf("%w: no sandbox named %q", ErrNotFound, id)
-	}
-	return sb, nil
+	return s.client.Get(ctx, id)
 }
 
-// List returns the sandboxes the caller may see: all of them for an
-// administrator, their own for a user.
-func (s *Service) List(ctx context.Context, who auth.Identity) ([]model.Sandbox, error) {
-	return s.client.List(ctx, ownerOf(who))
+// List returns every sandbox.
+func (s *Service) List(ctx context.Context) ([]model.Sandbox, error) {
+	return s.client.List(ctx)
 }
 
-// Delete removes a sandbox the caller may see.
-func (s *Service) Delete(ctx context.Context, who auth.Identity, id string) error {
-	sb, err := s.owned(ctx, who, id)
+// Delete removes a sandbox.
+func (s *Service) Delete(ctx context.Context, id string) error {
+	sb, err := s.lookup(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -273,12 +204,12 @@ type RenewInput struct {
 
 // Renew resets a sandbox's expiry.
 //
-// The new lifetime is bounded by the deployment's ceiling and the caller's own,
-// the same as at create. It is not additionally bounded by the template's,
-// because a template bounds what it costs to start a sandbox and a renew costs
-// nothing — the template's ceiling is a default, not a property of the sandbox.
-func (s *Service) Renew(ctx context.Context, who auth.Identity, id string, in RenewInput) (model.Sandbox, error) {
-	sb, err := s.owned(ctx, who, id)
+// The new lifetime is bounded by the deployment's ceiling, the same as at
+// create. It is not additionally bounded by the template's, because a template
+// bounds what it costs to start a sandbox and a renew costs nothing — the
+// template's ceiling is a default, not a property of the sandbox.
+func (s *Service) Renew(ctx context.Context, id string, in RenewInput) (model.Sandbox, error) {
+	sb, err := s.lookup(ctx, id)
 	if err != nil {
 		return model.Sandbox{}, err
 	}
@@ -286,16 +217,12 @@ func (s *Service) Renew(ctx context.Context, who auth.Identity, id string, in Re
 		return model.Sandbox{}, fmt.Errorf("%w: ttl cannot be negative", ErrInvalid)
 	}
 	if in.TTL > 0 {
-		quota := s.quotaFor(ctx, who)
 		in.TTL = s.cfg.ClampTTL(in.TTL, 0)
-		if quota.MaxTTL > 0 && in.TTL > quota.MaxTTL {
-			in.TTL = quota.MaxTTL
-		}
 	}
 	return s.client.Renew(ctx, sb.ID, in.TTL)
 }
 
-// Logs returns the tail of a sandbox's output, if the caller may see it.
+// Logs returns the tail of a sandbox's output.
 //
 // A sandbox that cannot be read because it is still coming up is reported as a
 // conflict rather than a server error. This is the ordinary state right after a
@@ -307,8 +234,8 @@ func (s *Service) Renew(ctx context.Context, who auth.Identity, id string, in Re
 // the distinction safe: a sandbox whose container has *exited* is Failed or
 // Running and reads as a plain error, because its logs are empty rather than
 // unavailable, and a failing container is exactly the one worth reading.
-func (s *Service) Logs(ctx context.Context, who auth.Identity, id string, tail int64) (string, error) {
-	sb, err := s.owned(ctx, who, id)
+func (s *Service) Logs(ctx context.Context, id string, tail int64) (string, error) {
+	sb, err := s.lookup(ctx, id)
 	if err != nil {
 		return "", err
 	}
@@ -319,28 +246,18 @@ func (s *Service) Logs(ctx context.Context, who auth.Identity, id string, tail i
 	return logs, err
 }
 
-// Overview summarises the deployment for whoever is looking.
+// Overview summarises the deployment.
 type Overview struct {
 	Total        int                        `json:"total"`
 	ByState      map[model.SandboxState]int `json:"byState"`
 	ByTemplate   map[string]int             `json:"byTemplate"`
-	ByOwner      map[string]int             `json:"byOwner,omitempty"`
 	Cluster      bool                       `json:"cluster"`
 	MaxSandboxes int                        `json:"maxSandboxes,omitempty"`
-	// Scoped says whether these counts are the caller's own or the whole
-	// deployment's, so the console can label them rather than guessing.
-	Scoped bool `json:"scoped"`
-	// User is the caller's name, for the same reason.
-	User string `json:"user,omitempty"`
 }
 
-// Overview computes the summary for the caller.
-//
-// A user's overview counts their own sandboxes, and the roster of owners is left
-// out — it would be a list of everyone else on the deployment, which is exactly
-// what the per-user split is meant not to hand out.
-func (s *Service) Overview(ctx context.Context, who auth.Identity) (Overview, error) {
-	all, err := s.client.List(ctx, ownerOf(who))
+// Overview computes the summary.
+func (s *Service) Overview(ctx context.Context) (Overview, error) {
+	all, err := s.client.List(ctx)
 	if err != nil {
 		return Overview{}, err
 	}
@@ -350,29 +267,10 @@ func (s *Service) Overview(ctx context.Context, who auth.Identity) (Overview, er
 		ByTemplate:   map[string]int{},
 		Cluster:      s.client.Ready(ctx),
 		MaxSandboxes: s.cfg.MaxSandboxes,
-		Scoped:       !who.IsAdmin(),
-		User:         who.Name,
-	}
-	if who.IsAdmin() {
-		ov.ByOwner = map[string]int{}
 	}
 	for _, sb := range all {
 		ov.ByState[sb.State]++
 		ov.ByTemplate[sb.Template]++
-		if who.IsAdmin() {
-			owner := sb.Owner
-			if owner == "" {
-				owner = "(the deployment)"
-			}
-			ov.ByOwner[owner]++
-		}
-	}
-	// A user's own ceiling is what they can see; the deployment's is not their
-	// business until they hit it.
-	if !who.IsAdmin() && s.quotas != nil {
-		if q, ok := s.quotas.QuotaFor(ctx, who.Name); ok && q.MaxSandboxes > 0 {
-			ov.MaxSandboxes = q.MaxSandboxes
-		}
 	}
 	return ov, nil
 }

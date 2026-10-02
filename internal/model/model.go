@@ -132,10 +132,6 @@ type Sandbox struct {
 
 	// Namespace is the Kubernetes namespace the sandbox owns.
 	Namespace string `json:"namespace,omitempty"`
-
-	// Owner is the user who created it. Empty means it was created by the
-	// administrator, which is the deployment's own rather than anyone's.
-	Owner string `json:"owner,omitempty"`
 }
 
 // Endpoint is one way to reach a sandbox.

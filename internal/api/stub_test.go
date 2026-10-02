@@ -2,17 +2,14 @@ package api
 
 import (
 	"context"
-	"crypto/subtle"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/shaowenchen/sandboxlab/internal/auth"
 	"github.com/shaowenchen/sandboxlab/internal/config"
 	"github.com/shaowenchen/sandboxlab/internal/model"
 	"github.com/shaowenchen/sandboxlab/internal/sandbox"
-	"github.com/shaowenchen/sandboxlab/internal/user"
 )
 
 // stubService is the API layer's test double: the same policy the real service
@@ -24,14 +21,10 @@ import (
 // template, a missing sandbox — and a double that accepted everything would let
 // the error-mapping tests pass while the real paths 500.
 type stubService struct {
-	cfg     config.Config
-	catalog *model.Catalog
-	boxes   map[string]model.Sandbox
-	limits  map[string]time.Duration
-	quotas  map[string]user.Quota
-	// keys maps a user's name to the key that authenticates as them, so a test
-	// can drive a request as a user without a key store.
-	keys      map[string]string
+	cfg       config.Config
+	catalog   *model.Catalog
+	boxes     map[string]model.Sandbox
+	limits    map[string]time.Duration
 	clusterUp bool
 	logs      string
 	now       func() time.Time
@@ -49,8 +42,6 @@ func newStubService(cfg config.Config, c *model.Catalog) *stubService {
 		catalog:   c,
 		boxes:     map[string]model.Sandbox{},
 		limits:    map[string]time.Duration{},
-		quotas:    map[string]user.Quota{},
-		keys:      map[string]string{},
 		clusterUp: true,
 		logs:      "sandbox output\n",
 		now:       time.Now,
@@ -61,7 +52,7 @@ func (s *stubService) Catalog() *model.Catalog { return s.catalog }
 
 func (s *stubService) Cluster(context.Context) bool { return s.clusterUp }
 
-func (s *stubService) Create(_ context.Context, who auth.Identity, in sandbox.CreateInput) (model.Sandbox, error) {
+func (s *stubService) Create(_ context.Context, in sandbox.CreateInput) (model.Sandbox, error) {
 	tmpl, ok := s.catalog.Get(strings.TrimSpace(in.Template))
 	if !ok {
 		return model.Sandbox{}, fmt.Errorf("%w: no template named %q", sandbox.ErrInvalid, in.Template)
@@ -98,7 +89,6 @@ func (s *stubService) Create(_ context.Context, who auth.Identity, in sandbox.Cr
 		ID:        id,
 		Template:  tmpl.ID,
 		Image:     tmpl.Image,
-		Owner:     stubOwner(who),
 		State:     model.StateRunning,
 		CreatedAt: s.now(),
 		Namespace: s.cfg.SandboxNamespace(id),
@@ -118,39 +108,26 @@ func (s *stubService) Create(_ context.Context, who auth.Identity, in sandbox.Cr
 	return sb, nil
 }
 
-// stubOwner mirrors the service's rule: a user's sandboxes carry their name and
-// an administrator's carry none.
-func stubOwner(who auth.Identity) string {
-	if who.IsAdmin() {
-		return ""
-	}
-	return who.Name
-}
-
-func (s *stubService) Get(_ context.Context, who auth.Identity, id string) (model.Sandbox, error) {
+func (s *stubService) Get(_ context.Context, id string) (model.Sandbox, error) {
 	id = model.NormalizeID(id)
 	sb, ok := s.boxes[id]
-	if !ok || !who.Owns(sb.Owner) {
-		// Not found rather than forbidden, as the real service does — see its
-		// owned() for why.
+	if !ok {
 		return model.Sandbox{}, fmt.Errorf("%w: no sandbox named %q", sandbox.ErrNotFound, id)
 	}
 	return sb, nil
 }
 
-func (s *stubService) List(_ context.Context, who auth.Identity) ([]model.Sandbox, error) {
+func (s *stubService) List(_ context.Context) ([]model.Sandbox, error) {
 	out := make([]model.Sandbox, 0, len(s.boxes))
 	for _, sb := range s.boxes {
-		if who.Owns(sb.Owner) {
-			out = append(out, sb)
-		}
+		out = append(out, sb)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out, nil
 }
 
-func (s *stubService) Delete(ctx context.Context, who auth.Identity, id string) error {
-	if _, err := s.Get(ctx, who, id); err != nil {
+func (s *stubService) Delete(ctx context.Context, id string) error {
+	if _, err := s.Get(ctx, id); err != nil {
 		return err
 	}
 	id = model.NormalizeID(id)
@@ -159,8 +136,8 @@ func (s *stubService) Delete(ctx context.Context, who auth.Identity, id string) 
 	return nil
 }
 
-func (s *stubService) Renew(ctx context.Context, who auth.Identity, id string, in sandbox.RenewInput) (model.Sandbox, error) {
-	sb, err := s.Get(ctx, who, id)
+func (s *stubService) Renew(ctx context.Context, id string, in sandbox.RenewInput) (model.Sandbox, error) {
+	sb, err := s.Get(ctx, id)
 	if err != nil {
 		return model.Sandbox{}, err
 	}
@@ -176,56 +153,24 @@ func (s *stubService) Renew(ctx context.Context, who auth.Identity, id string, i
 	return sb, nil
 }
 
-func (s *stubService) Logs(ctx context.Context, who auth.Identity, id string, _ int64) (string, error) {
-	if _, err := s.Get(ctx, who, id); err != nil {
+func (s *stubService) Logs(ctx context.Context, id string, _ int64) (string, error) {
+	if _, err := s.Get(ctx, id); err != nil {
 		return "", err
 	}
 	return s.logs, nil
 }
 
-func (s *stubService) Overview(_ context.Context, who auth.Identity) (sandbox.Overview, error) {
+func (s *stubService) Overview(_ context.Context) (sandbox.Overview, error) {
 	ov := sandbox.Overview{
 		ByState:      map[model.SandboxState]int{},
 		ByTemplate:   map[string]int{},
 		Cluster:      s.clusterUp,
 		MaxSandboxes: s.cfg.MaxSandboxes,
-		Scoped:       !who.IsAdmin(),
-		User:         who.Name,
 	}
 	for _, sb := range s.boxes {
-		if !who.Owns(sb.Owner) {
-			continue
-		}
 		ov.Total++
 		ov.ByState[sb.State]++
 		ov.ByTemplate[sb.Template]++
 	}
 	return ov, nil
-}
-
-// QuotaFor implements the sandbox service's quota lookup, backed by the map a
-// test fills in.
-func (s *stubService) QuotaFor(_ context.Context, name string) (user.Quota, bool) {
-	q, ok := s.quotas[name]
-	return q, ok
-}
-
-// MatchKey implements the authenticator's user lookup over the same map, so a
-// test can set a user's key and have it authenticate as that user.
-func (s *stubService) MatchKey(_ context.Context, key string) (string, bool) {
-	for name, stored := range s.keys {
-		if stored == "" {
-			continue
-		}
-		if subtle.ConstantTimeCompare([]byte(key), []byte(stored)) == 1 {
-			return name, true
-		}
-	}
-	return "", false
-}
-
-// addUser registers a user with a key, for a test that wants to act as one.
-func (s *stubService) addUser(name, key string, quota user.Quota) {
-	s.keys[name] = key
-	s.quotas[name] = quota
 }

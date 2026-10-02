@@ -48,8 +48,6 @@ func main() {
 	root.PersistentFlags().Bool("json", false, "print the server's JSON instead of a table")
 
 	root.AddCommand(
-		whoamiCmd(),
-		usersCmd(),
 		catalogCmd(),
 		createCmd(),
 		listCmd(),

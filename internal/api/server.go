@@ -12,8 +12,6 @@ import (
 	"github.com/shaowenchen/sandboxlab/internal/config"
 	"github.com/shaowenchen/sandboxlab/internal/model"
 	"github.com/shaowenchen/sandboxlab/internal/sandbox"
-	"github.com/shaowenchen/sandboxlab/internal/user"
-	"github.com/shaowenchen/sandboxlab/internal/userservice"
 )
 
 // APIVersion tracks the route surface, not the build version: it changes when a
@@ -24,7 +22,6 @@ const APIVersion = "v1"
 type Deps struct {
 	Config    config.Config
 	Service   SandboxService
-	Users     UserService
 	Auth      *auth.Authenticator
 	Log       *slog.Logger
 	Console   http.Handler // the console, already built; nil serves a placeholder
@@ -37,30 +34,16 @@ type Deps struct {
 // sandbox package's own logic is tested against a fake clientset; this layer's
 // job is routing, authentication and JSON, and a stub proves those just as well
 // and far faster.
-//
-// Every method that touches a sandbox takes the caller's identity. That is the
-// point of the shape: a handler cannot reach a sandbox without saying who is
-// asking, so the ownership check cannot be forgotten at a call site.
 type SandboxService interface {
 	Catalog() *model.Catalog
 	Cluster(ctx context.Context) bool
-	Create(ctx context.Context, who auth.Identity, in sandbox.CreateInput) (model.Sandbox, error)
-	Get(ctx context.Context, who auth.Identity, id string) (model.Sandbox, error)
-	List(ctx context.Context, who auth.Identity) ([]model.Sandbox, error)
-	Delete(ctx context.Context, who auth.Identity, id string) error
-	Renew(ctx context.Context, who auth.Identity, id string, in sandbox.RenewInput) (model.Sandbox, error)
-	Logs(ctx context.Context, who auth.Identity, id string, tail int64) (string, error)
-	Overview(ctx context.Context, who auth.Identity) (sandbox.Overview, error)
-}
-
-// UserService is the administrator's view of the user list.
-type UserService interface {
-	Create(ctx context.Context, in userservice.CreateInput) (user.User, error)
-	Get(ctx context.Context, name string) (user.User, error)
-	List(ctx context.Context) ([]user.User, error)
-	Update(ctx context.Context, name string, quota user.Quota) (user.User, error)
-	Rotate(ctx context.Context, name, key string) (user.User, error)
-	Delete(ctx context.Context, name string) error
+	Create(ctx context.Context, in sandbox.CreateInput) (model.Sandbox, error)
+	Get(ctx context.Context, id string) (model.Sandbox, error)
+	List(ctx context.Context) ([]model.Sandbox, error)
+	Delete(ctx context.Context, id string) error
+	Renew(ctx context.Context, id string, in sandbox.RenewInput) (model.Sandbox, error)
+	Logs(ctx context.Context, id string, tail int64) (string, error)
+	Overview(ctx context.Context) (sandbox.Overview, error)
 }
 
 // DataPlane reaches into a sandbox. The API layer owns routing and
@@ -75,7 +58,6 @@ type DataPlane interface {
 type Server struct {
 	cfg   config.Config
 	svc   SandboxService
-	users UserService
 	auth  *auth.Authenticator
 	log   *slog.Logger
 	mux   *http.ServeMux
@@ -102,7 +84,6 @@ func New(d Deps) *Server {
 	s := &Server{
 		cfg:   d.Config,
 		svc:   d.Service,
-		users: d.Users,
 		auth:  d.Auth,
 		log:   d.Log,
 		mux:   http.NewServeMux(),
@@ -116,11 +97,11 @@ func New(d Deps) *Server {
 // and refuses the rest.
 //
 // It exists so that a route which serves more than GET — /api/v1/sandboxes
-// takes GET and POST, /api/v1/users/{name} takes four — says so in one place
-// rather than inside a switch a reader has to go find. What it enables is
-// Routes(), below: without a declaration there is nothing for the spec check to
-// compare against, and the spec would be free to describe a method this server
-// does not answer.
+// takes GET and POST, /api/v1/sandboxes/{id} takes GET and DELETE — says so in
+// one place rather than inside a switch a reader has to go find. What it
+// enables is Routes(), below: without a declaration there is nothing for the
+// spec check to compare against, and the spec would be free to describe a method
+// this server does not answer.
 func methods(allowed string, m map[string]http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if h, ok := m[r.Method]; ok {
@@ -178,12 +159,8 @@ func (s *Server) routes(d Deps) {
 	s.handle("/api/v1/describe", "GET", map[string]http.HandlerFunc{"GET": s.describe})
 	s.handle("/api/v1/config", "GET", map[string]http.HandlerFunc{"GET": s.getConfig})
 
-	// Who am I. Authenticated, and the one route a console needs to decide
-	// which of its two views to draw.
-	s.handle("/api/v1/whoami", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.whoami)})
-
-	// The sandboxes. A user sees their own and an administrator sees all of
-	// them, from the same routes — the difference is the identity, not the URL.
+	// The templates and the sandboxes. There is one caller, so these are every
+	// template and every sandbox.
 	s.handle("/api/v1/catalog", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.listCatalog)})
 	s.handle("/api/v1/catalog/{id}", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.getCatalogEntry)})
 	s.handle("/api/v1/overview", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.overview)})
@@ -197,23 +174,6 @@ func (s *Server) routes(d Deps) {
 	})
 	s.handle("/api/v1/sandboxes/{id}/renew", "POST", map[string]http.HandlerFunc{"POST": s.authenticated(s.renewSandbox)})
 	s.handle("/api/v1/sandboxes/{id}/logs", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.sandboxLogs)})
-
-	// User management. Administrator only — enforced in the handler wrapper, so
-	// a route added here without it is the only way to get it wrong, and it is
-	// one line away rather than a check inside each handler.
-	if s.users != nil {
-		s.handle("/api/v1/users", "GET, POST", map[string]http.HandlerFunc{
-			"GET":  s.adminOnly(s.users_),
-			"POST": s.adminOnly(s.users_),
-		})
-		s.handle("/api/v1/users/{name}", "GET, PATCH, PUT, DELETE", map[string]http.HandlerFunc{
-			"GET":    s.adminOnly(s.userByName),
-			"PATCH":  s.adminOnly(s.userByName),
-			"PUT":    s.adminOnly(s.userByName),
-			"DELETE": s.adminOnly(s.userByName),
-		})
-		s.handle("/api/v1/users/{name}/key", "POST", map[string]http.HandlerFunc{"POST": s.adminOnly(s.userKey)})
-	}
 
 	// The data plane: a browser opens these directly, so the key may come from
 	// the query string as well as a header. Every method is forwarded — see
@@ -243,11 +203,30 @@ func (s *Server) routes(d Deps) {
 	// Registered directly rather than through handle(): it answers every path in
 	// the deployment, so it is the backdrop rather than a route, and Routes()
 	// leaves it out.
+	//
+	// The backdrop refuses everything under /api/ first, which is the one thing
+	// a catch-all would otherwise get wrong. Without it a path that was removed
+	// — /api/v1/users, say — is not a 404 but the console's HTML with a 200, and
+	// a client generated from the old spec reads that as success. The console's
+	// own client-side routes are all outside /api/, so nothing is lost by
+	// refusing the prefix.
 	if d.Console != nil {
-		s.mux.Handle("/", d.Console)
+		s.mux.Handle("/", apiNotFound(d.Console))
 	} else {
-		s.mux.HandleFunc("/", s.placeholder())
+		s.mux.Handle("/", apiNotFound(s.placeholder()))
 	}
+}
+
+// apiNotFound answers unknown /api/ paths with a 404 rather than handing them to
+// the fallback.
+func apiNotFound(fallback http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			writeJSON(w, http.StatusNotFound, errorBody{Error: "no such endpoint: " + r.URL.Path})
+			return
+		}
+		fallback.ServeHTTP(w, r)
+	})
 }
 
 // Route is one thing this server answers: the shape a caller sees, and the
@@ -345,35 +324,16 @@ func (s *Server) describe(w http.ResponseWriter, r *http.Request) {
 		// find out what it may call should find them.
 		{"method": "GET", "path": "/healthz", "description": "the process is up; no key required"},
 		{"method": "GET", "path": "/readyz", "description": "the process can reach the cluster; no key required"},
-		{"method": "GET", "path": "/api/v1/whoami", "description": "which key this is: an administrator or a named user"},
 		{"method": "GET", "path": "/api/v1/catalog", "description": "the templates a sandbox can be created from"},
 		{"method": "GET", "path": "/api/v1/catalog/{id}", "description": "one template"},
 		{"method": "GET", "path": "/api/v1/overview", "description": "counts of sandboxes by state and template"},
-		{"method": "GET", "path": "/api/v1/sandboxes", "description": "every sandbox you may see"},
+		{"method": "GET", "path": "/api/v1/sandboxes", "description": "every sandbox in the deployment"},
 		{"method": "POST", "path": "/api/v1/sandboxes", "description": "create one; body {template, name?, ttl?, env?}"},
 		{"method": "GET", "path": "/api/v1/sandboxes/{id}", "description": "one sandbox"},
 		{"method": "DELETE", "path": "/api/v1/sandboxes/{id}", "description": "delete one"},
 		{"method": "POST", "path": "/api/v1/sandboxes/{id}/renew", "description": "reset its expiry; body {ttl}"},
 		{"method": "GET", "path": "/api/v1/sandboxes/{id}/logs", "description": "the tail of its output; ?tail=<lines>"},
 		{"method": "GET", "path": "/sandbox/{id}/{port}/", "description": "proxy to a sandbox's own port"},
-	}
-	if s.users != nil {
-		endpoints = append(endpoints,
-			map[string]string{"method": "GET", "path": "/api/v1/users", "description": "administrator only: every user"},
-			// The body is flat, not a nested quota: the three limits are the
-			// same names a PATCH takes, so what a client reads from a user is
-			// what it sends back. Saying {name, quota?} here described a shape
-			// the handler never accepted.
-			map[string]string{"method": "POST", "path": "/api/v1/users", "description": "administrator only: create one; body {name, key?, maxSandboxes?, maxTTL?, templates?}"},
-			map[string]string{"method": "GET", "path": "/api/v1/users/{name}", "description": "administrator only: one user, with their key"},
-			// PUT is accepted as well as PATCH, and both merge. It is
-			// documented rather than removed because a client that reaches for
-			// PUT is asking for the same thing, and an undocumented route that
-			// works is a contract nobody wrote down.
-			map[string]string{"method": "PATCH", "path": "/api/v1/users/{name}", "description": "administrator only: change their limits; merges, so an omitted field is left alone (PUT is accepted too)"},
-			map[string]string{"method": "DELETE", "path": "/api/v1/users/{name}", "description": "administrator only: remove them"},
-			map[string]string{"method": "POST", "path": "/api/v1/users/{name}/key", "description": "administrator only: issue a new key"},
-		)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"name":     "sandboxlab",
@@ -382,7 +342,6 @@ func (s *Server) describe(w http.ResponseWriter, r *http.Request) {
 		"basePath": s.cfg.BasePath,
 		"auth": map[string]any{
 			"scheme": "key",
-			"roles":  []string{string(auth.RoleAdmin), string(auth.RoleUser)},
 			"headers": []string{
 				auth.AuthorizationHeader + ": Bearer <key>",
 				auth.APIKeyHeader + ": <key>",
@@ -406,27 +365,7 @@ func (s *Server) getConfig(w http.ResponseWriter, r *http.Request) {
 		"maxTTL":       s.cfg.MaxTTL.String(),
 		"maxSandboxes": s.cfg.MaxSandboxes,
 		"templates":    s.svc.Catalog().Len(),
-		"users":        s.users != nil,
 	})
-}
-
-// whoami reports which kind of caller this is.
-//
-// The console reads it on load to decide between its two views, and a CLI can
-// use it to explain a 403 to someone who expected one.
-func (s *Server) whoami(w http.ResponseWriter, r *http.Request) {
-	id := auth.FromContext(r.Context())
-	out := map[string]any{
-		"role":  string(id.Role),
-		"admin": id.IsAdmin(),
-	}
-	if id.Name != "" {
-		out["user"] = id.Name
-	}
-	if s.users != nil {
-		out["canManageUsers"] = id.IsAdmin()
-	}
-	writeJSON(w, http.StatusOK, out)
 }
 
 // ── catalog ─────────────────────────────────────────────────────────────────
@@ -456,15 +395,12 @@ type OverviewResponse struct {
 	Total        int                        `json:"total"`
 	ByState      map[model.SandboxState]int `json:"byState"`
 	ByTemplate   map[string]int             `json:"byTemplate"`
-	ByOwner      map[string]int             `json:"byOwner,omitempty"`
 	Cluster      bool                       `json:"cluster"`
 	MaxSandboxes int                        `json:"maxSandboxes,omitempty"`
-	Scoped       bool                       `json:"scoped"`
-	User         string                     `json:"user,omitempty"`
 }
 
 func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
-	ov, err := s.svc.Overview(r.Context(), auth.FromContext(r.Context()))
+	ov, err := s.svc.Overview(r.Context())
 	if err != nil {
 		writeError(w, logger(r), err)
 		return
@@ -473,11 +409,8 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 		Total:        ov.Total,
 		ByState:      ov.ByState,
 		ByTemplate:   ov.ByTemplate,
-		ByOwner:      ov.ByOwner,
 		Cluster:      ov.Cluster,
 		MaxSandboxes: ov.MaxSandboxes,
-		Scoped:       ov.Scoped,
-		User:         ov.User,
 	})
 }
 
@@ -492,10 +425,9 @@ type createRequest struct {
 }
 
 func (s *Server) sandboxes(w http.ResponseWriter, r *http.Request) {
-	who := auth.FromContext(r.Context())
 	switch r.Method {
 	case http.MethodGet:
-		all, err := s.svc.List(r.Context(), who)
+		all, err := s.svc.List(r.Context())
 		if err != nil {
 			writeError(w, logger(r), err)
 			return
@@ -512,7 +444,7 @@ func (s *Server) sandboxes(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, errorBody{Error: err.Error()})
 			return
 		}
-		sb, err := s.svc.Create(r.Context(), who, sandbox.CreateInput{
+		sb, err := s.svc.Create(r.Context(), sandbox.CreateInput{
 			Template: body.Template,
 			Name:     body.Name,
 			TTL:      ttl,
@@ -522,7 +454,7 @@ func (s *Server) sandboxes(w http.ResponseWriter, r *http.Request) {
 			writeError(w, logger(r), err)
 			return
 		}
-		logger(r).Info("created a sandbox", "sandbox", sb.ID, "template", sb.Template, "owner", sb.Owner, "by", who.Name)
+		logger(r).Info("created a sandbox", "sandbox", sb.ID, "template", sb.Template)
 		writeJSON(w, http.StatusCreated, sb)
 	default:
 		w.Header().Set("Allow", "GET, POST")
@@ -531,22 +463,21 @@ func (s *Server) sandboxes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) sandboxByID(w http.ResponseWriter, r *http.Request) {
-	who := auth.FromContext(r.Context())
 	id := r.PathValue("id")
 	switch r.Method {
 	case http.MethodGet:
-		sb, err := s.svc.Get(r.Context(), who, id)
+		sb, err := s.svc.Get(r.Context(), id)
 		if err != nil {
 			writeError(w, logger(r), err)
 			return
 		}
 		writeJSON(w, http.StatusOK, sb)
 	case http.MethodDelete:
-		if err := s.svc.Delete(r.Context(), who, id); err != nil {
+		if err := s.svc.Delete(r.Context(), id); err != nil {
 			writeError(w, logger(r), err)
 			return
 		}
-		logger(r).Info("deleted a sandbox", "sandbox", id, "by", who.Name)
+		logger(r).Info("deleted a sandbox", "sandbox", id)
 		writeJSON(w, http.StatusOK, map[string]string{"deleted": id})
 	default:
 		w.Header().Set("Allow", "GET, DELETE")
@@ -575,7 +506,7 @@ func (s *Server) renewSandbox(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorBody{Error: err.Error()})
 		return
 	}
-	sb, err := s.svc.Renew(r.Context(), auth.FromContext(r.Context()), r.PathValue("id"), sandbox.RenewInput{TTL: ttl})
+	sb, err := s.svc.Renew(r.Context(), r.PathValue("id"), sandbox.RenewInput{TTL: ttl})
 	if err != nil {
 		writeError(w, logger(r), err)
 		return
@@ -590,7 +521,7 @@ func (s *Server) sandboxLogs(w http.ResponseWriter, r *http.Request) {
 			tail = n
 		}
 	}
-	out, err := s.svc.Logs(r.Context(), auth.FromContext(r.Context()), r.PathValue("id"), tail)
+	out, err := s.svc.Logs(r.Context(), r.PathValue("id"), tail)
 	if err != nil {
 		writeError(w, logger(r), err)
 		return
@@ -611,202 +542,18 @@ func (s *Server) placeholder() http.HandlerFunc {
 
 // ── auth middleware ─────────────────────────────────────────────────────────
 
-// authenticated resolves the caller and puts them in the context.
+// authenticated serves the request only if it carries the deployment's key.
 //
-// It is the only place a route's caller is decided. Everything downstream reads
-// auth.FromContext, so there is one comparison per request and one place for it
-// to be wrong — rather than each handler re-reading a header.
+// It is the only place a request is authorised: everything behind it has already
+// been checked, so a route registered without this wrapper is the only way to
+// get it wrong — and it is one line away rather than a check inside each handler.
 func (s *Server) authenticated(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		who, ok := s.auth.Identity(r.Context(), r)
-		if !ok {
+		if !s.auth.OK(r) {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="sandboxlab"`)
 			writeJSON(w, http.StatusUnauthorized, errorBody{Error: "a valid API key is required"})
 			return
 		}
-		next(w, r.WithContext(auth.WithIdentity(r.Context(), who)))
-	}
-}
-
-// adminOnly is authenticated, and then requires an administrator.
-func (s *Server) adminOnly(next http.HandlerFunc) http.HandlerFunc {
-	return s.authenticated(func(w http.ResponseWriter, r *http.Request) {
-		who := auth.FromContext(r.Context())
-		if !who.IsAdmin() {
-			// 404 rather than 403, for the same reason a sandbox a user may not
-			// see is a 404: a distinct status tells a user that this deployment
-			// has a user list worth probing, and where it is.
-			writeJSON(w, http.StatusNotFound, errorBody{Error: "not found"})
-			return
-		}
 		next(w, r)
-	})
-}
-
-// ── users ───────────────────────────────────────────────────────────────────
-
-// userRequest is the body both creating and updating a user accept.
-//
-// The quota fields are pointers, and that is the whole point of the type. A
-// limit of zero is a real value — "no limit" — so an absent field and a zero
-// one mean different things, and a non-pointer could not tell them apart. An
-// update that could not would clear every limit it was not asked about, which
-// is what `{"maxSandboxes": 20}` did to a user's TTL before this.
-type userRequest struct {
-	Name string `json:"name,omitempty"`
-	Key  string `json:"key,omitempty"`
-
-	MaxSandboxes *int     `json:"maxSandboxes,omitempty"`
-	MaxTTL       *string  `json:"maxTTL,omitempty"`
-	Templates    []string `json:"templates,omitempty"`
-}
-
-// quota builds the quota from what the body carried.
-func (b userRequest) quota() (user.Quota, error) {
-	var q user.Quota
-	if b.MaxSandboxes != nil {
-		q.MaxSandboxes = *b.MaxSandboxes
 	}
-	if b.MaxTTL != nil {
-		d, err := parseTTL(*b.MaxTTL)
-		if err != nil {
-			return user.Quota{}, err
-		}
-		q.MaxTTL = d
-	}
-	q.Templates = b.Templates
-	return q, nil
-}
-
-// apply merges the body over an existing quota, so a patch that names one limit
-// leaves the others as they were.
-//
-// A field the body omitted keeps its current value; a field it carried — even
-// as an empty string, which means "no limit" — replaces it.
-func (b userRequest) apply(current user.Quota) (user.Quota, error) {
-	out := current
-	if b.MaxSandboxes != nil {
-		out.MaxSandboxes = *b.MaxSandboxes
-	}
-	if b.MaxTTL != nil {
-		d, err := parseTTL(*b.MaxTTL)
-		if err != nil {
-			return user.Quota{}, err
-		}
-		out.MaxTTL = d
-	}
-	if b.Templates != nil {
-		out.Templates = b.Templates
-	}
-	return out, nil
-}
-
-func (s *Server) users_(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		list, err := s.users.List(r.Context())
-		if err != nil {
-			writeError(w, logger(r), err)
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"users": list, "count": len(list)})
-	case http.MethodPost:
-		var body userRequest
-		if err := decodeJSON(r, &body); err != nil {
-			writeJSON(w, http.StatusBadRequest, errorBody{Error: "could not read the request body: " + err.Error()})
-			return
-		}
-		quota, err := body.quota()
-		if err != nil {
-			writeJSON(w, http.StatusBadRequest, errorBody{Error: err.Error()})
-			return
-		}
-		u, err := s.users.Create(r.Context(), userservice.CreateInput{
-			Name:  body.Name,
-			Key:   body.Key,
-			Quota: quota,
-		})
-		if err != nil {
-			writeError(w, logger(r), err)
-			return
-		}
-		logger(r).Info("created a user", "user", u.Name)
-		writeJSON(w, http.StatusCreated, u)
-	default:
-		w.Header().Set("Allow", "GET, POST")
-		writeJSON(w, http.StatusMethodNotAllowed, errorBody{Error: r.Method + " is not supported here"})
-	}
-}
-
-func (s *Server) userByName(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
-	switch r.Method {
-	case http.MethodGet:
-		u, err := s.users.Get(r.Context(), name)
-		if err != nil {
-			writeError(w, logger(r), err)
-			return
-		}
-		writeJSON(w, http.StatusOK, u)
-	case http.MethodPatch, http.MethodPut:
-		var body userRequest
-		if err := decodeJSON(r, &body); err != nil {
-			writeJSON(w, http.StatusBadRequest, errorBody{Error: "could not read the request body: " + err.Error()})
-			return
-		}
-		// The current quota is read first so this is a merge. A PUT that
-		// replaced the whole thing would be a second, sharper meaning for the
-		// same route, and the caller who wanted to change one limit would be
-		// the one who lost the others.
-		current, err := s.users.Get(r.Context(), name)
-		if err != nil {
-			writeError(w, logger(r), err)
-			return
-		}
-		quota, err := body.apply(current.Quota)
-		if err != nil {
-			writeJSON(w, http.StatusBadRequest, errorBody{Error: err.Error()})
-			return
-		}
-		u, err := s.users.Update(r.Context(), name, quota)
-		if err != nil {
-			writeError(w, logger(r), err)
-			return
-		}
-		writeJSON(w, http.StatusOK, u)
-	case http.MethodDelete:
-		if err := s.users.Delete(r.Context(), name); err != nil {
-			writeError(w, logger(r), err)
-			return
-		}
-		logger(r).Info("deleted a user", "user", name)
-		writeJSON(w, http.StatusOK, map[string]string{"deleted": name})
-	default:
-		w.Header().Set("Allow", "GET, PATCH, DELETE")
-		writeJSON(w, http.StatusMethodNotAllowed, errorBody{Error: r.Method + " is not supported here"})
-	}
-}
-
-func (s *Server) userKey(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", "POST")
-		writeJSON(w, http.StatusMethodNotAllowed, errorBody{Error: r.Method + " is not supported here"})
-		return
-	}
-	var body userRequest
-	// An empty body is the normal case and means "generate one", so a decode
-	// failure on an empty body is not an error.
-	if r.ContentLength != 0 {
-		if err := decodeJSON(r, &body); err != nil {
-			writeJSON(w, http.StatusBadRequest, errorBody{Error: "could not read the request body: " + err.Error()})
-			return
-		}
-	}
-	u, err := s.users.Rotate(r.Context(), r.PathValue("name"), body.Key)
-	if err != nil {
-		writeError(w, logger(r), err)
-		return
-	}
-	logger(r).Info("issued a new key", "user", u.Name)
-	writeJSON(w, http.StatusOK, u)
 }

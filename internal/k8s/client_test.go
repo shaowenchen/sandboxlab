@@ -291,7 +291,7 @@ func TestForeignNamespacesAreInvisible(t *testing.T) {
 	if err := c.Delete(ctx, "demo"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("Delete of a foreign namespace = %v, want ErrNotFound", err)
 	}
-	all, err := c.List(ctx, "")
+	all, err := c.List(ctx)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -320,7 +320,7 @@ func TestListReturnsOnlyManagedSandboxes(t *testing.T) {
 		t.Fatalf("creating an unrelated namespace: %v", err)
 	}
 
-	got, err := c.List(ctx, "")
+	got, err := c.List(ctx)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}

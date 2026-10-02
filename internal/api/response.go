@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/shaowenchen/sandboxlab/internal/sandbox"
-	"github.com/shaowenchen/sandboxlab/internal/userservice"
 )
 
 // writeJSON writes a value as JSON.
@@ -34,22 +33,16 @@ type errorBody struct {
 //
 // The mapping is by the sentinel the service wrapped, so the HTTP layer never
 // has to match on message text — which is the thing that makes an API's error
-// handling rot quietly.
-//
-// Both services' sentinels are here, and that is deliberate rather than an
-// oversight: the sandbox and user services are separate layers and neither
-// should have to import the other to share an error vocabulary. What they do
-// share is the HTTP layer, so the translation lives where both are visible —
-// and a service added later that forgets to is a 500 that a test like this one
-// catches rather than a status that quietly means nothing.
+// handling rot quietly. A service added later that wraps none of these is a 500
+// rather than a status that quietly means nothing.
 func writeError(w http.ResponseWriter, log *slog.Logger, err error) {
 	status := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, sandbox.ErrInvalid), errors.Is(err, userservice.ErrInvalid):
+	case errors.Is(err, sandbox.ErrInvalid):
 		status = http.StatusBadRequest
-	case errors.Is(err, sandbox.ErrNotFound), errors.Is(err, userservice.ErrNotFound):
+	case errors.Is(err, sandbox.ErrNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, sandbox.ErrConflict), errors.Is(err, userservice.ErrConflict):
+	case errors.Is(err, sandbox.ErrConflict):
 		status = http.StatusConflict
 	case errors.Is(err, sandbox.ErrLimit):
 		status = http.StatusTooManyRequests

@@ -41,7 +41,7 @@ func newTestServer(t *testing.T, cfg config.Config, dp DataPlane) *Server {
 	return New(Deps{
 		Config:    cfg,
 		Service:   svc,
-		Auth:      auth.New(cfg.APIKey, svc),
+		Auth:      auth.New(cfg.APIKey),
 		Log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
 		DataPlane: dp,
 	})
@@ -66,7 +66,7 @@ func newTestServerWithStub(t *testing.T, cfg config.Config, dp DataPlane) (*Serv
 	return New(Deps{
 		Config:    cfg,
 		Service:   svc,
-		Auth:      auth.New(cfg.APIKey, svc),
+		Auth:      auth.New(cfg.APIKey),
 		Log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
 		DataPlane: dp,
 	}), svc
@@ -124,7 +124,7 @@ func TestReadyReportsAnUnreachableCluster(t *testing.T) {
 	s := New(Deps{
 		Config:  cfg,
 		Service: svc,
-		Auth:    auth.New(testKey, svc),
+		Auth:    auth.New(testKey),
 		Log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 
@@ -512,7 +512,7 @@ func TestTheConsoleDocumentNeedsNoKey(t *testing.T) {
 	s := New(Deps{
 		Config:  cfg,
 		Service: newStubService(cfg, c),
-		Auth:    auth.New(cfg.APIKey, newStubService(cfg, c)),
+		Auth:    auth.New(cfg.APIKey),
 		Log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Console: con,
 	})
@@ -533,23 +533,68 @@ func TestTheConsoleDocumentNeedsNoKey(t *testing.T) {
 	// What the document gives away is what it must: the API behind it refuses
 	// every one of its calls without a key. This is the assertion that makes the
 	// document being open uninteresting — it lists nothing on its own.
-	//
-	// Only the routes that exist without a user store. The user routes are
-	// registered conditionally, and an unregistered one falls through to the
-	// console's own fallback — so it answers 200 with a page rather than 401,
-	// which would be a fact about this server rather than about the console.
-	for _, path := range []string{"/sandbox/api/v1/sandboxes", "/sandbox/api/v1/whoami", "/sandbox/api/v1/overview", "/sandbox/api/v1/catalog"} {
+	for _, path := range []string{"/sandbox/api/v1/sandboxes", "/sandbox/api/v1/overview", "/sandbox/api/v1/catalog"} {
 		if w := do(t, s, http.MethodGet, path, "", ""); w.Code != http.StatusUnauthorized {
 			t.Errorf("GET %s with no key = %d, want 401", path, w.Code)
 		}
 	}
-	// And the sign-in form's own call cannot be used to probe for keys.
-	if w := do(t, s, http.MethodGet, "/sandbox/api/v1/whoami", "not-the-key", ""); w.Code != http.StatusUnauthorized {
-		t.Errorf("whoami with a wrong key = %d, want 401", w.Code)
+	// A wrong key is refused on the calls the page makes, and the right one is
+	// not — which is the whole of what signing in decides now that there is no
+	// role to report.
+	if w := do(t, s, http.MethodGet, "/sandbox/api/v1/sandboxes", "not-the-key", ""); w.Code != http.StatusUnauthorized {
+		t.Errorf("sandboxes with a wrong key = %d, want 401", w.Code)
 	}
-	// A working key still works, so the console can actually do something.
-	if w := do(t, s, http.MethodGet, "/sandbox/api/v1/whoami", testKey, ""); w.Code != http.StatusOK {
-		t.Errorf("whoami with the real key = %d, want 200", w.Code)
+	if w := do(t, s, http.MethodGet, "/sandbox/api/v1/sandboxes", testKey, ""); w.Code != http.StatusOK {
+		t.Errorf("sandboxes with the real key = %d, want 200", w.Code)
+	}
+}
+
+// An /api/ path this server does not serve is a 404, not the console's page.
+//
+// The console is the fallback for every path in the deployment, so without a
+// guard a removed route — /api/v1/users, most of all, since removing it is the
+// point — answers 200 with HTML. A client generated from the old spec reads
+// that as success and gets a page where it expected a user.
+func TestAnUnknownAPIPathIsNotFound(t *testing.T) {
+	c, err := catalog.Loader{}.Load()
+	if err != nil {
+		t.Fatalf("loading the catalog: %v", err)
+	}
+	con, err := console.New()
+	if err != nil {
+		t.Fatalf("building the console: %v", err)
+	}
+	cfg := config.Config{Namespace: "ops-system", BasePath: "/sandbox", APIKey: testKey}
+	s := New(Deps{
+		Config:  cfg,
+		Service: newStubService(cfg, c),
+		Auth:    auth.New(cfg.APIKey),
+		Log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Console: con,
+	})
+
+	// The paths the removal took out, and one that never existed.
+	for _, path := range []string{
+		"/sandbox/api/v1/users",
+		"/sandbox/api/v1/users/alice",
+		"/sandbox/api/v1/whoami",
+		"/sandbox/api/v1/nope",
+	} {
+		t.Run(path, func(t *testing.T) {
+			w := do(t, s, http.MethodGet, path, testKey, "")
+			if w.Code != http.StatusNotFound {
+				t.Errorf("GET %s = %d, want 404", path, w.Code)
+			}
+			if strings.Contains(w.Body.String(), "<form") {
+				t.Errorf("GET %s served the console instead of a 404", path)
+			}
+		})
+	}
+
+	// And the console's own client-side routes still resolve, which is what the
+	// fallback is for.
+	if w := do(t, s, http.MethodGet, "/sandbox/", "", ""); w.Code != http.StatusOK {
+		t.Errorf("GET /sandbox/ = %d, want 200", w.Code)
 	}
 }
 
@@ -595,7 +640,7 @@ func TestDataPlaneRouting(t *testing.T) {
 	// The data plane checks ownership against the sandbox before it forwards,
 	// so the sandbox has to be there — a route that forwarded first would be
 	// one a user could reach another user's port through.
-	if _, err := svc.Create(context.Background(), auth.Identity{Role: auth.RoleAdmin}, sandbox.CreateInput{
+	if _, err := svc.Create(context.Background(), sandbox.CreateInput{
 		Template: "code-server",
 		Name:     "demo",
 	}); err != nil {
@@ -650,7 +695,7 @@ func TestDataPlaneRouting(t *testing.T) {
 		var sawQuery string
 		inner := &queryCapturing{on: func(q string) { sawQuery = q }}
 		innerServer, innerSvc := newTestServerWithStub(t, config.Config{}, inner)
-		if _, err := innerSvc.Create(context.Background(), auth.Identity{Role: auth.RoleAdmin}, sandbox.CreateInput{
+		if _, err := innerSvc.Create(context.Background(), sandbox.CreateInput{
 			Template: "code-server",
 			Name:     "demo",
 		}); err != nil {
@@ -688,7 +733,7 @@ func TestDataPlaneIsOffWhenDisabled(t *testing.T) {
 	s := New(Deps{
 		Config:    cfg,
 		Service:   svc,
-		Auth:      auth.New(testKey, svc),
+		Auth:      auth.New(testKey),
 		Log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
 		DataPlane: dp,
 	})

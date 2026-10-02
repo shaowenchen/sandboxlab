@@ -31,7 +31,6 @@ import (
 	"github.com/shaowenchen/sandboxlab/internal/proxy"
 	"github.com/shaowenchen/sandboxlab/internal/reaper"
 	"github.com/shaowenchen/sandboxlab/internal/sandbox"
-	"github.com/shaowenchen/sandboxlab/internal/userservice"
 )
 
 func main() {
@@ -104,12 +103,7 @@ func serve(ctx context.Context, cfg config.Config) error {
 		return err
 	}
 
-	// The user store is the cluster's Secrets in the control plane's own
-	// namespace, so this is the same choice the rest of the deployment makes:
-	// the cluster is the record, and a restart loses nothing.
-	userStore := client.Users()
-	users := userservice.New(userStore, client)
-	svc := sandbox.New(cfg, templates, client, users)
+	svc := sandbox.New(cfg, templates, client)
 
 	if cfg.GeneratedKey() {
 		// Loud, because it is a credential and the only place it appears. It is
@@ -131,8 +125,7 @@ func serve(ctx context.Context, cfg config.Config) error {
 	server := api.New(api.Deps{
 		Config:    cfg,
 		Service:   svc,
-		Users:     users,
-		Auth:      auth.New(cfg.APIKey, users),
+		Auth:      auth.New(cfg.APIKey),
 		Log:       log,
 		Console:   consoleHandler,
 		DataPlane: dataPlane,

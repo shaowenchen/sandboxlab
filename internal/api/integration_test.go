@@ -34,7 +34,6 @@ import (
 	"github.com/shaowenchen/sandboxlab/internal/k8s"
 	"github.com/shaowenchen/sandboxlab/internal/model"
 	"github.com/shaowenchen/sandboxlab/internal/sandbox"
-	"github.com/shaowenchen/sandboxlab/internal/userservice"
 )
 
 const (
@@ -73,15 +72,10 @@ func newIntegrationServer(t *testing.T) (*api.Server, *k8s.Client) {
 		t.Fatalf("loading the catalog: %v", err)
 	}
 
-	// The whole stack, including the real user store over the same fake
-	// cluster — so this exercises the ownership and quota rules rather than a
-	// stand-in for them.
-	users := userservice.New(client.Users(), client)
 	return api.New(api.Deps{
 		Config:  cfg,
-		Service: sandbox.New(cfg, templates, client, users),
-		Users:   users,
-		Auth:    auth.New(cfg.APIKey, users),
+		Service: sandbox.New(cfg, templates, client),
+		Auth:    auth.New(cfg.APIKey),
 		Log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}), client
 }

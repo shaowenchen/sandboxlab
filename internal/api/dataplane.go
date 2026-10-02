@@ -25,8 +25,7 @@ func (s *Server) dataPlane(dp DataPlane) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// A browser navigation cannot set a header, so this is the one family
 		// of routes where the key may arrive in the query string.
-		who, ok := s.auth.IdentityURL(r.Context(), r)
-		if !ok {
+		if !s.auth.OKURL(r) {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="sandboxlab"`)
 			writeJSON(w, http.StatusUnauthorized, errorBody{Error: "a valid API key is required"})
 			return
@@ -45,15 +44,12 @@ func (s *Server) dataPlane(dp DataPlane) http.HandlerFunc {
 			return
 		}
 
-		// The ownership check happens here, against the sandbox the address
-		// names, and not in the proxy — the proxy is handed a target and would
-		// forward to whatever it was given. A user reaching another user's
-		// port is the one thing the per-user split exists to prevent, and this
-		// route is a way around every check on the JSON API.
-		//
-		// It is a 404 for the same reason the JSON API's is: a distinct status
-		// would confirm the sandbox exists.
-		if _, err := s.svc.Get(r.Context(), who, id); err != nil {
+		// The sandbox is looked up before the proxy is handed anything, and not
+		// by the proxy — the proxy forwards to whatever target it is given, so
+		// this is where the address is checked against something that exists.
+		// Proxying is the one route a sandbox's own application serves, and it
+		// would otherwise be a way to reach any name at all on the network.
+		if _, err := s.svc.Get(r.Context(), id); err != nil {
 			if errors.Is(err, sandbox.ErrNotFound) {
 				http.Error(w, "no sandbox named "+id, http.StatusNotFound)
 				return

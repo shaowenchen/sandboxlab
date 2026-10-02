@@ -40,8 +40,6 @@ tags:
     description: What this deployment is and what it can do. No key required.
   - name: sandboxes
     description: The environments themselves.
-  - name: users
-    description: Administrator only. Who may use the deployment, and how much.
 
 paths:
   /healthz:
@@ -106,8 +104,8 @@ paths:
       summary: The deployment's shape
       description: >-
         What this deployment is: the interface version, the lifetimes it
-        enforces, whether it manages users, and where it is served. The console
-        reads it on load to decide what to offer.
+        enforces, the ceiling on how many sandboxes may exist, and where it is
+        served. The console reads it on load to decide what to offer.
       security: []
       responses:
         "200":
@@ -115,23 +113,6 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Config"}
-
-  /api/v1/whoami:
-    get:
-      tags: [meta]
-      operationId: whoami
-      summary: Which key this is
-      description: >-
-        Whether the caller holds the administrator's key or a user's, and for a
-        user, who they are. The console reads it to decide between its two
-        views.
-      responses:
-        "200":
-          description: the caller's identity
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/Whoami"}
-        "401": {$ref: "#/components/responses/Unauthorized"}
 
   /api/v1/catalog:
     get:
@@ -171,9 +152,8 @@ paths:
       operationId: getOverview
       summary: Counts of sandboxes by state and template
       description: >-
-        What is running, what it is, and who it belongs to. Scoped to what the
-        caller may see: an administrator gets the deployment, a user gets their
-        own.
+        What is running and what it is: how many sandboxes exist, and how they
+        break down by state and template.
       responses:
         "200":
           description: the summary
@@ -186,7 +166,7 @@ paths:
     get:
       tags: [sandboxes]
       operationId: listSandboxes
-      summary: Every sandbox you may see
+      summary: Every sandbox in the deployment
       responses:
         "200":
           description: the sandboxes
@@ -320,149 +300,6 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
 
-  /api/v1/users:
-    get:
-      tags: [users]
-      operationId: listUsers
-      summary: Every user
-      responses:
-        "200":
-          description: the users
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/UserList"}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-    post:
-      tags: [users]
-      operationId: createUser
-      summary: Create one, and get its key
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: "#/components/schemas/UserRequest"}
-      responses:
-        "201":
-          description: the user, with the key that was issued
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/User"}
-        "400": {$ref: "#/components/responses/BadRequest"}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "409": {$ref: "#/components/responses/Conflict"}
-
-  /api/v1/users/{name}:
-    get:
-      tags: [users]
-      operationId: getUser
-      summary: One user, with their key
-      description: >-
-        The key is revealed here and on a rotate, and nowhere else — a listing
-        omits it, so a list is safe to leave on a screen.
-      parameters:
-        - $ref: "#/components/parameters/UserName"
-      responses:
-        "200":
-          description: the user
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/User"}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-    patch:
-      tags: [users]
-      operationId: updateUser
-      summary: Change a user's quota
-      description: >-
-        A field the body omits keeps its current value; a field it carries
-        replaces it, including with an empty string, which means "no limit".
-        PATCH and PUT behave identically — both merge, and neither is a replace.
-      parameters:
-        - $ref: "#/components/parameters/UserName"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: "#/components/schemas/UserRequest"}
-      responses:
-        "200":
-          description: the user, with the quota as it now stands
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/User"}
-        "400": {$ref: "#/components/responses/BadRequest"}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-    put:
-      tags: [users]
-      operationId: replaceUser
-      summary: Change a user's quota (the same merge as PATCH)
-      parameters:
-        - $ref: "#/components/parameters/UserName"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: "#/components/schemas/UserRequest"}
-      responses:
-        "200":
-          description: the user, with the quota as it now stands
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/User"}
-        "400": {$ref: "#/components/responses/BadRequest"}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-    delete:
-      tags: [users]
-      operationId: deleteUser
-      summary: Remove a user
-      description: >-
-        Their sandboxes are not deleted. Revoking a key is not the same act as
-        tearing down an environment someone may be in the middle of using.
-      parameters:
-        - $ref: "#/components/parameters/UserName"
-      responses:
-        "200":
-          description: it was deleted
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/Deleted"}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-
-  /api/v1/users/{name}/key:
-    post:
-      tags: [users]
-      operationId: rotateUserKey
-      summary: Issue a new key
-      description: >-
-        The old key stops working immediately. An empty key in the body means
-        "generate one".
-      parameters:
-        - $ref: "#/components/parameters/UserName"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: "#/components/schemas/RotateKeyRequest"}
-      responses:
-        "200":
-          description: the user, with the new key
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/User"}
-        "400": {$ref: "#/components/responses/BadRequest"}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-
   /sandbox/{id}/{port}/:
     get:
       tags: [sandboxes]
@@ -499,7 +336,7 @@ paths:
 
 components:
   securitySchemes:
-    # The administrator's key or a user's. Both headers carry the same
+    # The deployment's key. Both headers carry the same
     # credential; a client sends whichever it has.
     ApiKey:
       type: apiKey
@@ -514,13 +351,6 @@ components:
       type: apiKey
       in: query
       name: key
-
-  parameters:
-    UserName:
-      name: name
-      in: path
-      required: true
-      schema: {type: string}
 
   responses:
     BadRequest:
@@ -539,7 +369,7 @@ components:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}
     NotFound:
-      description: no such object, or not one this caller may see
+      description: no such object
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}
@@ -574,7 +404,7 @@ components:
 
     Config:
       type: object
-      required: [apiVersion, build, basePath, namespace, dataPlane, defaultTTL, maxTTL, maxSandboxes, templates, users]
+      required: [apiVersion, build, basePath, namespace, dataPlane, defaultTTL, maxTTL, maxSandboxes, templates]
       properties:
         apiVersion: {type: string, description: "the interface version, not the build's"}
         build:      {type: string}
@@ -586,16 +416,6 @@ components:
         maxTTL:     {type: string, description: "a duration, e.g. 8h0m0s"}
         maxSandboxes: {type: integer, description: "0 means no deployment-wide ceiling"}
         templates:  {type: integer, description: "how many templates the catalog holds"}
-        users:      {type: boolean, description: "whether this deployment manages users"}
-
-    Whoami:
-      type: object
-      required: [role, admin]
-      properties:
-        role:           {type: string, enum: [admin, user]}
-        admin:          {type: boolean}
-        user:           {type: string, description: "the user's name; absent for the administrator"}
-        canManageUsers: {type: boolean, description: "whether this caller may read and write the user list"}
 
     Describe:
       type: object
@@ -614,7 +434,6 @@ components:
       type: object
       properties:
         scheme:  {type: string, description: "how a key is presented: `key`"}
-        roles:   {type: array, items: {type: string}}
         headers: {type: array, items: {type: string}, description: "the headers a key may be sent in"}
 
     EndpointDescription:
@@ -760,11 +579,6 @@ components:
           additionalProperties: {type: string}
           description: the non-secret environment the sandbox was created with
         namespace: {type: string, description: "the namespace the sandbox owns"}
-        owner:
-          type: string
-          description: >-
-            the user who created it; absent means the administrator, which is
-            the deployment's own rather than anyone's
 
     Endpoint:
       type: object
@@ -779,7 +593,7 @@ components:
     SandboxList:
       type: object
       description: |
-        Every sandbox the caller may see, and how many that is.
+        Every sandbox in the deployment, and how many that is.
 
         Counted as well as listed because the two are not always the same
         question: a console renders the list, and a script that only wants to
@@ -825,108 +639,6 @@ components:
         byOwner:    {type: object, additionalProperties: {type: integer}}
         cluster:    {type: boolean, description: "whether the cluster is reachable"}
         maxSandboxes: {type: integer, description: "the deployment's ceiling; 0 means none"}
-        user:
-          type: string
-          description: whose sandboxes these are, when the view is a user's rather than the deployment's
-        scoped: {type: boolean, description: "whether the view is a user's rather than the deployment's"}
-
-    # ── users ─────────────────────────────────────────────────────────────────
-    #
-    # The quota appears in two shapes on purpose, and they are not
-    # interchangeable.
-    #
-    # `Quota` is what a user is: the TTL is a duration in nanoseconds, because
-    # that is what Go's time.Duration marshals to and what every client of this
-    # API already reads.
-    #
-    # `UserRequest` is what a caller sends: the TTL is a human duration string
-    # ("30m"), and its fields are pointers, because an omitted limit and a limit
-    # of zero are different instructions — "leave this alone" versus "remove the
-    # ceiling" — and a value field could not tell them apart.
-    Quota:
-      type: object
-      properties:
-        maxSandboxes:
-          type: integer
-          description: how many may exist at once; 0 is no limit from this user
-        maxTTL:
-          type: integer
-          format: int64
-          description: >-
-            a cap on how long a sandbox may be asked for, in nanoseconds; 0 is
-            no limit from this user
-        templates:
-          type: array
-          items: {type: string}
-          description: which templates may be created; empty means the whole catalog
-
-    User:
-      type: object
-      required: [name, createdAt, quota]
-      properties:
-        name:       {type: string}
-        key:
-          type: string
-          description: >-
-            the credential. Present on a create, a rotate and a reveal, and
-            omitted from a listing, so a list is safe to leave on a screen.
-        createdAt:  {type: string, format: date-time}
-        lastUsedAt:
-          type: string
-          format: date-time
-          description: absent when the key has never been used, which is what an administrator most wants to know
-          x-go-type: "*time.Time"
-        quota:      {$ref: "#/components/schemas/Quota"}
-        sandboxes:
-          type: integer
-          description: how many the user has now; absent when it could not be counted
-
-    UserList:
-      type: object
-      description: |
-        Every user, or an administrator's view of them.
-
-        No key is present on any entry, deliberately: this is the roster an
-        administrator leaves on a screen, and issuing or recovering a key is a
-        separate, single-user call that says so.
-      required: [users, count]
-      properties:
-        users: {type: array, items: {$ref: "#/components/schemas/User"}}
-        count: {type: integer}
-
-    UserRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          description: the user's name; only read when creating
-        key:
-          type: string
-          description: the key to use; generated when empty
-        maxSandboxes:
-          type: integer
-          description: an omitted field leaves the current limit alone
-          x-go-type: "*int"
-        maxTTL:
-          type: string
-          description: >-
-            a duration string like "30m"; an empty string removes the limit,
-            and an omitted field leaves it alone
-          x-go-type: "*string"
-        templates:
-          type: array
-          items: {type: string}
-          description: an omitted field leaves the current list alone
-          x-go-type: "[]string"
-          x-go-type-skip-optional-pointer: true
-
-    RotateKeyRequest:
-      type: object
-      properties:
-        key:
-          type: string
-          description: the new key; generated when empty
-
     Deleted:
       type: object
       required: [deleted]
