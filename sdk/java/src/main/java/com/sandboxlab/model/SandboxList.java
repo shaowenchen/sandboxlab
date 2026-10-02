@@ -34,7 +34,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 import com.sandboxlab.client.ApiClient;
 /**
- * SandboxList
+ * Every sandbox the caller may see, and how many that is.  Counted as well as listed because the two are not always the same question: a console renders the list, and a script that only wants to know whether anything is running should not have to read one. 
  */
 @JsonPropertyOrder({
   SandboxList.JSON_PROPERTY_SANDBOXES,

@@ -25,7 +25,7 @@ from typing_extensions import Self
 
 class SandboxList(BaseModel):
     """
-    SandboxList
+    Every sandbox the caller may see, and how many that is.  Counted as well as listed because the two are not always the same question: a console renders the list, and a script that only wants to know whether anything is running should not have to read one. 
     """ # noqa: E501
     sandboxes: List[Sandbox]
     count: StrictInt

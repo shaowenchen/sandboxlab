@@ -22,6 +22,11 @@ import {
 } from './Sandbox';
 
 /**
+ * Every sandbox the caller may see, and how many that is.
+ * 
+ * Counted as well as listed because the two are not always the same
+ * question: a console renders the list, and a script that only wants to
+ * know whether anything is running should not have to read one.
  * 
  * @export
  * @interface SandboxList

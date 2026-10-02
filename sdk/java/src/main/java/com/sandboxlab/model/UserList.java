@@ -34,7 +34,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 import com.sandboxlab.client.ApiClient;
 /**
- * UserList
+ * Every user, or an administrator&#39;s view of them.  No key is present on any entry, deliberately: this is the roster an administrator leaves on a screen, and issuing or recovering a key is a separate, single-user call that says so. 
  */
 @JsonPropertyOrder({
   UserList.JSON_PROPERTY_USERS,

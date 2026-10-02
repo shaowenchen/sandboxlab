@@ -14,7 +14,7 @@
 
 import { mapValues } from '../runtime';
 /**
- * 
+ * A liveness or readiness answer. Both routes are unauthenticated, so a probe needs no key.
  * @export
  * @interface Status
  */

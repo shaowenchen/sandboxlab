@@ -24,7 +24,7 @@ from typing_extensions import Self
 
 class Status(BaseModel):
     """
-    Status
+    A liveness or readiness answer. Both routes are unauthenticated, so a probe needs no key.
     """ # noqa: E501
     status: StrictStr
     __properties: ClassVar[List[str]] = ["status"]

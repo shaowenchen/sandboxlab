@@ -34,7 +34,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 import com.sandboxlab.client.ApiClient;
 /**
- * TemplateList
+ * The catalog — what a sandbox can be created from.
  */
 @JsonPropertyOrder({
   TemplateList.JSON_PROPERTY_TEMPLATES

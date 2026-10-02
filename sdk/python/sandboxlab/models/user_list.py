@@ -25,7 +25,7 @@ from typing_extensions import Self
 
 class UserList(BaseModel):
     """
-    UserList
+    Every user, or an administrator's view of them.  No key is present on any entry, deliberately: this is the roster an administrator leaves on a screen, and issuing or recovering a key is a separate, single-user call that says so. 
     """ # noqa: E501
     users: List[User]
     count: StrictInt

@@ -251,7 +251,11 @@ type Sandbox struct {
 	Template string `json:"template"`
 }
 
-// SandboxList defines model for SandboxList.
+// SandboxList Every sandbox the caller may see, and how many that is.
+//
+// Counted as well as listed because the two are not always the same
+// question: a console renders the list, and a script that only wants to
+// know whether anything is running should not have to read one.
 type SandboxList struct {
 	Count     int       `json:"count"`
 	Sandboxes []Sandbox `json:"sandboxes"`
@@ -260,7 +264,7 @@ type SandboxList struct {
 // SandboxState defines model for SandboxState.
 type SandboxState string
 
-// Status defines model for Status.
+// Status A liveness or readiness answer. Both routes are unauthenticated, so a probe needs no key.
 type Status struct {
 	// Status Examples: ok
 	Status string `json:"status"`
@@ -291,7 +295,7 @@ type Template struct {
 	WorkDir string `json:"workDir,omitempty" yaml:"workDir,omitempty"`
 }
 
-// TemplateList defines model for TemplateList.
+// TemplateList The catalog — what a sandbox can be created from.
 type TemplateList struct {
 	Templates []Template `json:"templates"`
 }
@@ -312,7 +316,11 @@ type User struct {
 	Sandboxes int `json:"sandboxes,omitempty"`
 }
 
-// UserList defines model for UserList.
+// UserList Every user, or an administrator's view of them.
+//
+// No key is present on any entry, deliberately: this is the roster an
+// administrator leaves on a screen, and issuing or recovering a key is a
+// separate, single-user call that says so.
 type UserList struct {
 	Count int    `json:"count"`
 	Users []User `json:"users"`

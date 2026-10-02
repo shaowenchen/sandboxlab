@@ -22,7 +22,7 @@ import {
 } from './Template';
 
 /**
- * 
+ * The catalog — what a sandbox can be created from.
  * @export
  * @interface TemplateList
  */

@@ -22,6 +22,11 @@ import {
 } from './User';
 
 /**
+ * Every user, or an administrator's view of them.
+ * 
+ * No key is present on any entry, deliberately: this is the roster an
+ * administrator leaves on a screen, and issuing or recovering a key is a
+ * separate, single-user call that says so.
  * 
  * @export
  * @interface UserList

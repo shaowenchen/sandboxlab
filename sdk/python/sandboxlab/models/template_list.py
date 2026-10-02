@@ -25,7 +25,7 @@ from typing_extensions import Self
 
 class TemplateList(BaseModel):
     """
-    TemplateList
+    The catalog — what a sandbox can be created from.
     """ # noqa: E501
     templates: List[Template]
     __properties: ClassVar[List[str]] = ["templates"]

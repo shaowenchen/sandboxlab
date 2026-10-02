@@ -31,7 +31,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 import com.sandboxlab.client.ApiClient;
 /**
- * Status
+ * A liveness or readiness answer. Both routes are unauthenticated, so a probe needs no key.
  */
 @JsonPropertyOrder({
   Status.JSON_PROPERTY_STATUS
