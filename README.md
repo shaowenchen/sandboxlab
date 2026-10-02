@@ -89,11 +89,17 @@ left unset falls back to the deployment's own.
 `sandbox whoami` says which kind of key you are holding, which is the quickest
 answer to "why can I not see that sandbox".
 
-## The three interfaces
+## The four interfaces
 
-Everything the API can do is reachable three ways, and all three go through the
-same REST interface — so the CLI cannot drift from the console, and neither can
-drift from the API.
+Everything the API can do is reachable four ways, and all four go through the
+same REST interface — so the CLI cannot drift from the console, neither can
+drift from the API, and the SDK cannot drift from any of them.
+
+They are kept honest by one document. [`api/openapi.yaml`](api/openapi.yaml)
+describes this API, and the SDKs for Go, Python, TypeScript and Java are
+generated from it; a change to the spec that is not carried through is a build
+failure rather than a client that quietly describes the old API. See
+[`sdk/`](sdk/) for the SDKs.
 
 ### The console
 
@@ -182,6 +188,34 @@ remove a limit rather than change it, send it as empty — `{"maxTTL": ""}`.
 
 The user routes answer **404**, not 403, to a user's key. A distinct status would
 confirm that a user list exists and where it is.
+
+### The SDK
+
+[`sdk/`](sdk/) holds a typed client for Go, Python, TypeScript and Java, all
+generated from [`api/openapi.yaml`](api/openapi.yaml) — the same document the
+routes above come from.
+
+```go
+client, err := sdk.New(sdk.Options{
+    BaseURL: "https://sandboxlab.example.com/sandbox",
+    Key:     os.Getenv("SANDBOXLAB_KEY"),
+})
+if err != nil {
+    return err
+}
+created, err := client.CreateSandboxWithResponse(ctx, sdk.CreateSandboxRequest{
+    Template: "all-in-one", Name: "myshop", TTL: ptr("30m"),
+})
+```
+
+The Go package has no dependencies; Python needs `urllib3` and `pydantic`,
+TypeScript needs nothing at all, and Java needs Jackson. The generated code is
+committed, so consuming it does not require a code generator — see
+[`sdk/README.md`](sdk/README.md) for a worked example in each language.
+
+```sh
+make sdk     # regenerate after editing the spec
+```
 
 ## Templates
 

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/shaowenchen/sandboxlab/sdk"
+	"github.com/shaowenchen/sandboxlab/sdk/go"
 )
 
 // The client's own behaviour: the request it builds, the key it presents, and

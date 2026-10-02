@@ -1,0 +1,8 @@
+# The same reasoning as python.openapi-generator-ignore: no release scaffolding
+# for a package that is consumed from the repository. `.npmignore` is kept
+# because it is what makes `npm install ./sdk/typescript` produce a small tree
+# rather than the sources and the generator's own metadata as well.
+git_push.sh
+.travis.yml
+.gitlab-ci.yml
+.github/

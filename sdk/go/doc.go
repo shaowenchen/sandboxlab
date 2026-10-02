@@ -25,5 +25,5 @@
 //	client.go  the client's constructor, auth, and the address helpers
 //	errors.go  turning a response into an error a caller can act on
 //
-//go:generate go tool oapi-codegen -config oapi-codegen.yaml ../api/openapi.yaml
+//go:generate go tool oapi-codegen -config oapi-codegen.yaml ../../api/openapi.yaml
 package sdk

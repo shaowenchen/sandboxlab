@@ -1,0 +1,14 @@
+# Files openapi-generator would emit for a PyPI release project, which this is
+# not. This SDK is consumed from the repository (or `pip install ./sdk/python`);
+# the generator's release script and the CI config for two other hosts are noise
+# that would need maintaining and that nothing here runs.
+#
+# The generated README.md is kept — it is a per-endpoint reference derived from
+# the spec, and it cannot drift from it.
+git_push.sh
+.travis.yml
+.gitlab-ci.yml
+.github/
+tox.ini
+test-requirements.txt
+test/

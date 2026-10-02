@@ -1,0 +1,21 @@
+# openapi-generator config for the TypeScript SDK.
+#
+# typescript-fetch is the choice rather than typescript-node or typescript-axios:
+# its output has no runtime dependency — it is fetch, which every browser and
+# every current Node has — so a consumer adds the package and nothing else. The
+# console is a single HTML file with no build step, and this keeps the SDK it
+# describes equally dependency-free.
+generatorName: typescript-fetch
+npmName: sandboxlab
+npmVersion: 1.0.0
+npmRepository: https://github.com/shaowenchen/sandboxlab
+supportsES6: true
+
+additionalProperties:
+  hideGenerationTimestamp: true
+  licenseName: MIT
+  # A `middleware` option on every call, which is how a caller sets the key
+  # without every method taking it — the API accepts it in a header, and a
+  # fetch client has no other natural place to put it.
+  withInterfaces: true
+  prefixParameterInterfaces: true

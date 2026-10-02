@@ -1,0 +1,28 @@
+# openapi-generator config for the Python SDK.
+#
+# Used by hack/generate-sdks.sh; see api/generators/README.md for what these
+# settings mean and why they are shared across languages.
+generatorName: python
+packageName: sandboxlab
+projectName: sandboxlab
+packageVersion: 1.0.0
+library: urllib3
+
+additionalProperties:
+  generateSourceCodeOnly: false
+  packageUrl: https://github.com/shaowenchen/sandboxlab
+  packageAuthor: shaowenchen
+  packageEmail: mail@chenshaowen.com
+  licenseInfo: MIT
+  hideGenerationTimestamp: true
+
+# The two credential styles the API accepts, plus the query-string form the data
+# plane takes because a browser navigation cannot set a header.
+authMethods:
+  ApiKey:
+    type: apiKey
+    in: header
+    name: X-Sandbox-Key
+  BearerAuth:
+    type: http
+    scheme: bearer

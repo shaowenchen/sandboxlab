@@ -1,0 +1,25 @@
+# openapi-generator config for the Java SDK.
+#
+# The native library rather than okhttp-gson: it has no dependency beyond the
+# JDK, so a consumer adds one jar. The project's own container is distroless and
+# has no Java at all — this SDK is for someone else's program, not for this one.
+generatorName: java
+groupId: com.sandboxlab
+artifactId: sandboxlab
+artifactVersion: 1.0.0
+invokerPackage: com.sandboxlab.client
+apiPackage: com.sandboxlab.api
+modelPackage: com.sandboxlab.model
+library: native
+sourceFolder: src/main/java
+
+additionalProperties:
+  hideGenerationTimestamp: true
+  licenseName: MIT
+  licenseUrl: https://opensource.org/licenses/MIT
+  developerName: shaowenchen
+  developerEmail: mail@chenshaowen.com
+  # Java 8 is the floor the generator defaults to; 11 is the oldest LTS still
+  # receiving updates and produces cleaner code (var, diamond inference).
+  java8: false
+  dateLibrary: java8

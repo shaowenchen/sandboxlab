@@ -1,0 +1,24 @@
+# The generator emits a build file for every build system it supports, which for
+# one package is three ways to do the same thing. Maven is the one kept; Gradle
+# and sbt are removed so there is one answer to "how do I build this".
+build.gradle
+settings.gradle
+gradle.properties
+gradlew
+gradlew.bat
+gradle/
+build.sbt
+git_push.sh
+.travis.yml
+.gitlab-ci.yml
+.github/
+
+# A copy of api/openapi.yaml that the Java generator drops next to the code it
+# generated. This repository already has the spec, and a second copy is one that
+# can silently disagree with it.
+api/
+
+# An empty Android manifest the Java generator drops in regardless of library or
+# target. This is a Java SE client — there is no Android app here, and a manifest
+# for one is a file that invites the question of what it is for.
+src/main/AndroidManifest.xml

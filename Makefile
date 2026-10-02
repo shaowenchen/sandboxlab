@@ -80,22 +80,31 @@ clean:
 
 # ── the SDK ─────────────────────────────────────────────────────────────────
 
-# Regenerate sdk/ from api/openapi.yaml. The generated file is committed, so an
+# Regenerate sdk/ from api/openapi.yaml. The generated code is committed, so an
 # external consumer can `go get` the package without installing the generator;
 # this is only run when the spec changes.
+#
+#	Go comes from oapi-codegen (via go:generate beside the code it produces);
+#	Python, TypeScript and Java come from openapi-generator, which is a Java
+#	program this script downloads and pins. One script rather than a rule per
+#	language, because they are generated together from one document and a
+#	language left out is a language describing an API that no longer exists.
 #
 #	Local note: this machine cannot reach proxy.golang.org, so a first run needs
 #	GOPROXY=https://goproxy.cn,direct. CI has normal network and does not.
 .PHONY: sdk
 sdk:
-	$(GO) generate ./sdk
+	./hack/generate-sdks.sh
 
 # sdk-check fails when the committed generated code disagrees with the spec, so
 # a spec edited without regenerating is a red build rather than a lie. It is
 # what makes "the spec is the source of truth" a property rather than a promise.
+#
+# It regenerates into the working tree and diffs, so run it on a clean checkout
+# — which is exactly what CI does.
 .PHONY: sdk-check
 sdk-check:
-	$(GO) generate ./sdk
+	./hack/generate-sdks.sh
 	@if ! git diff --quiet -- sdk/; then \
 	  echo "sdk/ is out of date:"; \
 	  git diff --stat -- sdk/; \
@@ -105,9 +114,9 @@ sdk-check:
 	@# The SDK must stay importable by an external module, which means it may
 	@# not reach into internal/. Nothing else checks this, and breaking it would
 	@# make the package useless to the person most likely to want it.
-	@if $(GO) list -deps ./sdk | grep -q 'sandboxlab/internal/'; then \
+	@if $(GO) list -deps ./sdk/go | grep -q 'sandboxlab/internal/'; then \
 	  echo "sdk imports internal/, so no external module could use it:"; \
-	  $(GO) list -deps ./sdk | grep 'sandboxlab/internal/'; \
+	  $(GO) list -deps ./sdk/go | grep 'sandboxlab/internal/'; \
 	  exit 1; \
 	fi
 

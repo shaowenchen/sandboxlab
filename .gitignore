@@ -9,6 +9,14 @@
 # worktree of gh-pages; locally it is scratch.
 /pages/
 
+# The SDK generators' downloaded tooling — the openapi-generator jar. Fetched by
+# hack/generate-sdks.sh, pinned by version, and not worth 30MB in the tree.
+#
+# Nothing else about the SDKs is listed here: each generated language directory
+# carries the .gitignore its generator wrote, and those already cover the build
+# output (dist/, node_modules/, __pycache__/, target/).
+/.cache/
+
 # Runtime state a local `sandbox` serve writes: the API key it generated, the
 # catalog it merged, logs.
 /.sandboxlab/
