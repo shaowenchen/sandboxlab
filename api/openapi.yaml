@@ -1,0 +1,920 @@
+# The sandboxlab control plane's HTTP API, as one document.
+#
+# This is the source of truth for the four ways in: the server's own routes, the
+# web console, the `sandbox` CLI, and the generated SDK in ../sdk. The spec is
+# hand-written and reviewed; the Go types are generated from it, which is what
+# makes the SDK the owner of the domain model rather than a third copy of it.
+#
+# Two conventions run through it:
+#
+#   - A resource is returned bare (a Sandbox is the whole body of a create),
+#     while a collection is wrapped with a count ({sandboxes, count}). The
+#     wrapper is what leaves room to add a field to a list response later
+#     without breaking a client that reads the array.
+#   - Every failure is {"error": "..."} with a status the service chose: 400 for
+#     a request that is wrong, 404 for one that names nothing, 409 for one that
+#     conflicts with what exists, 429 for one that hit a ceiling.
+openapi: 3.1.0
+
+info:
+  title: sandboxlab
+  version: "1.0"
+  description: >-
+    Create disposable sandbox environments — a shell, a filesystem, a browser —
+    on demand, in Kubernetes.
+
+servers:
+  - url: https://sandboxlab.example.com/sandbox
+    description: >-
+      A deployment behind a gateway. The base path is the deployment's own and
+      is part of the address, not something a client appends.
+
+# Both header styles are accepted on every authenticated route, and both are
+# listed so a client can use whichever it has.
+security:
+  - ApiKey: []
+  - BearerAuth: []
+
+tags:
+  - name: meta
+    description: What this deployment is and what it can do. No key required.
+  - name: sandboxes
+    description: The environments themselves.
+  - name: users
+    description: Administrator only. Who may use the deployment, and how much.
+
+paths:
+  /healthz:
+    get:
+      tags: [meta]
+      operationId: health
+      summary: Liveness
+      description: >-
+        Answers as long as the process is up. It does not check the cluster, so
+        it is the wrong probe for "can this control plane do its job".
+      security: []
+      responses:
+        "200":
+          description: the process is up
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Status"}
+
+  /readyz:
+    get:
+      tags: [meta]
+      operationId: ready
+      summary: Readiness
+      description: >-
+        Answers 200 when the control plane can reach a cluster and 503 when it
+        cannot, which is the difference between "running" and "working".
+      security: []
+      responses:
+        "200":
+          description: the cluster is reachable
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Status"}
+        "503":
+          description: the cluster is not reachable
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+
+  /api/v1/describe:
+    get:
+      tags: [meta]
+      operationId: describe
+      summary: This API's own contract
+      description: >-
+        The endpoints this deployment serves, with the credential each needs. It
+        takes no key, which is what makes it the way to check an address before
+        configuring one. It is generated from the same table the routes are, so
+        it cannot omit a route.
+      security: []
+      responses:
+        "200":
+          description: the contract
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Describe"}
+
+  /api/v1/config:
+    get:
+      tags: [meta]
+      operationId: getConfig
+      summary: The deployment's shape
+      description: >-
+        What this deployment is: the interface version, the lifetimes it
+        enforces, whether it manages users, and where it is served. The console
+        reads it on load to decide what to offer.
+      security: []
+      responses:
+        "200":
+          description: the deployment's configuration
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Config"}
+
+  /api/v1/whoami:
+    get:
+      tags: [meta]
+      operationId: whoami
+      summary: Which key this is
+      description: >-
+        Whether the caller holds the administrator's key or a user's, and for a
+        user, who they are. The console reads it to decide between its two
+        views.
+      responses:
+        "200":
+          description: the caller's identity
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Whoami"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /api/v1/catalog:
+    get:
+      tags: [sandboxes]
+      operationId: listCatalog
+      summary: The templates a sandbox can be created from
+      responses:
+        "200":
+          description: every template
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/TemplateList"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /api/v1/catalog/{id}:
+    get:
+      tags: [sandboxes]
+      operationId: getCatalogEntry
+      summary: One template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: the template
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Template"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /api/v1/overview:
+    get:
+      tags: [sandboxes]
+      operationId: getOverview
+      summary: Counts of sandboxes by state and template
+      description: >-
+        What is running, what it is, and who it belongs to. Scoped to what the
+        caller may see: an administrator gets the deployment, a user gets their
+        own.
+      responses:
+        "200":
+          description: the summary
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Overview"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /api/v1/sandboxes:
+    get:
+      tags: [sandboxes]
+      operationId: listSandboxes
+      summary: Every sandbox you may see
+      responses:
+        "200":
+          description: the sandboxes
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SandboxList"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+    post:
+      tags: [sandboxes]
+      operationId: createSandbox
+      summary: Create one
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateSandboxRequest"}
+      responses:
+        "201":
+          description: the sandbox, which is Pending until its container is up
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Sandbox"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "429": {$ref: "#/components/responses/LimitReached"}
+
+  /api/v1/sandboxes/{id}:
+    get:
+      tags: [sandboxes]
+      operationId: getSandbox
+      summary: One sandbox
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: the sandbox
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Sandbox"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    delete:
+      tags: [sandboxes]
+      operationId: deleteSandbox
+      summary: Delete one
+      description: >-
+        Everything in it goes too. A sandbox is a namespace, so this is one
+        operation rather than a list of objects to get right.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: it was deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted]
+                properties:
+                  deleted:
+                    type: string
+                    description: the id that was deleted
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /api/v1/sandboxes/{id}/renew:
+    post:
+      tags: [sandboxes]
+      operationId: renewSandbox
+      summary: Reset a sandbox's lifetime, measured from now
+      description: >-
+        A ttl of "0" removes the expiry entirely, which is how a sandbox someone
+        is working in is kept from disappearing.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RenewSandboxRequest"}
+      responses:
+        "200":
+          description: the sandbox, with its new expiry
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Sandbox"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /api/v1/sandboxes/{id}/logs:
+    get:
+      tags: [sandboxes]
+      operationId: getSandboxLogs
+      summary: The tail of a sandbox's output
+      description: >-
+        A sandbox whose container is still being created answers 409: there is
+        nothing to read yet, which is the ordinary state moments after a create
+        rather than a failure.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+        - name: tail
+          in: query
+          required: false
+          description: how many lines to return; 200 when omitted
+          schema: {type: integer}
+      responses:
+        "200":
+          description: the output
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [logs]
+                properties:
+                  logs: {type: string}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+
+  /api/v1/users:
+    get:
+      tags: [users]
+      operationId: listUsers
+      summary: Every user
+      responses:
+        "200":
+          description: the users
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/UserList"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+    post:
+      tags: [users]
+      operationId: createUser
+      summary: Create one, and get its key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/UserRequest"}
+      responses:
+        "201":
+          description: the user, with the key that was issued
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/User"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+
+  /api/v1/users/{name}:
+    get:
+      tags: [users]
+      operationId: getUser
+      summary: One user, with their key
+      description: >-
+        The key is revealed here and on a rotate, and nowhere else — a listing
+        omits it, so a list is safe to leave on a screen.
+      parameters:
+        - $ref: "#/components/parameters/UserName"
+      responses:
+        "200":
+          description: the user
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/User"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    patch:
+      tags: [users]
+      operationId: updateUser
+      summary: Change a user's quota
+      description: >-
+        A field the body omits keeps its current value; a field it carries
+        replaces it, including with an empty string, which means "no limit".
+        PATCH and PUT behave identically — both merge, and neither is a replace.
+      parameters:
+        - $ref: "#/components/parameters/UserName"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/UserRequest"}
+      responses:
+        "200":
+          description: the user, with the quota as it now stands
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/User"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    put:
+      tags: [users]
+      operationId: replaceUser
+      summary: Change a user's quota (the same merge as PATCH)
+      parameters:
+        - $ref: "#/components/parameters/UserName"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/UserRequest"}
+      responses:
+        "200":
+          description: the user, with the quota as it now stands
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/User"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    delete:
+      tags: [users]
+      operationId: deleteUser
+      summary: Remove a user
+      description: >-
+        Their sandboxes are not deleted. Revoking a key is not the same act as
+        tearing down an environment someone may be in the middle of using.
+      parameters:
+        - $ref: "#/components/parameters/UserName"
+      responses:
+        "200":
+          description: it was deleted
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Deleted"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /api/v1/users/{name}/key:
+    post:
+      tags: [users]
+      operationId: rotateUserKey
+      summary: Issue a new key
+      description: >-
+        The old key stops working immediately. An empty key in the body means
+        "generate one".
+      parameters:
+        - $ref: "#/components/parameters/UserName"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RotateKeyRequest"}
+      responses:
+        "200":
+          description: the user, with the new key
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/User"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /sandbox/{id}/{port}/:
+    get:
+      tags: [sandboxes]
+      operationId: proxyToSandbox
+      summary: Proxy to a sandbox's own port
+      description: >-
+        The data plane: everything under this prefix is forwarded to the
+        sandbox's container. What comes back is whatever the sandbox serves —
+        HTML, JSON, a file — so it is not a typed endpoint and the SDK exposes
+        the address rather than a method. A browser navigation cannot set a
+        header, which is why the key is also accepted in the query string.
+      security:
+        - ApiKeyQuery: []
+        - ApiKey: []
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+        - name: port
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: whatever the sandbox served
+          content:
+            "*/*":
+              schema: {type: string, format: binary}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "502":
+          description: the sandbox could not be reached
+
+components:
+  securitySchemes:
+    # The administrator's key or a user's. Both headers carry the same
+    # credential; a client sends whichever it has.
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-Sandbox-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+    # Only the data plane takes this, because only the data plane is reached by
+    # a navigation rather than by a client that can set a header.
+    ApiKeyQuery:
+      type: apiKey
+      in: query
+      name: key
+
+  parameters:
+    UserName:
+      name: name
+      in: path
+      required: true
+      schema: {type: string}
+
+  responses:
+    BadRequest:
+      description: the request was not usable
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    Unauthorized:
+      description: no key, or not a key this deployment issued
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    Forbidden:
+      description: a valid key that may not do this
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    NotFound:
+      description: no such object, or not one this caller may see
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    Conflict:
+      description: the request conflicts with what exists
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    LimitReached:
+      description: the caller, or the deployment, is at its ceiling
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: what went wrong, in a sentence meant for the person who made the request
+
+    Status:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, examples: ["ok"]}
+
+    # ── the deployment ──────────────────────────────────────────────────────
+
+    Config:
+      type: object
+      required: [apiVersion, build, basePath, namespace, dataPlane, defaultTTL, maxTTL, maxSandboxes, templates, users]
+      properties:
+        apiVersion: {type: string, description: "the interface version, not the build's"}
+        build:      {type: string}
+        basePath:   {type: string, description: "the path prefix this deployment is served under"}
+        publicURL:  {type: string, description: "the address sandboxes are reported at; empty means relative addresses"}
+        namespace:  {type: string, description: "the namespace the control plane runs in"}
+        dataPlane:  {type: boolean, description: "whether sandboxes can be proxied to"}
+        defaultTTL: {type: string, description: "a duration, e.g. 1h0m0s"}
+        maxTTL:     {type: string, description: "a duration, e.g. 8h0m0s"}
+        maxSandboxes: {type: integer, description: "0 means no deployment-wide ceiling"}
+        templates:  {type: integer, description: "how many templates the catalog holds"}
+        users:      {type: boolean, description: "whether this deployment manages users"}
+
+    Whoami:
+      type: object
+      required: [role, admin]
+      properties:
+        role:           {type: string, enum: [admin, user]}
+        admin:          {type: boolean}
+        user:           {type: string, description: "the user's name; absent for the administrator"}
+        canManageUsers: {type: boolean, description: "whether this caller may read and write the user list"}
+
+    Describe:
+      type: object
+      required: [name, version, build, basePath, auth, endpoints]
+      properties:
+        name:     {type: string}
+        version:  {type: string}
+        build:    {type: string}
+        basePath: {type: string}
+        auth:     {$ref: "#/components/schemas/AuthDescription"}
+        endpoints:
+          type: array
+          items: {$ref: "#/components/schemas/EndpointDescription"}
+
+    AuthDescription:
+      type: object
+      properties:
+        scheme:  {type: string, description: "how a key is presented: `key`"}
+        roles:   {type: array, items: {type: string}}
+        headers: {type: array, items: {type: string}, description: "the headers a key may be sent in"}
+
+    EndpointDescription:
+      type: object
+      required: [method, path, description]
+      properties:
+        method:      {type: string}
+        path:        {type: string}
+        description: {type: string}
+
+    # ── the catalog ───────────────────────────────────────────────────────────
+    #
+    # A template is read from YAML on disk as well as from JSON over the wire, so
+    # every field carries a yaml tag as well as its json one. Without it the
+    # loader would look for `ttldefault` and silently drop every template's
+    # lifetime — the kind of failure that shows up as a default that is not
+    # applied rather than as an error.
+    Template:
+      type: object
+      required: [id, title, image]
+      properties:
+        id:
+          type: string
+          description: the stable identifier a create names
+          x-oapi-codegen-extra-tags: {yaml: "id"}
+        title:
+          type: string
+          x-oapi-codegen-extra-tags: {yaml: "title"}
+        description:
+          type: string
+          x-oapi-codegen-extra-tags: {yaml: "description,omitempty"}
+        image:
+          type: string
+          x-oapi-codegen-extra-tags: {yaml: "image"}
+        ports:
+          type: array
+          items: {$ref: "#/components/schemas/Port"}
+          x-oapi-codegen-extra-tags: {yaml: "ports,omitempty"}
+        env:
+          type: object
+          additionalProperties: {type: string}
+          description: environment the template sets, merged under the caller's own
+          x-oapi-codegen-extra-tags: {yaml: "env,omitempty"}
+        command:
+          type: array
+          items: {type: string}
+          x-oapi-codegen-extra-tags: {yaml: "command,omitempty"}
+        args:
+          type: array
+          items: {type: string}
+          x-oapi-codegen-extra-tags: {yaml: "args,omitempty"}
+        resources:
+          allOf: [{$ref: "#/components/schemas/Resources"}]
+          x-oapi-codegen-extra-tags: {yaml: "resources,omitempty"}
+        ttlDefault:
+          type: string
+          description: the lifetime a create gets when it asks for none
+          x-oapi-codegen-extra-tags: {yaml: "ttlDefault,omitempty"}
+        ttlMax:
+          type: string
+          description: the ceiling a caller cannot exceed
+          x-oapi-codegen-extra-tags: {yaml: "ttlMax,omitempty"}
+        persistent:
+          type: boolean
+          x-oapi-codegen-extra-tags: {yaml: "persistent,omitempty"}
+        workDir:
+          type: string
+          x-oapi-codegen-extra-tags: {yaml: "workDir,omitempty"}
+
+    Port:
+      type: object
+      required: [name, port]
+      properties:
+        name:
+          type: string
+          description: identifies the port, and is the segment a data-plane URL may carry
+          x-oapi-codegen-extra-tags: {yaml: "name"}
+        port:
+          type: integer
+          format: int32
+          x-oapi-codegen-extra-tags: {yaml: "port"}
+        protocol:
+          type: string
+          description: TCP or UDP; empty means TCP
+          x-oapi-codegen-extra-tags: {yaml: "protocol,omitempty"}
+        description:
+          type: string
+          x-oapi-codegen-extra-tags: {yaml: "description,omitempty"}
+
+    Resources:
+      type: object
+      properties:
+        cpu:
+          type: string
+          description: a Kubernetes quantity, e.g. "500m" or "2"
+          x-oapi-codegen-extra-tags: {yaml: "cpu,omitempty"}
+        memory:
+          type: string
+          description: a Kubernetes quantity, e.g. "1Gi"
+          x-oapi-codegen-extra-tags: {yaml: "memory,omitempty"}
+
+    TemplateList:
+      type: object
+      required: [templates]
+      properties:
+        templates: {type: array, items: {$ref: "#/components/schemas/Template"}}
+
+    # ── sandboxes ─────────────────────────────────────────────────────────────
+
+    SandboxState:
+      type: string
+      enum: [Pending, Running, Failed, Expired]
+      x-enum-varnames: [StatePending, StateRunning, StateFailed, StateExpired]
+
+    Sandbox:
+      type: object
+      required: [id, template, image, state, createdAt]
+      properties:
+        id:
+          type: string
+          description: both the name and the identity; it is a namespace name
+        template: {type: string, description: "the catalog id this was created from"}
+        image:    {type: string}
+        state:    {$ref: "#/components/schemas/SandboxState"}
+        message:
+          type: string
+          description: why the state is not Running, when the cluster says
+        createdAt: {type: string, format: date-time}
+        expiresAt:
+          type: string
+          format: date-time
+          description: >-
+            absent when the sandbox has no TTL, which is a real state rather
+            than a zero time — a client that shows "no expiry" keys off its
+            absence
+          x-go-type: "*time.Time"
+        endpoints:
+          type: array
+          items: {$ref: "#/components/schemas/Endpoint"}
+        env:
+          type: object
+          additionalProperties: {type: string}
+          description: the non-secret environment the sandbox was created with
+        namespace: {type: string, description: "the namespace the sandbox owns"}
+        owner:
+          type: string
+          description: >-
+            the user who created it; absent means the administrator, which is
+            the deployment's own rather than anyone's
+
+    Endpoint:
+      type: object
+      required: [name, port]
+      properties:
+        name: {type: string, description: "the port name it serves"}
+        port: {type: integer, format: int32}
+        url:
+          type: string
+          description: the address to open; absent when the deployment has no public URL
+
+    SandboxList:
+      type: object
+      required: [sandboxes, count]
+      properties:
+        sandboxes: {type: array, items: {$ref: "#/components/schemas/Sandbox"}}
+        count:     {type: integer}
+
+    CreateSandboxRequest:
+      type: object
+      required: [template]
+      properties:
+        template: {type: string, description: "the catalog id to create from"}
+        name:
+          type: string
+          description: >-
+            the sandbox's name; generated when empty. Lowercase alphanumerics
+            and '-', up to 40 characters, because it becomes a namespace.
+        ttl: {type: string, description: "how long it may live, e.g. 90m; the template's default when empty"}
+        env:
+          type: object
+          additionalProperties: {type: string}
+          description: environment overrides, merged over the template's own
+
+    RenewSandboxRequest:
+      type: object
+      required: [ttl]
+      properties:
+        ttl:
+          type: string
+          description: >-
+            the new lifetime, e.g. 2h. "0" removes the expiry entirely rather
+            than setting a zero one.
+
+    Overview:
+      type: object
+      required: [total, byState, byTemplate, cluster, scoped]
+      properties:
+        total:      {type: integer}
+        byState:    {type: object, additionalProperties: {type: integer}}
+        byTemplate: {type: object, additionalProperties: {type: integer}}
+        byOwner:    {type: object, additionalProperties: {type: integer}}
+        cluster:    {type: boolean, description: "whether the cluster is reachable"}
+        maxSandboxes: {type: integer, description: "the deployment's ceiling; 0 means none"}
+        user:
+          type: string
+          description: whose sandboxes these are, when the view is a user's rather than the deployment's
+        scoped: {type: boolean, description: "whether the view is a user's rather than the deployment's"}
+
+    # ── users ─────────────────────────────────────────────────────────────────
+    #
+    # The quota appears in two shapes on purpose, and they are not
+    # interchangeable.
+    #
+    # `Quota` is what a user is: the TTL is a duration in nanoseconds, because
+    # that is what Go's time.Duration marshals to and what every client of this
+    # API already reads.
+    #
+    # `UserRequest` is what a caller sends: the TTL is a human duration string
+    # ("30m"), and its fields are pointers, because an omitted limit and a limit
+    # of zero are different instructions — "leave this alone" versus "remove the
+    # ceiling" — and a value field could not tell them apart.
+    Quota:
+      type: object
+      properties:
+        maxSandboxes:
+          type: integer
+          description: how many may exist at once; 0 is no limit from this user
+        maxTTL:
+          type: integer
+          format: int64
+          description: >-
+            a cap on how long a sandbox may be asked for, in nanoseconds; 0 is
+            no limit from this user
+        templates:
+          type: array
+          items: {type: string}
+          description: which templates may be created; empty means the whole catalog
+
+    User:
+      type: object
+      required: [name, createdAt, quota]
+      properties:
+        name:       {type: string}
+        key:
+          type: string
+          description: >-
+            the credential. Present on a create, a rotate and a reveal, and
+            omitted from a listing, so a list is safe to leave on a screen.
+        createdAt:  {type: string, format: date-time}
+        lastUsedAt:
+          type: string
+          format: date-time
+          description: absent when the key has never been used, which is what an administrator most wants to know
+          x-go-type: "*time.Time"
+        quota:      {$ref: "#/components/schemas/Quota"}
+        sandboxes:
+          type: integer
+          description: how many the user has now; absent when it could not be counted
+
+    UserList:
+      type: object
+      required: [users, count]
+      properties:
+        users: {type: array, items: {$ref: "#/components/schemas/User"}}
+        count: {type: integer}
+
+    UserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: the user's name; only read when creating
+        key:
+          type: string
+          description: the key to use; generated when empty
+        maxSandboxes:
+          type: integer
+          description: an omitted field leaves the current limit alone
+          x-go-type: "*int"
+        maxTTL:
+          type: string
+          description: >-
+            a duration string like "30m"; an empty string removes the limit,
+            and an omitted field leaves it alone
+          x-go-type: "*string"
+        templates:
+          type: array
+          items: {type: string}
+          description: an omitted field leaves the current list alone
+          x-go-type: "[]string"
+          x-go-type-skip-optional-pointer: true
+
+    RotateKeyRequest:
+      type: object
+      properties:
+        key:
+          type: string
+          description: the new key; generated when empty
+
+    Deleted:
+      type: object
+      required: [deleted]
+      properties:
+        deleted: {type: string, description: "the id that was deleted"}

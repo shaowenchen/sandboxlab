@@ -78,6 +78,39 @@ tidy:
 clean:
 	rm -rf $(BIN) coverage.out
 
+# ── the SDK ─────────────────────────────────────────────────────────────────
+
+# Regenerate sdk/ from api/openapi.yaml. The generated file is committed, so an
+# external consumer can `go get` the package without installing the generator;
+# this is only run when the spec changes.
+#
+#	Local note: this machine cannot reach proxy.golang.org, so a first run needs
+#	GOPROXY=https://goproxy.cn,direct. CI has normal network and does not.
+.PHONY: sdk
+sdk:
+	$(GO) generate ./sdk
+
+# sdk-check fails when the committed generated code disagrees with the spec, so
+# a spec edited without regenerating is a red build rather than a lie. It is
+# what makes "the spec is the source of truth" a property rather than a promise.
+.PHONY: sdk-check
+sdk-check:
+	$(GO) generate ./sdk
+	@if ! git diff --quiet -- sdk/; then \
+	  echo "sdk/ is out of date:"; \
+	  git diff --stat -- sdk/; \
+	  echo "run \`make sdk\` and commit the result"; \
+	  exit 1; \
+	fi
+	@# The SDK must stay importable by an external module, which means it may
+	@# not reach into internal/. Nothing else checks this, and breaking it would
+	@# make the package useless to the person most likely to want it.
+	@if $(GO) list -deps ./sdk | grep -q 'sandboxlab/internal/'; then \
+	  echo "sdk imports internal/, so no external module could use it:"; \
+	  $(GO) list -deps ./sdk | grep 'sandboxlab/internal/'; \
+	  exit 1; \
+	fi
+
 # ── images and charts ───────────────────────────────────────────────────────
 
 .PHONY: docker-build

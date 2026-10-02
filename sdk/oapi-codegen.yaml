@@ -1,0 +1,35 @@
+# How the SDK is generated from ../api/openapi.yaml.
+#
+# Committed output, not a build step: an external consumer must be able to
+# `go get` this package without installing the generator, so the generated file
+# lives in the repository and CI checks that it still matches the spec.
+package: sdk
+output: client.gen.go
+
+generate:
+  # Only the types and the client. The HTTP server stays hand-written — it
+  # strips the base path, accepts two header styles plus a query-string key,
+  # maps service errors to statuses, and serves the console as a fallback. All
+  # of that is deliberate and none of it is what this change is about.
+  models: true
+  client: true
+
+output-options:
+  # Without this, `id` renders as `Id` and `ttlDefault` as `TtlDefault`, and
+  # every call site in the repository would have to move. With it, the generated
+  # names are the ones already in use: ID, URL, TTLDefault, MaxTTL, PublicURL.
+  name-normalizer: ToCamelCaseWithInitialisms
+
+  # Optional fields are values, not pointers.
+  #
+  # The default is the opposite, and it is the wrong trade here: it would turn
+  # every field of every type into a *T, so reading `template.Image` would become
+  # `template.Image` only after a nil check, and ~170 references across the
+  # cluster, service and API layers would have to be rewritten for no gain — a
+  # template's image is always set.
+  #
+  # The one place absence is meaningful is the PATCH body, where an omitted
+  # limit and a limit of zero are different instructions. Those fields opt back
+  # in with `x-go-type: "*int"` in the spec, so the exception is stated where it
+  # matters instead of imposed everywhere.
+  prefer-skip-optional-pointer: true
