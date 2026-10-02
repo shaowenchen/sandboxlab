@@ -1,6 +1,6 @@
-name: 'Run sandboxlab'
+name: 'Run debugger'
 description: >-
-  Start a complete sandboxlab environment on the runner — a kind cluster,
+  Start a complete debugger environment on the runner — a kind cluster,
   an Istio gateway, the control plane from this commit — and publish it through
   a tunnel. It prints a console link and an API key, and you create sandboxes
   from there.
