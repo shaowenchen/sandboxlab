@@ -95,6 +95,12 @@ generate_lang() {
 want="${1:-}"
 
 if [ -z "$want" ] || [ "$want" = "go" ]; then
+  # oapi-codegen is a Go program and is the only generator that needs nothing
+  # else, so it runs first: a machine without a JRE still produces the Go SDK
+  # and is then told what is missing, rather than the run dying before it has
+  # done anything. A missing JRE is a real situation — this repository's own
+  # development machine is one — while the other three languages are covered by
+  # the workflow, which installs a JDK.
   generate_go
 fi
 
@@ -104,6 +110,14 @@ if [ -n "$want" ] && [ "$want" != "go" ]; then
 fi
 
 if [ "${#languages[@]}" -gt 0 ]; then
+  # Run rather than `command -v`: on macOS /usr/bin/java is a stub that exists
+  # and only fails when something actually executes it, so a presence check
+  # passes on a machine with no runtime. The message that follows is the JVM's —
+  # "Unable to locate a Java Runtime" — which is why this is here, saying which
+  # languages were skipped and what would generate them.
+  #
+  # Checked before the download path too, so a cached jar does not skip it.
+  java -version >/dev/null 2>&1 || die "a Java runtime is required to generate the Python, TypeScript and Java SDKs; install a JRE (or a JDK to also compile the Java SDK). The Go SDK is generated already."
   ensure_jar
   for lang in "${languages[@]}"; do
     generate_lang "$lang"
