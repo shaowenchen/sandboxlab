@@ -1,15 +1,32 @@
 The sandbox control plane is installed in namespace {{ include "sandbox.namespace" . }}.
 
+{{/*
+The key, printed when the release was given one.
+
+A chart that generates its own key can only tell you where to read it back,
+because the templates render before the cluster exists — the notes cannot see
+what the Secret will contain. When `apiKey` is set, though, the value is right
+here, and printing it is the whole point of a note that exists to hand someone a
+key. The fallback below is for the install that let the chart generate one.
+*/}}
+{{- $key := .Values.apiKey -}}
 {{ if .Values.publicURL -}}
 Open the console at:
 
   {{ .Values.publicURL }}{{ .Values.basePath }}
 
+{{ if $key -}}
+It asks for the API key:
+
+  {{ $key }}
+
+{{- else -}}
 It asks for the API key. Read it with:
 
   kubectl -n {{ include "sandbox.namespace" . }} get secret {{ include "sandbox.fullname" . }}-apikey \
     -o jsonpath='{.data.api-key}' | base64 -d; echo
 
+{{- end }}
 {{- else -}}
 No publicURL was set, so the API reports relative addresses and there is no
 address to open. Reach the console through a port-forward:
@@ -18,16 +35,21 @@ address to open. Reach the console through a port-forward:
 
 Then open http://localhost:8080{{ .Values.basePath }} and use the API key:
 
+{{ if $key -}}
+  {{ $key }}
+
+{{- else }}
   kubectl -n {{ include "sandbox.namespace" . }} get secret {{ include "sandbox.fullname" . }}-apikey \
     -o jsonpath='{.data.api-key}' | base64 -d; echo
 
+{{- end }}
 {{- end }}
 
 Create a sandbox with the CLI from
 https://github.com/shaowenchen/sandboxlab:
 
   export SANDBOX_URL='{{ if .Values.publicURL }}{{ .Values.publicURL }}{{ .Values.basePath }}{{ else }}http://localhost:8080{{ .Values.basePath }}{{ end }}'
-  export SANDBOX_KEY='<the key above>'
+  export SANDBOX_KEY='{{ if $key }}{{ $key }}{{ else }}<the key above>{{ end }}'
 
   sandbox catalog
   sandbox create -t all-in-one --name myshop

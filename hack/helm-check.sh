@@ -195,6 +195,61 @@ else
   bad "a generated key is only ${#generated} characters"
 fi
 
+# ── the notes ───────────────────────────────────────────────────────────────
+
+section "the notes helm prints on install"
+
+# `helm template` does not render NOTES.txt — Helm prints it from the install,
+# not the manifest — so the file is rendered as an ordinary template to be seen
+# at all. It is copied rather than renamed in place: the working tree is not
+# this script's to change.
+#
+# A notes file is free text and not valid YAML, so rendering it as a manifest
+# makes helm report a parse error while `--debug` still prints what it produced.
+# That is why the assignments below end in `|| true` and read the debug output:
+# the error is about the shape of the file, not about what it says.
+#
+# What is asserted is the thing that was wrong: the notes told the reader to go
+# and read the key out of the cluster when the install already knew it, so a run
+# showed a placeholder where the deliverable should have been.
+notes_dir=$(mktemp -d)
+trap 'rm -rf "$notes_dir"' EXIT
+cp -r "$CHART"/. "$notes_dir"/
+mv "$notes_dir/templates/NOTES.txt" "$notes_dir/templates/notes-rendered.txt"
+
+render_notes() {
+  helm template sandbox "$notes_dir" --namespace default --debug "$@" 2>&1 || true
+}
+
+notes_with_key=$(render_notes --set apiKey=my-fixed-key --set publicURL=https://sandbox.example.com)
+
+if grep -qF 'my-fixed-key' <<<"$notes_with_key"; then
+  ok "the notes print the key when the release was given one"
+else
+  bad "the notes do not print the key they were given"
+fi
+if grep -qF "export SANDBOX_KEY='my-fixed-key'" <<<"$notes_with_key"; then
+  ok "the CLI export in the notes carries the real key"
+else
+  bad "the CLI export in the notes does not carry the key"
+fi
+# And the placeholder is gone from that path, so nobody is told to go and look
+# up a key that is already in front of them.
+if grep -qF '<the key above>' <<<"$notes_with_key"; then
+  bad "the notes still point at <the key above> although they were given one"
+else
+  ok "no placeholder key is left when the key is known"
+fi
+
+# A release that let the chart generate the key cannot print it — the templates
+# render before the cluster exists — so that path still says where to read it.
+notes_generated=$(render_notes --set publicURL=https://sandbox.example.com)
+if grep -qF 'get secret' <<<"$notes_generated"; then
+  ok "the notes say where to read a key the chart generated"
+else
+  bad "the notes do not say where to find a generated key"
+fi
+
 # ── summary ─────────────────────────────────────────────────────────────────
 
 printf '\n\033[1m%d passed, %d failed\033[0m\n' "$pass" "$fail"

@@ -39,6 +39,21 @@ REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 : "${CLOUDFLARE_TOKEN:=}"
 : "${NGROK_TOKEN:=}"
 
+# The API key is made here rather than left to the chart, and it is not a
+# detail: the chart generates one when the value is empty, and a value it
+# generates is one it cannot print — the templates render before the cluster
+# exists, so the Secret's contents are not available to the notes that
+# `helm install` prints. What a run then sees is a placeholder where the key
+# should be, which is the opposite of the notes' purpose. Generated here, the
+# key is known to the installer, so it is real in the notes, in the summary,
+# and in the banner.
+#
+# Not masked, deliberately: the key is the deliverable, and a masked value could
+# not be shown anywhere that exists to show it.
+if [ -z "$SANDBOXLAB_API_KEY" ]; then
+  SANDBOXLAB_API_KEY=$(openssl rand -hex 32)
+fi
+
 RUNTIME_DIR="$SANDBOXLAB_RUNTIME_DIR"
 mkdir -p "$RUNTIME_DIR"
 TUNNEL_LOG="$RUNTIME_DIR/tunnel.log"
@@ -447,10 +462,10 @@ install_args=(
   --set "maxTTL=${SANDBOXLAB_MAX_TTL}"
   --set "istio.enabled=true"
   --set "istio.gateway=istio-system/istio-ingressgateway"
+  # Always set, never left to the chart: a key the chart generates is one the
+  # chart's own notes cannot print. See where it is made, above.
+  --set "apiKey=${SANDBOXLAB_API_KEY}"
 )
-if [ -n "$SANDBOXLAB_API_KEY" ]; then
-  install_args+=(--set "apiKey=${SANDBOXLAB_API_KEY}")
-fi
 if [ "$SANDBOXLAB_SKIP_BUILD" != "true" ]; then
   # The image was loaded into the node, so there is nothing to pull. Pulling
   # would fail on a name no registry knows.
