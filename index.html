@@ -214,6 +214,10 @@ full set, inside the namespaces it creates</li>
 <li><code>secrets</code>: <strong>get only</strong>. Nothing in the process writes a Secret — the key is
 created at install and read from the environment — so the grant stopped at
 read rather than being widened to the set above out of habit.</li>
+<li><code>pods/exec</code>: get, create. This is the one that lets <code>sandbox exec</code> and the
+file endpoints run anything inside a sandbox, so it is worth knowing it is
+there: whoever holds the deployment's key can execute in any sandbox this
+ServiceAccount can reach.</li>
 </ul>
 <p><code>delete</code> on namespaces is the one worth reviewing: deleting a namespace
 reclaims everything in it. That is the design — one operation, nothing to miss —
@@ -305,6 +309,21 @@ to keep them, and delete them by hand.</p>
 <td><code>reapInterval</code></td>
 <td><code>30s</code></td>
 <td>How often expired sandboxes are collected.</td>
+</tr>
+<tr>
+<td><code>execTimeout</code></td>
+<td><code>1m</code></td>
+<td>How long a command run in a sandbox may take by default.</td>
+</tr>
+<tr>
+<td><code>execTimeoutMax</code></td>
+<td><code>10m</code></td>
+<td>The longest a caller may ask for.</td>
+</tr>
+<tr>
+<td><code>maxFileBytes</code></td>
+<td><code>2097152</code></td>
+<td>The largest file the API reads or writes.</td>
 </tr>
 <tr>
 <td><code>dataPlane</code></td>
