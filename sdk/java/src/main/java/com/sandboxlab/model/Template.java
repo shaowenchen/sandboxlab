@@ -52,7 +52,8 @@ import com.sandboxlab.client.ApiClient;
   Template.JSON_PROPERTY_TTL_DEFAULT,
   Template.JSON_PROPERTY_TTL_MAX,
   Template.JSON_PROPERTY_PERSISTENT,
-  Template.JSON_PROPERTY_WORK_DIR
+  Template.JSON_PROPERTY_WORK_DIR,
+  Template.JSON_PROPERTY_BUILTIN
 })
 @javax.annotation.Generated(value = "org.openapitools.codegen.languages.JavaClientCodegen", comments = "Generator version: 7.17.0")
 public class Template {
@@ -108,7 +109,19 @@ public class Template {
   @javax.annotation.Nullable
   private String workDir;
 
+  public static final String JSON_PROPERTY_BUILTIN = "builtin";
+  @javax.annotation.Nullable
+  private Boolean builtin;
+
   public Template() { 
+  }
+
+  @JsonCreator
+  public Template(
+    @JsonProperty(JSON_PROPERTY_BUILTIN) Boolean builtin
+  ) {
+  this();
+    this.builtin = builtin;
   }
 
   public Template id(@javax.annotation.Nonnull String id) {
@@ -456,6 +469,20 @@ public class Template {
 
 
   /**
+   * true for a template compiled into the control plane. A built-in cannot be removed through the API, and one edited with the same id keeps the mark.
+   * @return builtin
+   */
+  @javax.annotation.Nullable
+  @JsonProperty(value = JSON_PROPERTY_BUILTIN, required = false)
+  @JsonInclude(value = JsonInclude.Include.USE_DEFAULTS)
+  public Boolean getBuiltin() {
+    return builtin;
+  }
+
+
+
+
+  /**
    * Return true if this Template object is equal to o.
    */
   @Override
@@ -479,12 +506,13 @@ public class Template {
         Objects.equals(this.ttlDefault, template.ttlDefault) &&
         Objects.equals(this.ttlMax, template.ttlMax) &&
         Objects.equals(this.persistent, template.persistent) &&
-        Objects.equals(this.workDir, template.workDir);
+        Objects.equals(this.workDir, template.workDir) &&
+        Objects.equals(this.builtin, template.builtin);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(id, title, description, image, ports, env, command, args, resources, ttlDefault, ttlMax, persistent, workDir);
+    return Objects.hash(id, title, description, image, ports, env, command, args, resources, ttlDefault, ttlMax, persistent, workDir, builtin);
   }
 
   @Override
@@ -504,6 +532,7 @@ public class Template {
     sb.append("    ttlMax: ").append(toIndentedString(ttlMax)).append("\n");
     sb.append("    persistent: ").append(toIndentedString(persistent)).append("\n");
     sb.append("    workDir: ").append(toIndentedString(workDir)).append("\n");
+    sb.append("    builtin: ").append(toIndentedString(builtin)).append("\n");
     sb.append("}");
     return sb.toString();
   }
@@ -631,6 +660,11 @@ public class Template {
     // add `workDir` to the URL query string
     if (getWorkDir() != null) {
       joiner.add(String.format(Locale.ROOT, "%sworkDir%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getWorkDir()))));
+    }
+
+    // add `builtin` to the URL query string
+    if (getBuiltin() != null) {
+      joiner.add(String.format(Locale.ROOT, "%sbuiltin%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getBuiltin()))));
     }
 
     return joiner.toString();

@@ -112,6 +112,12 @@ export interface Template {
      * @memberof Template
      */
     workDir?: string;
+    /**
+     * true for a template compiled into the control plane. A built-in cannot be removed through the API, and one edited with the same id keeps the mark.
+     * @type {boolean}
+     * @memberof Template
+     */
+    readonly builtin?: boolean;
 }
 
 /**
@@ -147,6 +153,7 @@ export function TemplateFromJSONTyped(json: any, ignoreDiscriminator: boolean): 
         'ttlMax': json['ttlMax'] == null ? undefined : json['ttlMax'],
         'persistent': json['persistent'] == null ? undefined : json['persistent'],
         'workDir': json['workDir'] == null ? undefined : json['workDir'],
+        'builtin': json['builtin'] == null ? undefined : json['builtin'],
     };
 }
 
@@ -154,7 +161,7 @@ export function TemplateToJSON(json: any): Template {
     return TemplateToJSONTyped(json, false);
 }
 
-export function TemplateToJSONTyped(value?: Template | null, ignoreDiscriminator: boolean = false): any {
+export function TemplateToJSONTyped(value?: Omit<Template, 'builtin'> | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }

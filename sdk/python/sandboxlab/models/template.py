@@ -41,7 +41,8 @@ class Template(BaseModel):
     ttl_max: Optional[StrictStr] = Field(default=None, description="the ceiling a caller cannot exceed", alias="ttlMax")
     persistent: Optional[StrictBool] = None
     work_dir: Optional[StrictStr] = Field(default=None, alias="workDir")
-    __properties: ClassVar[List[str]] = ["id", "title", "description", "image", "ports", "env", "command", "args", "resources", "ttlDefault", "ttlMax", "persistent", "workDir"]
+    builtin: Optional[StrictBool] = Field(default=None, description="true for a template compiled into the control plane. A built-in cannot be removed through the API, and one edited with the same id keeps the mark.")
+    __properties: ClassVar[List[str]] = ["id", "title", "description", "image", "ports", "env", "command", "args", "resources", "ttlDefault", "ttlMax", "persistent", "workDir", "builtin"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -73,8 +74,10 @@ class Template(BaseModel):
         * `None` is only added to the output dict for nullable fields that
           were set at model initialization. Other fields with value `None`
           are ignored.
+        * OpenAPI `readOnly` fields are excluded.
         """
         excluded_fields: Set[str] = set([
+            "builtin",
         ])
 
         _dict = self.model_dump(
@@ -116,7 +119,8 @@ class Template(BaseModel):
             "ttlDefault": obj.get("ttlDefault"),
             "ttlMax": obj.get("ttlMax"),
             "persistent": obj.get("persistent"),
-            "workDir": obj.get("workDir")
+            "workDir": obj.get("workDir"),
+            "builtin": obj.get("builtin")
         })
         return _obj
 

@@ -161,7 +161,7 @@ export interface SandboxesApiInterface {
     createSandbox(requestParameters: SandboxesApiCreateSandboxOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Sandbox>;
 
     /**
-     * Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+     * A template added at runtime is removed; it is gone for good, because nothing was persisted. A built-in template — one compiled into the control plane, reported with builtin: true — cannot be removed, and the request is a 409 rather than silently ignored. Removing a template does not touch the sandboxes already created from it.
      * @summary Remove a template from the running catalog
      * @param {string} id 
      * @param {*} [options] Override http request option.
@@ -171,7 +171,7 @@ export interface SandboxesApiInterface {
     deleteCatalogEntryRaw(requestParameters: SandboxesApiDeleteCatalogEntryRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Deleted>>;
 
     /**
-     * Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+     * A template added at runtime is removed; it is gone for good, because nothing was persisted. A built-in template — one compiled into the control plane, reported with builtin: true — cannot be removed, and the request is a 409 rather than silently ignored. Removing a template does not touch the sandboxes already created from it.
      * Remove a template from the running catalog
      */
     deleteCatalogEntry(requestParameters: SandboxesApiDeleteCatalogEntryRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Deleted>;
@@ -480,7 +480,7 @@ export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterfa
     }
 
     /**
-     * Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+     * A template added at runtime is removed; it is gone for good, because nothing was persisted. A built-in template — one compiled into the control plane, reported with builtin: true — cannot be removed, and the request is a 409 rather than silently ignored. Removing a template does not touch the sandboxes already created from it.
      * Remove a template from the running catalog
      */
     async deleteCatalogEntryRaw(requestParameters: SandboxesApiDeleteCatalogEntryRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Deleted>> {
@@ -522,7 +522,7 @@ export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterfa
     }
 
     /**
-     * Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+     * A template added at runtime is removed; it is gone for good, because nothing was persisted. A built-in template — one compiled into the control plane, reported with builtin: true — cannot be removed, and the request is a 409 rather than silently ignored. Removing a template does not touch the sandboxes already created from it.
      * Remove a template from the running catalog
      */
     async deleteCatalogEntry(requestParameters: SandboxesApiDeleteCatalogEntryRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Deleted> {

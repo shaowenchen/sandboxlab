@@ -409,7 +409,7 @@ public class SandboxesApi {
 
   /**
    * Remove a template from the running catalog
-   * Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+   * A template added at runtime is removed; it is gone for good, because nothing was persisted. A built-in template — one compiled into the control plane, reported with builtin: true — cannot be removed, and the request is a 409 rather than silently ignored. Removing a template does not touch the sandboxes already created from it.
    * @param id  (required)
    * @return Deleted
    * @throws ApiException if fails to make API call
@@ -420,7 +420,7 @@ public class SandboxesApi {
 
   /**
    * Remove a template from the running catalog
-   * Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+   * A template added at runtime is removed; it is gone for good, because nothing was persisted. A built-in template — one compiled into the control plane, reported with builtin: true — cannot be removed, and the request is a 409 rather than silently ignored. Removing a template does not touch the sandboxes already created from it.
    * @param id  (required)
    * @param headers Optional headers to include in the request
    * @return Deleted
@@ -433,7 +433,7 @@ public class SandboxesApi {
 
   /**
    * Remove a template from the running catalog
-   * Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+   * A template added at runtime is removed; it is gone for good, because nothing was persisted. A built-in template — one compiled into the control plane, reported with builtin: true — cannot be removed, and the request is a 409 rather than silently ignored. Removing a template does not touch the sandboxes already created from it.
    * @param id  (required)
    * @return ApiResponse&lt;Deleted&gt;
    * @throws ApiException if fails to make API call
@@ -444,7 +444,7 @@ public class SandboxesApi {
 
   /**
    * Remove a template from the running catalog
-   * Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+   * A template added at runtime is removed; it is gone for good, because nothing was persisted. A built-in template — one compiled into the control plane, reported with builtin: true — cannot be removed, and the request is a 409 rather than silently ignored. Removing a template does not touch the sandboxes already created from it.
    * @param id  (required)
    * @param headers Optional headers to include in the request
    * @return ApiResponse&lt;Deleted&gt;
