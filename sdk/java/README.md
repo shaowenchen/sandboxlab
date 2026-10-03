@@ -114,8 +114,12 @@ Class | Method | HTTP request | Description
 *MetaApi* | [**healthWithHttpInfo**](docs/MetaApi.md#healthWithHttpInfo) | **GET** /healthz | Liveness
 *MetaApi* | [**ready**](docs/MetaApi.md#ready) | **GET** /readyz | Readiness
 *MetaApi* | [**readyWithHttpInfo**](docs/MetaApi.md#readyWithHttpInfo) | **GET** /readyz | Readiness
+*SandboxesApi* | [**addCatalogEntry**](docs/SandboxesApi.md#addCatalogEntry) | **POST** /api/v1/catalog | Add a template to the running catalog
+*SandboxesApi* | [**addCatalogEntryWithHttpInfo**](docs/SandboxesApi.md#addCatalogEntryWithHttpInfo) | **POST** /api/v1/catalog | Add a template to the running catalog
 *SandboxesApi* | [**createSandbox**](docs/SandboxesApi.md#createSandbox) | **POST** /api/v1/sandboxes | Create one
 *SandboxesApi* | [**createSandboxWithHttpInfo**](docs/SandboxesApi.md#createSandboxWithHttpInfo) | **POST** /api/v1/sandboxes | Create one
+*SandboxesApi* | [**deleteCatalogEntry**](docs/SandboxesApi.md#deleteCatalogEntry) | **DELETE** /api/v1/catalog/{id} | Remove a template from the running catalog
+*SandboxesApi* | [**deleteCatalogEntryWithHttpInfo**](docs/SandboxesApi.md#deleteCatalogEntryWithHttpInfo) | **DELETE** /api/v1/catalog/{id} | Remove a template from the running catalog
 *SandboxesApi* | [**deleteSandbox**](docs/SandboxesApi.md#deleteSandbox) | **DELETE** /api/v1/sandboxes/{id} | Delete one
 *SandboxesApi* | [**deleteSandboxWithHttpInfo**](docs/SandboxesApi.md#deleteSandboxWithHttpInfo) | **DELETE** /api/v1/sandboxes/{id} | Delete one
 *SandboxesApi* | [**execInSandbox**](docs/SandboxesApi.md#execInSandbox) | **POST** /api/v1/sandboxes/{id}/exec | Run a command in a sandbox and wait for it
@@ -144,6 +148,7 @@ Class | Method | HTTP request | Description
 
 ## Documentation for Models
 
+ - [AddTemplateRequest](docs/AddTemplateRequest.md)
  - [AuthDescription](docs/AuthDescription.md)
  - [Config](docs/Config.md)
  - [CreateSandboxRequest](docs/CreateSandboxRequest.md)

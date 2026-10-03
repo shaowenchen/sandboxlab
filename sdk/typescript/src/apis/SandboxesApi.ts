@@ -15,8 +15,10 @@
 
 import * as runtime from '../runtime';
 import type {
+  AddTemplateRequest,
   CreateSandboxRequest,
   DeleteSandbox200Response,
+  Deleted,
   ExecRequest,
   ExecResult,
   FileContent,
@@ -31,10 +33,14 @@ import type {
   WriteFileRequest,
 } from '../models/index';
 import {
+    AddTemplateRequestFromJSON,
+    AddTemplateRequestToJSON,
     CreateSandboxRequestFromJSON,
     CreateSandboxRequestToJSON,
     DeleteSandbox200ResponseFromJSON,
     DeleteSandbox200ResponseToJSON,
+    DeletedFromJSON,
+    DeletedToJSON,
     ExecRequestFromJSON,
     ExecRequestToJSON,
     ExecResultFromJSON,
@@ -61,8 +67,16 @@ import {
     WriteFileRequestToJSON,
 } from '../models/index';
 
+export interface SandboxesApiAddCatalogEntryRequest {
+    addTemplateRequest: AddTemplateRequest;
+}
+
 export interface SandboxesApiCreateSandboxOperationRequest {
     createSandboxRequest: CreateSandboxRequest;
+}
+
+export interface SandboxesApiDeleteCatalogEntryRequest {
+    id: string;
 }
 
 export interface SandboxesApiDeleteSandboxRequest {
@@ -116,6 +130,22 @@ export interface SandboxesApiWriteSandboxFileRequest {
  */
 export interface SandboxesApiInterface {
     /**
+     * The template arrives as a YAML document — the same shape as the catalog\'s own files — so the server parses it with one strict parser and a client needs no YAML of its own. Nothing is persisted: the catalog returns to the compiled-in templates when the process restarts. An id that already exists is a 409 unless `overwrite` is set, so a mistyped or retried create cannot silently clobber someone else\'s template.
+     * @summary Add a template to the running catalog
+     * @param {AddTemplateRequest} addTemplateRequest 
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SandboxesApiInterface
+     */
+    addCatalogEntryRaw(requestParameters: SandboxesApiAddCatalogEntryRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Template>>;
+
+    /**
+     * The template arrives as a YAML document — the same shape as the catalog\'s own files — so the server parses it with one strict parser and a client needs no YAML of its own. Nothing is persisted: the catalog returns to the compiled-in templates when the process restarts. An id that already exists is a 409 unless `overwrite` is set, so a mistyped or retried create cannot silently clobber someone else\'s template.
+     * Add a template to the running catalog
+     */
+    addCatalogEntry(requestParameters: SandboxesApiAddCatalogEntryRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Template>;
+
+    /**
      * 
      * @summary Create one
      * @param {CreateSandboxRequest} createSandboxRequest 
@@ -129,6 +159,22 @@ export interface SandboxesApiInterface {
      * Create one
      */
     createSandbox(requestParameters: SandboxesApiCreateSandboxOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Sandbox>;
+
+    /**
+     * Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+     * @summary Remove a template from the running catalog
+     * @param {string} id 
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SandboxesApiInterface
+     */
+    deleteCatalogEntryRaw(requestParameters: SandboxesApiDeleteCatalogEntryRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Deleted>>;
+
+    /**
+     * Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+     * Remove a template from the running catalog
+     */
+    deleteCatalogEntry(requestParameters: SandboxesApiDeleteCatalogEntryRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Deleted>;
 
     /**
      * Everything in it goes too. A sandbox is a namespace, so this is one operation rather than a list of objects to get right.
@@ -147,7 +193,7 @@ export interface SandboxesApiInterface {
     deleteSandbox(requestParameters: SandboxesApiDeleteSandboxRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<DeleteSandbox200Response>;
 
     /**
-     * The command is an argv, not a command line: pass [\"sh\", \"-c\", \"...\"] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+     * The command is an argv, not a command line: pass [\"sh\", \"-c\", \"...\"] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
      * @summary Run a command in a sandbox and wait for it
      * @param {string} id 
      * @param {ExecRequest} execRequest 
@@ -158,7 +204,7 @@ export interface SandboxesApiInterface {
     execInSandboxRaw(requestParameters: SandboxesApiExecInSandboxRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ExecResult>>;
 
     /**
-     * The command is an argv, not a command line: pass [\"sh\", \"-c\", \"...\"] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+     * The command is an argv, not a command line: pass [\"sh\", \"-c\", \"...\"] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
      * Run a command in a sandbox and wait for it
      */
     execInSandbox(requestParameters: SandboxesApiExecInSandboxRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ExecResult>;
@@ -330,6 +376,59 @@ export interface SandboxesApiInterface {
 export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterface {
 
     /**
+     * The template arrives as a YAML document — the same shape as the catalog\'s own files — so the server parses it with one strict parser and a client needs no YAML of its own. Nothing is persisted: the catalog returns to the compiled-in templates when the process restarts. An id that already exists is a 409 unless `overwrite` is set, so a mistyped or retried create cannot silently clobber someone else\'s template.
+     * Add a template to the running catalog
+     */
+    async addCatalogEntryRaw(requestParameters: SandboxesApiAddCatalogEntryRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Template>> {
+        if (requestParameters['addTemplateRequest'] == null) {
+            throw new runtime.RequiredError(
+                'addTemplateRequest',
+                'Required parameter "addTemplateRequest" was null or undefined when calling addCatalogEntry().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+        if (this.configuration && this.configuration.apiKey) {
+            headerParameters["X-Sandbox-Key"] = await this.configuration.apiKey("X-Sandbox-Key"); // ApiKey authentication
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("BearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/v1/catalog`;
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'POST',
+            headers: headerParameters,
+            query: queryParameters,
+            body: AddTemplateRequestToJSON(requestParameters['addTemplateRequest']),
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => TemplateFromJSON(jsonValue));
+    }
+
+    /**
+     * The template arrives as a YAML document — the same shape as the catalog\'s own files — so the server parses it with one strict parser and a client needs no YAML of its own. Nothing is persisted: the catalog returns to the compiled-in templates when the process restarts. An id that already exists is a 409 unless `overwrite` is set, so a mistyped or retried create cannot silently clobber someone else\'s template.
+     * Add a template to the running catalog
+     */
+    async addCatalogEntry(requestParameters: SandboxesApiAddCatalogEntryRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Template> {
+        const response = await this.addCatalogEntryRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
      * Create one
      */
     async createSandboxRaw(requestParameters: SandboxesApiCreateSandboxOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Sandbox>> {
@@ -377,6 +476,57 @@ export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterfa
      */
     async createSandbox(requestParameters: SandboxesApiCreateSandboxOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Sandbox> {
         const response = await this.createSandboxRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+     * Remove a template from the running catalog
+     */
+    async deleteCatalogEntryRaw(requestParameters: SandboxesApiDeleteCatalogEntryRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Deleted>> {
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling deleteCatalogEntry().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (this.configuration && this.configuration.apiKey) {
+            headerParameters["X-Sandbox-Key"] = await this.configuration.apiKey("X-Sandbox-Key"); // ApiKey authentication
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("BearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/v1/catalog/{id}`;
+        urlPath = urlPath.replace(`{${"id"}}`, encodeURIComponent(String(requestParameters['id'])));
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'DELETE',
+            headers: headerParameters,
+            query: queryParameters,
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => DeletedFromJSON(jsonValue));
+    }
+
+    /**
+     * Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+     * Remove a template from the running catalog
+     */
+    async deleteCatalogEntry(requestParameters: SandboxesApiDeleteCatalogEntryRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Deleted> {
+        const response = await this.deleteCatalogEntryRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
@@ -432,7 +582,7 @@ export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterfa
     }
 
     /**
-     * The command is an argv, not a command line: pass [\"sh\", \"-c\", \"...\"] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+     * The command is an argv, not a command line: pass [\"sh\", \"-c\", \"...\"] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
      * Run a command in a sandbox and wait for it
      */
     async execInSandboxRaw(requestParameters: SandboxesApiExecInSandboxRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ExecResult>> {
@@ -484,7 +634,7 @@ export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterfa
     }
 
     /**
-     * The command is an argv, not a command line: pass [\"sh\", \"-c\", \"...\"] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+     * The command is an argv, not a command line: pass [\"sh\", \"-c\", \"...\"] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
      * Run a command in a sandbox and wait for it
      */
     async execInSandbox(requestParameters: SandboxesApiExecInSandboxRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ExecResult> {

@@ -11,6 +11,7 @@ sandboxlab/api_response.py
 sandboxlab/configuration.py
 sandboxlab/exceptions.py
 sandboxlab/models/__init__.py
+sandboxlab/models/add_template_request.py
 sandboxlab/models/auth_description.py
 sandboxlab/models/config.py
 sandboxlab/models/create_sandbox_request.py

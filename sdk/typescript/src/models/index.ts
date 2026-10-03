@@ -1,5 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
+export * from './AddTemplateRequest';
 export * from './AuthDescription';
 export * from './Config';
 export * from './CreateSandboxRequest';

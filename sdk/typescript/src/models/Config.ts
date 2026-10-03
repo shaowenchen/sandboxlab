@@ -74,7 +74,7 @@ export interface Config {
      */
     maxSandboxes: number;
     /**
-     * how many templates the catalog holds
+     * how many templates the catalog holds right now — the compiled-in ones plus anything added at runtime
      * @type {number}
      * @memberof Config
      */

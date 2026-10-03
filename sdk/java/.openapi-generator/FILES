@@ -15,6 +15,7 @@ src/main/java/com/sandboxlab/client/RFC3339JavaTimeModule.java
 src/main/java/com/sandboxlab/client/ServerConfiguration.java
 src/main/java/com/sandboxlab/client/ServerVariable.java
 src/main/java/com/sandboxlab/model/AbstractOpenApiSchema.java
+src/main/java/com/sandboxlab/model/AddTemplateRequest.java
 src/main/java/com/sandboxlab/model/AuthDescription.java
 src/main/java/com/sandboxlab/model/Config.java
 src/main/java/com/sandboxlab/model/CreateSandboxRequest.java

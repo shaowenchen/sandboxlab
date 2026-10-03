@@ -17,26 +17,18 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from typing import Optional, Set
 from typing_extensions import Self
 
-class Config(BaseModel):
+class AddTemplateRequest(BaseModel):
     """
-    Config
+    A template to add, as its YAML document. It is text rather than the Template object because the thing being sent is a document — the same shape as a catalog file — and the server parses it strictly, so an unknown field or an invalid template is a 400.
     """ # noqa: E501
-    api_version: StrictStr = Field(description="the interface version, not the build's", alias="apiVersion")
-    build: StrictStr
-    base_path: StrictStr = Field(description="the path prefix this deployment is served under", alias="basePath")
-    public_url: Optional[StrictStr] = Field(default=None, description="the address sandboxes are reported at; empty means relative addresses", alias="publicURL")
-    namespace: StrictStr = Field(description="the namespace the control plane runs in")
-    data_plane: StrictBool = Field(description="whether sandboxes can be proxied to", alias="dataPlane")
-    default_ttl: StrictStr = Field(description="a duration, e.g. 1h0m0s", alias="defaultTTL")
-    max_ttl: StrictStr = Field(description="a duration, e.g. 8h0m0s", alias="maxTTL")
-    max_sandboxes: StrictInt = Field(description="0 means no deployment-wide ceiling", alias="maxSandboxes")
-    templates: StrictInt = Field(description="how many templates the catalog holds right now — the compiled-in ones plus anything added at runtime")
-    __properties: ClassVar[List[str]] = ["apiVersion", "build", "basePath", "publicURL", "namespace", "dataPlane", "defaultTTL", "maxTTL", "maxSandboxes", "templates"]
+    document: StrictStr = Field(description="the template as YAML. The id must be lowercase alphanumerics and '-'. Nothing here is persisted; the catalog returns to the compiled-in templates on restart.")
+    overwrite: Optional[StrictBool] = Field(default=None, description="replace a template that already has this id instead of answering 409. Without it an existing id is a conflict, so a create that was meant to add cannot quietly overwrite.")
+    __properties: ClassVar[List[str]] = ["document", "overwrite"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -56,7 +48,7 @@ class Config(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of Config from a JSON string"""
+        """Create an instance of AddTemplateRequest from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -81,7 +73,7 @@ class Config(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of Config from a dict"""
+        """Create an instance of AddTemplateRequest from a dict"""
         if obj is None:
             return None
 
@@ -89,16 +81,8 @@ class Config(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "apiVersion": obj.get("apiVersion"),
-            "build": obj.get("build"),
-            "basePath": obj.get("basePath"),
-            "publicURL": obj.get("publicURL"),
-            "namespace": obj.get("namespace"),
-            "dataPlane": obj.get("dataPlane"),
-            "defaultTTL": obj.get("defaultTTL"),
-            "maxTTL": obj.get("maxTTL"),
-            "maxSandboxes": obj.get("maxSandboxes"),
-            "templates": obj.get("templates")
+            "document": obj.get("document"),
+            "overwrite": obj.get("overwrite")
         })
         return _obj
 

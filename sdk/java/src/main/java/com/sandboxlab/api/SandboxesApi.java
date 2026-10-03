@@ -18,8 +18,10 @@ import com.sandboxlab.client.ApiResponse;
 import com.sandboxlab.client.Configuration;
 import com.sandboxlab.client.Pair;
 
+import com.sandboxlab.model.AddTemplateRequest;
 import com.sandboxlab.model.CreateSandboxRequest;
 import com.sandboxlab.model.DeleteSandbox200Response;
+import com.sandboxlab.model.Deleted;
 import com.sandboxlab.model.Error;
 import com.sandboxlab.model.ExecRequest;
 import com.sandboxlab.model.ExecResult;
@@ -168,6 +170,125 @@ public class SandboxesApi {
   }
 
   /**
+   * Add a template to the running catalog
+   * The template arrives as a YAML document — the same shape as the catalog&#39;s own files — so the server parses it with one strict parser and a client needs no YAML of its own. Nothing is persisted: the catalog returns to the compiled-in templates when the process restarts. An id that already exists is a 409 unless &#x60;overwrite&#x60; is set, so a mistyped or retried create cannot silently clobber someone else&#39;s template.
+   * @param addTemplateRequest  (required)
+   * @return Template
+   * @throws ApiException if fails to make API call
+   */
+  public Template addCatalogEntry(@javax.annotation.Nonnull AddTemplateRequest addTemplateRequest) throws ApiException {
+    return addCatalogEntry(addTemplateRequest, null);
+  }
+
+  /**
+   * Add a template to the running catalog
+   * The template arrives as a YAML document — the same shape as the catalog&#39;s own files — so the server parses it with one strict parser and a client needs no YAML of its own. Nothing is persisted: the catalog returns to the compiled-in templates when the process restarts. An id that already exists is a 409 unless &#x60;overwrite&#x60; is set, so a mistyped or retried create cannot silently clobber someone else&#39;s template.
+   * @param addTemplateRequest  (required)
+   * @param headers Optional headers to include in the request
+   * @return Template
+   * @throws ApiException if fails to make API call
+   */
+  public Template addCatalogEntry(@javax.annotation.Nonnull AddTemplateRequest addTemplateRequest, Map<String, String> headers) throws ApiException {
+    ApiResponse<Template> localVarResponse = addCatalogEntryWithHttpInfo(addTemplateRequest, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * Add a template to the running catalog
+   * The template arrives as a YAML document — the same shape as the catalog&#39;s own files — so the server parses it with one strict parser and a client needs no YAML of its own. Nothing is persisted: the catalog returns to the compiled-in templates when the process restarts. An id that already exists is a 409 unless &#x60;overwrite&#x60; is set, so a mistyped or retried create cannot silently clobber someone else&#39;s template.
+   * @param addTemplateRequest  (required)
+   * @return ApiResponse&lt;Template&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<Template> addCatalogEntryWithHttpInfo(@javax.annotation.Nonnull AddTemplateRequest addTemplateRequest) throws ApiException {
+    return addCatalogEntryWithHttpInfo(addTemplateRequest, null);
+  }
+
+  /**
+   * Add a template to the running catalog
+   * The template arrives as a YAML document — the same shape as the catalog&#39;s own files — so the server parses it with one strict parser and a client needs no YAML of its own. Nothing is persisted: the catalog returns to the compiled-in templates when the process restarts. An id that already exists is a 409 unless &#x60;overwrite&#x60; is set, so a mistyped or retried create cannot silently clobber someone else&#39;s template.
+   * @param addTemplateRequest  (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;Template&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<Template> addCatalogEntryWithHttpInfo(@javax.annotation.Nonnull AddTemplateRequest addTemplateRequest, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = addCatalogEntryRequestBuilder(addTemplateRequest, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("addCatalogEntry", localVarResponse);
+        }
+        if (localVarResponse.body() == null) {
+          return new ApiResponse<Template>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+        
+        
+        String responseBody = new String(localVarResponse.body().readAllBytes());
+        Template responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<Template>() {});
+        
+        localVarResponse.body().close();
+
+        return new ApiResponse<Template>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder addCatalogEntryRequestBuilder(@javax.annotation.Nonnull AddTemplateRequest addTemplateRequest, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'addTemplateRequest' is set
+    if (addTemplateRequest == null) {
+      throw new ApiException(400, "Missing the required parameter 'addTemplateRequest' when calling addCatalogEntry");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/catalog";
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    localVarRequestBuilder.header("Content-Type", "application/json");
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    try {
+      byte[] localVarPostBody = memberVarObjectMapper.writeValueAsBytes(addTemplateRequest);
+      localVarRequestBuilder.method("POST", HttpRequest.BodyPublishers.ofByteArray(localVarPostBody));
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
    * Create one
    * 
    * @param createSandboxRequest  (required)
@@ -275,6 +396,120 @@ public class SandboxesApi {
     } catch (IOException e) {
       throw new ApiException(e);
     }
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
+   * Remove a template from the running catalog
+   * Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+   * @param id  (required)
+   * @return Deleted
+   * @throws ApiException if fails to make API call
+   */
+  public Deleted deleteCatalogEntry(@javax.annotation.Nonnull String id) throws ApiException {
+    return deleteCatalogEntry(id, null);
+  }
+
+  /**
+   * Remove a template from the running catalog
+   * Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+   * @param id  (required)
+   * @param headers Optional headers to include in the request
+   * @return Deleted
+   * @throws ApiException if fails to make API call
+   */
+  public Deleted deleteCatalogEntry(@javax.annotation.Nonnull String id, Map<String, String> headers) throws ApiException {
+    ApiResponse<Deleted> localVarResponse = deleteCatalogEntryWithHttpInfo(id, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * Remove a template from the running catalog
+   * Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+   * @param id  (required)
+   * @return ApiResponse&lt;Deleted&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<Deleted> deleteCatalogEntryWithHttpInfo(@javax.annotation.Nonnull String id) throws ApiException {
+    return deleteCatalogEntryWithHttpInfo(id, null);
+  }
+
+  /**
+   * Remove a template from the running catalog
+   * Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+   * @param id  (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;Deleted&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<Deleted> deleteCatalogEntryWithHttpInfo(@javax.annotation.Nonnull String id, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = deleteCatalogEntryRequestBuilder(id, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("deleteCatalogEntry", localVarResponse);
+        }
+        if (localVarResponse.body() == null) {
+          return new ApiResponse<Deleted>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+        
+        
+        String responseBody = new String(localVarResponse.body().readAllBytes());
+        Deleted responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<Deleted>() {});
+        
+        localVarResponse.body().close();
+
+        return new ApiResponse<Deleted>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder deleteCatalogEntryRequestBuilder(@javax.annotation.Nonnull String id, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'id' is set
+    if (id == null) {
+      throw new ApiException(400, "Missing the required parameter 'id' when calling deleteCatalogEntry");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/catalog/{id}"
+        .replace("{id}", ApiClient.urlEncode(id.toString()));
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    localVarRequestBuilder.method("DELETE", HttpRequest.BodyPublishers.noBody());
     if (memberVarReadTimeout != null) {
       localVarRequestBuilder.timeout(memberVarReadTimeout);
     }
@@ -402,7 +637,7 @@ public class SandboxesApi {
 
   /**
    * Run a command in a sandbox and wait for it
-   * The command is an argv, not a command line: pass [\&quot;sh\&quot;, \&quot;-c\&quot;, \&quot;...\&quot;] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+   * The command is an argv, not a command line: pass [\&quot;sh\&quot;, \&quot;-c\&quot;, \&quot;...\&quot;] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
    * @param id  (required)
    * @param execRequest  (required)
    * @return ExecResult
@@ -414,7 +649,7 @@ public class SandboxesApi {
 
   /**
    * Run a command in a sandbox and wait for it
-   * The command is an argv, not a command line: pass [\&quot;sh\&quot;, \&quot;-c\&quot;, \&quot;...\&quot;] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+   * The command is an argv, not a command line: pass [\&quot;sh\&quot;, \&quot;-c\&quot;, \&quot;...\&quot;] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
    * @param id  (required)
    * @param execRequest  (required)
    * @param headers Optional headers to include in the request
@@ -428,7 +663,7 @@ public class SandboxesApi {
 
   /**
    * Run a command in a sandbox and wait for it
-   * The command is an argv, not a command line: pass [\&quot;sh\&quot;, \&quot;-c\&quot;, \&quot;...\&quot;] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+   * The command is an argv, not a command line: pass [\&quot;sh\&quot;, \&quot;-c\&quot;, \&quot;...\&quot;] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
    * @param id  (required)
    * @param execRequest  (required)
    * @return ApiResponse&lt;ExecResult&gt;
@@ -440,7 +675,7 @@ public class SandboxesApi {
 
   /**
    * Run a command in a sandbox and wait for it
-   * The command is an argv, not a command line: pass [\&quot;sh\&quot;, \&quot;-c\&quot;, \&quot;...\&quot;] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
+   * The command is an argv, not a command line: pass [\&quot;sh\&quot;, \&quot;-c\&quot;, \&quot;...\&quot;] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.  **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
    * @param id  (required)
    * @param execRequest  (required)
    * @param headers Optional headers to include in the request

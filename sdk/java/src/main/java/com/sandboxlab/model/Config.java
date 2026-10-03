@@ -312,7 +312,7 @@ public class Config {
   }
 
   /**
-   * how many templates the catalog holds
+   * how many templates the catalog holds right now — the compiled-in ones plus anything added at runtime
    * @return templates
    */
   @javax.annotation.Nonnull

@@ -49,7 +49,9 @@ All URIs are relative to *https://sandboxlab.example.com/sandbox*
 *MetaApi* | [**getConfig**](docs/MetaApi.md#getconfig) | **GET** /api/v1/config | The deployment\&#39;s shape
 *MetaApi* | [**health**](docs/MetaApi.md#health) | **GET** /healthz | Liveness
 *MetaApi* | [**ready**](docs/MetaApi.md#ready) | **GET** /readyz | Readiness
+*SandboxesApi* | [**addCatalogEntry**](docs/SandboxesApi.md#addcatalogentry) | **POST** /api/v1/catalog | Add a template to the running catalog
 *SandboxesApi* | [**createSandbox**](docs/SandboxesApi.md#createsandboxoperation) | **POST** /api/v1/sandboxes | Create one
+*SandboxesApi* | [**deleteCatalogEntry**](docs/SandboxesApi.md#deletecatalogentry) | **DELETE** /api/v1/catalog/{id} | Remove a template from the running catalog
 *SandboxesApi* | [**deleteSandbox**](docs/SandboxesApi.md#deletesandbox) | **DELETE** /api/v1/sandboxes/{id} | Delete one
 *SandboxesApi* | [**execInSandbox**](docs/SandboxesApi.md#execinsandbox) | **POST** /api/v1/sandboxes/{id}/exec | Run a command in a sandbox and wait for it
 *SandboxesApi* | [**getCatalogEntry**](docs/SandboxesApi.md#getcatalogentry) | **GET** /api/v1/catalog/{id} | One template
@@ -66,6 +68,7 @@ All URIs are relative to *https://sandboxlab.example.com/sandbox*
 
 ### Models
 
+- [AddTemplateRequest](docs/AddTemplateRequest.md)
 - [AuthDescription](docs/AuthDescription.md)
 - [Config](docs/Config.md)
 - [CreateSandboxRequest](docs/CreateSandboxRequest.md)

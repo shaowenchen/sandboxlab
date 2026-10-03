@@ -88,7 +88,9 @@ Class | Method | HTTP request | Description
 *MetaApi* | [**get_config**](docs/MetaApi.md#get_config) | **GET** /api/v1/config | The deployment&#39;s shape
 *MetaApi* | [**health**](docs/MetaApi.md#health) | **GET** /healthz | Liveness
 *MetaApi* | [**ready**](docs/MetaApi.md#ready) | **GET** /readyz | Readiness
+*SandboxesApi* | [**add_catalog_entry**](docs/SandboxesApi.md#add_catalog_entry) | **POST** /api/v1/catalog | Add a template to the running catalog
 *SandboxesApi* | [**create_sandbox**](docs/SandboxesApi.md#create_sandbox) | **POST** /api/v1/sandboxes | Create one
+*SandboxesApi* | [**delete_catalog_entry**](docs/SandboxesApi.md#delete_catalog_entry) | **DELETE** /api/v1/catalog/{id} | Remove a template from the running catalog
 *SandboxesApi* | [**delete_sandbox**](docs/SandboxesApi.md#delete_sandbox) | **DELETE** /api/v1/sandboxes/{id} | Delete one
 *SandboxesApi* | [**exec_in_sandbox**](docs/SandboxesApi.md#exec_in_sandbox) | **POST** /api/v1/sandboxes/{id}/exec | Run a command in a sandbox and wait for it
 *SandboxesApi* | [**get_catalog_entry**](docs/SandboxesApi.md#get_catalog_entry) | **GET** /api/v1/catalog/{id} | One template
@@ -105,6 +107,7 @@ Class | Method | HTTP request | Description
 
 ## Documentation For Models
 
+ - [AddTemplateRequest](docs/AddTemplateRequest.md)
  - [AuthDescription](docs/AuthDescription.md)
  - [Config](docs/Config.md)
  - [CreateSandboxRequest](docs/CreateSandboxRequest.md)

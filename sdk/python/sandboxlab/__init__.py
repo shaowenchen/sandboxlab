@@ -29,6 +29,7 @@ __all__ = [
     "ApiKeyError",
     "ApiAttributeError",
     "ApiException",
+    "AddTemplateRequest",
     "AuthDescription",
     "Config",
     "CreateSandboxRequest",
@@ -72,6 +73,7 @@ from sandboxlab.exceptions import ApiAttributeError as ApiAttributeError
 from sandboxlab.exceptions import ApiException as ApiException
 
 # import models into sdk package
+from sandboxlab.models.add_template_request import AddTemplateRequest as AddTemplateRequest
 from sandboxlab.models.auth_description import AuthDescription as AuthDescription
 from sandboxlab.models.config import Config as Config
 from sandboxlab.models.create_sandbox_request import CreateSandboxRequest as CreateSandboxRequest

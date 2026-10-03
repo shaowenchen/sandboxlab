@@ -13,6 +13,7 @@
 """  # noqa: E501
 
 # import models into model package
+from sandboxlab.models.add_template_request import AddTemplateRequest
 from sandboxlab.models.auth_description import AuthDescription
 from sandboxlab.models.config import Config
 from sandboxlab.models.create_sandbox_request import CreateSandboxRequest
