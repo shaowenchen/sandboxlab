@@ -27,11 +27,11 @@ ports:
 # login for no additional protection. Set it if this template is ever served
 # somewhere without that.
 
-resources:
-  # A browser and VS Code together are heavier than a shell. Two cores and 4Gi
-  # is what the image wants to be usable rather than merely alive.
-  cpu: "2"
-  memory: 4Gi
+# No cpu/memory, deliberately: a sandbox is scheduled on whatever the node has
+# to spare, and the image sets its own expectations better than a template can.
+# A request here would have to be right for every node the deployment might run
+# on, and a template that asks for more than a small node offers is a sandbox
+# that never starts.
 
 ttlDefault: 1h
 ttlMax: 8h

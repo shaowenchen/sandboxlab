@@ -258,10 +258,12 @@ func (c *Client) createNamespace(ctx context.Context, req CreateRequest, created
 }
 
 func (c *Client) createQuota(ctx context.Context, ns string, res model.Resources) error {
-	// A quota has to bound both what one pod may ask for and what the namespace
-	// may hold in total. Without the first a single pod can request more than
-	// the node has and stay Pending forever; without the second, several pods
-	// in one sandbox can do the same together.
+	// A template may name cpu/memory, in which case the quota bounds what one
+	// pod may ask for and what the namespace may hold in total — without the
+	// first a single pod can request more than the node has and stay Pending
+	// forever, and without the second several pods can do the same together.
+	// Most templates name none: a sandbox then takes what the node has, and the
+	// quota bounds only the pod count.
 	spec := corev1.ResourceQuotaSpec{Hard: corev1.ResourceList{}}
 	if q, err := quantity(res.CPU); err != nil {
 		return fmt.Errorf("template cpu %q: %w", res.CPU, err)

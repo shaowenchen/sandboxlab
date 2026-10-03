@@ -18,9 +18,5 @@ description: >-
   model-generated code and inspecting what it produced.
 image: e2bdev/code-interpreter:latest
 
-resources:
-  cpu: "1"
-  memory: 2Gi
-
 ttlDefault: 1h
 ttlMax: 8h

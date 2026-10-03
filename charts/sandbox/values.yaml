@@ -91,11 +91,12 @@ dataPlane: true
 logLevel: info
 
 # The control plane's own resources. It is a small HTTP server; the work happens
-# in the sandboxes.
+# in the sandboxes, and a request that is too big for the node it lands on is a
+# control plane that never schedules. Kept small deliberately.
 resources:
   requests:
-    cpu: 50m
-    memory: 128Mi
+    cpu: 10m
+    memory: 64Mi
   limits:
     cpu: 500m
     memory: 512Mi

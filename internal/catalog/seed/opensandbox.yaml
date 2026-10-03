@@ -25,9 +25,5 @@ image: opensandbox/code-interpreter:v1.1.0
 
 command: ["sleep", "infinity"]
 
-resources:
-  cpu: "1"
-  memory: 2Gi
-
 ttlDefault: 1h
 ttlMax: 8h

@@ -21,9 +21,5 @@ description: >-
   CubeSandbox sandbox is built from.
 image: ghcr.io/tencentcloud/cubesandbox-base:2026.16
 
-resources:
-  cpu: "1"
-  memory: 1Gi
-
 ttlDefault: 30m
 ttlMax: 4h

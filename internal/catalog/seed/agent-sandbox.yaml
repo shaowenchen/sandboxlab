@@ -27,9 +27,5 @@ ports:
     port: 8888
     description: The runtime's API
 
-resources:
-  cpu: "1"
-  memory: 1Gi
-
 ttlDefault: 30m
 ttlMax: 4h
