@@ -171,7 +171,6 @@
   button.small { padding: 3px 8px; font-size: 12.5px; }
   button[disabled] { opacity: .5; cursor: default; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .links { display: flex; gap: 8px; flex-wrap: wrap; }
 
   input, select, textarea {
     font: inherit; padding: 6px 10px; border-radius: 7px;
@@ -733,8 +732,7 @@
       return;
     }
 
-    var header = ["name", "template", "state", "lifetime"];
-    header.push("addresses", "");
+    var header = ["name", "template", "state", "lifetime", "actions"];
 
     var table = text("table");
     var thead = text("thead");
@@ -757,22 +755,20 @@
 
       tr.appendChild(text("td", "muted", ttlText(sb)));
 
-      var links = text("td");
-      var box = text("div", "links");
-      (sb.endpoints || []).forEach(function (ep) {
-        if (!ep.url) return;
-        var a = text("a", "btn small", ep.name);
-        a.href = ep.url + "?key=" + encodeURIComponent(state.key);
-        a.target = "_blank";
-        a.rel = "noopener";
-        box.appendChild(a);
-      });
-      if (!box.childNodes.length) box.appendChild(text("span", "muted", "—"));
-      links.appendChild(box);
-      tr.appendChild(links);
-
       var actions = text("td");
       var row = text("div", "row");
+      // Open is first and only when there is somewhere to go: the addresses
+      // column is gone, so this is the one link into a sandbox. A portless
+      // workspace has no URL and gets no button rather than a dead one.
+      var ep = (sb.endpoints || []).filter(function (e) { return e.url; });
+      if (ep.length) {
+        var open = text("a", "btn small primary", "Open");
+        open.href = ep[0].url + "?key=" + encodeURIComponent(state.key);
+        open.target = "_blank";
+        open.rel = "noopener";
+        if (ep.length > 1) open.title = "Also: " + ep.slice(1).map(function (e) { return e.name; }).join(", ");
+        row.appendChild(open);
+      }
       var svc = text("button", "small", "Metrics");
       svc.onclick = function () { showMetrics(sb.id); };
       var ev = text("button", "small", "Events");
