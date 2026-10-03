@@ -64,59 +64,48 @@
   .cards { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   @media (max-width: 1000px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 640px)  { .cards { grid-template-columns: 1fr; } }
-  /* A heading that separates groups of cards. The first one sits right under the
-     page title, so it loses the top margin the later ones need. */
-  h2.group { margin: 26px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
-             display: flex; align-items: center; gap: 8px; }
+  /* A heading that separates groups of cards. Kept quiet — a label, not a title
+     — because the cards are the page. */
+  h2.group { margin: 24px 0 12px; display: flex; align-items: center; gap: 8px; }
   h2.group:first-child { margin-top: 0; }
   h2.group .group-n {
     font-size: 11px; font-weight: 600; letter-spacing: 0; color: var(--muted);
     background: var(--bg); border: 1px solid var(--line); border-radius: 999px;
-    padding: 1px 8px; text-transform: none;
+    padding: 0 8px; text-transform: none;
   }
 
   .card {
-    position: relative;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-    padding: 18px; display: flex; flex-direction: column; gap: 10px;
-    transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px; display: flex; flex-direction: column; gap: 10px;
+    transition: border-color .15s ease, box-shadow .15s ease;
   }
   .card:hover {
-    border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
-    box-shadow: 0 10px 26px rgba(0,0,0,.09);
-    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+    box-shadow: 0 6px 18px rgba(0,0,0,.07);
   }
 
-  .card .card-head { display: flex; align-items: flex-start; gap: 12px; }
+  .card .card-head { display: flex; align-items: center; gap: 10px; }
   .card .card-head .titles { flex: 1; min-width: 0; }
-  .card .card-head h3 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -.01em; }
-  .card .card-head .id { font-family: var(--mono); font-size: 12px; color: var(--muted);
-                         margin-top: 2px; word-break: break-all; }
+  .card .card-head h3 { margin: 0; font-size: 14.5px; font-weight: 650; letter-spacing: -.01em; }
+  .card .card-head .id { font-family: var(--mono); font-size: 11.5px; color: var(--muted);
+                         margin-top: 1px; word-break: break-all; }
   .card .desc { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
   .card .meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted); word-break: break-all; }
-  .card .foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-                margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
+  .card .foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: auto; }
 
-  /* The card's mark: a rounded square carrying the template's initial. A glyph
-     rather than an icon, because a template is an arbitrary image and any icon
-     would be a guess about it; the letter is honest and the tint separates one
-     card from the next at a glance. */
+  /* The card's mark: a rounded square carrying the template's initial, on one
+     accent tone. A glyph rather than an icon, because a template is an arbitrary
+     image and any icon would be a guess about it; the letter is honest. */
   .mark {
-    flex: 0 0 auto; width: 38px; height: 38px; border-radius: 10px;
+    flex: 0 0 auto; width: 34px; height: 34px; border-radius: 9px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 17px; font-weight: 700; color: var(--accent-ink);
-    background: var(--accent); text-transform: uppercase;
+    font-size: 15px; font-weight: 700; text-transform: uppercase;
+    color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   }
-  /* The three ports of the shipped templates get their own tints, so a row of
-     cards is scannable rather than a field of identical squares. */
-  .mark.tone-0 { background: #2f6feb; }
-  .mark.tone-1 { background: #7c3aed; }
-  .mark.tone-2 { background: #0e7490; }
-  .mark.tone-3 { background: #b45309; }
-  .mark.tone-4 { background: #be123c; }
 
-  /* A pill for a fact about the template — how many ports, whether it is
-     built-in. Small and quiet so the title and description lead. */
+  /* A quiet pill for a fact about the template — how many ports, whether it is
+     built-in. Small, so the title and description lead. */
   .pill {
     display: inline-flex; align-items: center; gap: 5px;
     padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 500;
@@ -372,7 +361,7 @@
       <h1>Templates</h1>
       <button id="addTemplate">New template</button>
     </div>
-    <div class="cards" id="catalog"></div>
+    <div id="catalog"></div>
   </section>
 
   <!-- Docs. The usage, written for the person reading it: what a template is,
@@ -602,8 +591,6 @@
   }
   // ── rendering ─────────────────────────────────────────────────────────────
 
-  // ── rendering ─────────────────────────────────────────────────────────────
-
   function renderCatalog() {
     var wrap = $("catalog");
     wrap.replaceChildren();
@@ -623,7 +610,7 @@
       wrap.appendChild(head);
 
       var cards = text("div", "cards");
-      g[1].forEach(function (t, i) { cards.appendChild(templateCard(t, i)); });
+      g[1].forEach(function (t) { cards.appendChild(templateCard(t)); });
       wrap.appendChild(cards);
     });
 
@@ -638,12 +625,11 @@
   // description, what image it runs, and a footer with the facts that decide
   // whether to use it — how many ports and whether it is built-in — beside the
   // one action everyone wants, Create.
-  function templateCard(t, tone) {
+  function templateCard(t) {
     var card = text("div", "card");
 
     var head = text("div", "card-head");
-    var mark = text("div", "mark tone-" + (tone % 5), (t.title || t.id).charAt(0));
-    head.appendChild(mark);
+    head.appendChild(text("div", "mark", (t.title || t.id).charAt(0)));
 
     var titles = text("div", "titles");
     titles.appendChild(text("h3", null, t.title || t.id));
