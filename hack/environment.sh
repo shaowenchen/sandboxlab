@@ -628,11 +628,13 @@ record SANDBOX_READY "true"
 # smoke test. A tiny one exercises the same path the console and the CLI use to
 # add a template, which is a second thing worth proving here.
 log "adding a small template to run a sandbox from"
-# `sleep` takes a number, not "infinity": busybox's applet is not GNU sleep.
-curl -fsS -X PUT -H "Host: ${TUNNEL_HOST}" -H "X-Sandbox-Key: ${API_KEY}" \
+# The template is added with POST, which is the create route; the id is new so
+# no "overwrite" is needed. `sleep` takes a number, not "infinity": busybox's
+# applet is not GNU sleep.
+curl -fsS -X POST -H "Host: ${TUNNEL_HOST}" -H "X-Sandbox-Key: ${API_KEY}" \
   -H 'Content-Type: application/json' \
   -d '{"document":"id: smoke\nimage: busybox:1.36\ncommand: [\"sleep\", \"2147483647\"]\nttlDefault: 5m\n"}' \
-  "${local_url}/api/v1/catalog/smoke" >/dev/null 2>&1 \
+  "${local_url}/api/v1/catalog" >/dev/null 2>&1 \
   || die "a template could not be added at runtime"
 
 log "creating a sandbox to confirm the control plane can create one"
