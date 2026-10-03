@@ -52,6 +52,21 @@ rules:
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get"]
+  # What a sandbox is using, for the console's Metrics panel. Resource usage is
+  # served by metrics-server under its own API group, and `pods` there is a
+  # different resource from core `pods` — the grant above does not cover it, and
+  # without this rule reading usage is a 403 rather than an empty reading. A
+  # cluster with no metrics-server simply answers 404 for the group, which the
+  # control plane reports as usage being unavailable.
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  # The events that explain a sandbox that is not working — an image pull that
+  # failed, a probe that killed the container, a pod that was never scheduled.
+  # Read-only: the control plane reports events, it never creates one.
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
   # Running a command inside a sandbox, which is what `sandbox exec` and the
   # file endpoints are built on. A subresource again, and separate from `pods`
   # for the same reason `pods/log` is — this is the one grant here that lets the

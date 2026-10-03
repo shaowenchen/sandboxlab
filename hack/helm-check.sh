@@ -74,6 +74,21 @@ has "$default" 'app.kubernetes.io/managed-by=sandboxlab' \
 has "$default" 'runAsNonRoot: true' "the pod runs as a non-root user"
 hasnt "$default" 'privileged: true' "nothing runs privileged"
 
+# Every read the API makes has to be granted, or it fails as a 403 at request
+# time rather than at install — which is how the metrics and events panels were
+# empty on a deployment that was otherwise working. These are the grants whose
+# absence is not obvious from the rest of the manifest.
+for pair in "pods/log:reading a sandbox's output" \
+            "metrics.k8s.io:reading what a sandbox is using" \
+            "events:reading the events about a sandbox"; do
+  res="${pair%%:*}"; why="${pair#*:}"
+  if grep -q "\"$res\"\|\b$res\b" <<<"$default"; then
+    ok "the ClusterRole grants $res ($why)"
+  else
+    bad "the ClusterRole does not grant $res ($why)"
+  fi
+done
+
 # ── the base path ───────────────────────────────────────────────────────────
 
 section "with a base path"
