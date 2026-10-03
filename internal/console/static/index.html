@@ -57,7 +57,13 @@
                gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
   .page-head h1 { font-size: 18px; margin: 0; font-weight: 650; }
 
-  .cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  /* Three cards a row on a normal screen, and it is a fixed count rather than
+     an auto-fill minimum so the row is predictable: auto-fill with a wide
+     minimum drops to two columns on a laptop and leaves the page looking half
+     empty. It steps down to two and then one as the viewport narrows. */
+  .cards { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  @media (max-width: 1000px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 640px)  { .cards { grid-template-columns: 1fr; } }
   /* A heading that separates groups of cards. The first one sits right under the
      page title, so it loses the top margin the later ones need. */
   h2.group { margin: 26px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
