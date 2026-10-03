@@ -57,23 +57,68 @@
                gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
   .page-head h1 { font-size: 18px; margin: 0; font-weight: 650; }
 
-  .cards { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  .cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
   /* A heading that separates groups of cards. The first one sits right under the
      page title, so it loses the top margin the later ones need. */
-  h2.group { margin: 22px 0 8px; }
+  h2.group { margin: 26px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
+             display: flex; align-items: center; gap: 8px; }
   h2.group:first-child { margin-top: 0; }
+  h2.group .group-n {
+    font-size: 11px; font-weight: 600; letter-spacing: 0; color: var(--muted);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 999px;
+    padding: 1px 8px; text-transform: none;
+  }
+
   .card {
     position: relative;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-    padding: 14px; display: flex; flex-direction: column; gap: 8px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px; display: flex; flex-direction: column; gap: 10px;
+    transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
   }
-  .card .card-head { display: flex; align-items: flex-start; gap: 8px; }
-  .card .card-head h3 { flex: 1; }
-  .card h3 { margin: 0; font-size: 14px; font-weight: 600; }
-  .card p { margin: 0; color: var(--muted); font-size: 13px; }
-  .card .meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted);
-                word-break: break-all; }
-  .card .foot { margin-top: auto; padding-top: 6px; }
+  .card:hover {
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+    box-shadow: 0 10px 26px rgba(0,0,0,.09);
+    transform: translateY(-2px);
+  }
+
+  .card .card-head { display: flex; align-items: flex-start; gap: 12px; }
+  .card .card-head .titles { flex: 1; min-width: 0; }
+  .card .card-head h3 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -.01em; }
+  .card .card-head .id { font-family: var(--mono); font-size: 12px; color: var(--muted);
+                         margin-top: 2px; word-break: break-all; }
+  .card .desc { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+  .card .meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted); word-break: break-all; }
+  .card .foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+                margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
+
+  /* The card's mark: a rounded square carrying the template's initial. A glyph
+     rather than an icon, because a template is an arbitrary image and any icon
+     would be a guess about it; the letter is honest and the tint separates one
+     card from the next at a glance. */
+  .mark {
+    flex: 0 0 auto; width: 38px; height: 38px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; font-weight: 700; color: var(--accent-ink);
+    background: var(--accent); text-transform: uppercase;
+  }
+  /* The three ports of the shipped templates get their own tints, so a row of
+     cards is scannable rather than a field of identical squares. */
+  .mark.tone-0 { background: #2f6feb; }
+  .mark.tone-1 { background: #7c3aed; }
+  .mark.tone-2 { background: #0e7490; }
+  .mark.tone-3 { background: #b45309; }
+  .mark.tone-4 { background: #be123c; }
+
+  /* A pill for a fact about the template — how many ports, whether it is
+     built-in. Small and quiet so the title and description lead. */
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 500;
+    background: var(--bg); border: 1px solid var(--line); color: var(--muted);
+  }
+  .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.builtin { color: var(--accent); }
+  .pill.added { color: var(--warn); }
 
   /* The ⋮ menu on a card. A <details> so it opens and closes without script,
      and positioned absolutely so it does not push the title around. */
@@ -82,22 +127,22 @@
   .menu > summary::-webkit-details-marker { display: none; }
   .menu-btn {
     display: flex; align-items: center; justify-content: center;
-    width: 26px; height: 26px; border-radius: 7px; color: var(--muted);
+    width: 28px; height: 28px; border-radius: 8px; color: var(--muted);
     border: 1px solid transparent; line-height: 1;
   }
-  .menu-btn span { transform: translateY(-3px); font-size: 16px; }
+  .menu-btn span { transform: translateY(-3px); font-size: 17px; }
   .menu-btn:hover { color: var(--ink); background: var(--bg); border-color: var(--line); }
   .menu[open] .menu-btn { color: var(--ink); background: var(--bg); border-color: var(--line); }
   .menu-items {
     position: absolute; right: 0; top: calc(100% + 4px); z-index: 5;
-    min-width: 176px; padding: 4px;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 9px;
-    box-shadow: 0 8px 24px rgba(0,0,0,.16);
+    min-width: 190px; padding: 4px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(0,0,0,.18);
     display: flex; flex-direction: column;
   }
   .menu-items button {
     border-color: transparent; background: transparent; text-align: left;
-    border-radius: 6px; padding: 7px 9px; color: var(--ink);
+    border-radius: 7px; padding: 8px 10px; color: var(--ink);
   }
   .menu-items button:hover { background: var(--bg); border-color: transparent; }
   .menu-items button.danger { color: var(--bad); }
@@ -566,9 +611,13 @@
     var groups = [["Built-in", builtin], ["Added", added]];
     groups.forEach(function (g) {
       if (!g[1].length) return;
-      wrap.appendChild(text("h2", "group", g[0]));
+      var head = text("h2", "group");
+      head.appendChild(text("span", null, g[0]));
+      head.appendChild(text("span", "group-n", String(g[1].length)));
+      wrap.appendChild(head);
+
       var cards = text("div", "cards");
-      g[1].forEach(function (t) { cards.appendChild(templateCard(t)); });
+      g[1].forEach(function (t, i) { cards.appendChild(templateCard(t, i)); });
       wrap.appendChild(cards);
     });
 
@@ -579,23 +628,47 @@
     }
   }
 
-  function templateCard(t) {
+  // templateCard is one template as a card: a mark and title to identify it, the
+  // description, what image it runs, and a footer with the facts that decide
+  // whether to use it — how many ports and whether it is built-in — beside the
+  // one action everyone wants, Create.
+  function templateCard(t, tone) {
     var card = text("div", "card");
 
     var head = text("div", "card-head");
-    head.appendChild(text("h3", null, t.title || t.id));
+    var mark = text("div", "mark tone-" + (tone % 5), (t.title || t.id).charAt(0));
+    head.appendChild(mark);
+
+    var titles = text("div", "titles");
+    titles.appendChild(text("h3", null, t.title || t.id));
+    // The id is what a create names and what a URL carries, so it is shown when
+    // it differs from the title — a card whose title hides the id is one whose
+    // id has to be looked up.
+    if (t.title && t.title !== t.id) titles.appendChild(text("div", "id", t.id));
+    head.appendChild(titles);
     head.appendChild(templateMenu(t));
     card.appendChild(head);
 
-    card.appendChild(text("p", null, t.description || ""));
+    if (t.description) card.appendChild(text("p", "desc", t.description));
     card.appendChild(text("div", "meta", t.image));
 
-    var ports = (t.ports || []).map(function (p) { return p.name + " " + p.port; }).join("  ");
-    if (ports) card.appendChild(text("div", "meta", ports));
+    var foot = text("div", "foot");
+    var create = text("button", "primary", "Create");
+    create.onclick = function () { openCreate(t.id); };
+    foot.appendChild(create);
 
-    // A built-in is compiled into the control plane and cannot be removed, so
-    // the card says which it is; the menu then offers no Remove for one.
-    card.appendChild(text("div", "meta", t.builtin ? "built-in" : "added at runtime"));
+    var ports = (t.ports || []);
+    var portPill = text("span", "pill");
+    portPill.appendChild(text("span", "dot"));
+    portPill.appendChild(text("span", null, ports.length
+      ? ports.length + (ports.length === 1 ? " port · " : " ports · ") + ports.map(function (p) { return p.port; }).join(", ")
+      : "no port"));
+    foot.appendChild(portPill);
+
+    var kind = text("span", "pill " + (t.builtin ? "builtin" : "added"), t.builtin ? "built-in" : "added");
+    foot.appendChild(kind);
+
+    card.appendChild(foot);
     return card;
   }
 
