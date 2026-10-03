@@ -226,27 +226,27 @@ and it is also the most destructive thing this component can do.</p>
 your own; the chart then expects a ServiceAccount named
 <code>&lt;release&gt;-sandbox-control-plane</code> to already have the grants.</p>
 <h2 id="the-catalog">The catalog</h2>
-<p>The templates a sandbox can be created from come from two places:</p>
-<ol>
-<li><strong>Built in</strong>, compiled into the image: <code>all-in-one</code>, <code>python</code>, <code>node</code>,
-<code>code-server</code>.</li>
-<li><strong>This release</strong>, through <code>catalog</code> (inline) or <code>catalogDir</code> (a mounted
-directory). An id in either <strong>replaces</strong> the built-in of that name; it does
-not merge with it.</li>
-</ol>
-<pre><code class="language-yaml">catalog:
-  internal-tool.yaml: |
-    id: internal-tool
-    title: Internal tool environment
-    image: registry.example.com/internal/tool:1.2.3
-    ports:
-      - name: web
-        port: 8080
-    ttlDefault: 30m
-    ttlMax: 4h
+<p>The templates a sandbox can be created from are compiled into the control plane:
+<code>agent-infra</code> (the AIO Sandbox), <code>agent-sandbox</code> (the reference runtime from
+kubernetes-sigs/agent-sandbox, whose image must be built and pushed first) and
+<code>opensandbox</code> (alibaba/OpenSandbox's code-interpreter image). Read them with
+<code>sandbox catalog</code> or <code>GET /api/v1/catalog</code>.</p>
+<p>More can be added to a <strong>running</strong> deployment without a release, through the API
+or the console:</p>
+<pre><code class="language-yaml"># sandbox catalog add internal-tool.yaml
+id: internal-tool
+title: Internal tool environment
+image: registry.example.com/internal/tool:1.2.3
+ports:
+  - name: web
+    port: 8080
+ttlDefault: 30m
+ttlMax: 4h
 </code></pre>
-<p><code>disableTemplates</code> removes templates by id from the final catalog — a misspelled
-id there is a startup error rather than a template that quietly stays listed.</p>
+<p>An id that already exists is replaced, so adding is also how a template is
+edited. The additions live in memory only: the control plane returns to the
+compiled-in templates when it restarts, so there is nothing to configure here in
+the chart and nothing to persist. <code>sandbox catalog rm &lt;id&gt;</code> removes one.</p>
 <h2 id="uninstalling">Uninstalling</h2>
 <p><code>helm uninstall</code> removes the control plane <strong>and the sandboxes it created</strong>. A
 <code>pre-delete</code> Job deletes every namespace carrying
@@ -329,16 +329,6 @@ to keep them, and delete them by hand.</p>
 <td><code>dataPlane</code></td>
 <td><code>true</code></td>
 <td>Serve <code>/sandbox/&lt;id&gt;/&lt;port&gt;/</code> by proxying into a sandbox.</td>
-</tr>
-<tr>
-<td><code>catalog</code> / <code>catalogDir</code></td>
-<td>—</td>
-<td>Templates to add or replace.</td>
-</tr>
-<tr>
-<td><code>disableTemplates</code></td>
-<td><code>[]</code></td>
-<td>Template ids to leave out.</td>
 </tr>
 <tr>
 <td><code>istio.enabled</code> / <code>istio.gateway</code></td>
