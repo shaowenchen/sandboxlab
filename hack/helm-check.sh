@@ -106,30 +106,6 @@ for pair in "SANDBOX_DEFAULT_TTL:15m" "SANDBOX_MAX_TTL:2h" "SANDBOX_MAX_SANDBOXE
   fi
 done
 
-# ── an inline catalog ───────────────────────────────────────────────────────
-
-section "with an inline catalog"
-
-# A template document contains a colon and a pipe, which is exactly the kind of
-# value that breaks a chart's quoting when nobody tries it.
-cat_rendered=$(helm template sandbox "$CHART" --namespace default --set-file \
-  'catalog.internal-tool\.yaml'="$CHART/Chart.yaml" 2>&1 || true)
-if grep -q 'SANDBOX_CATALOG_DIR' <<<"$cat_rendered"; then
-  ok "an inline catalog sets SANDBOX_CATALOG_DIR"
-else
-  bad "an inline catalog did not set SANDBOX_CATALOG_DIR"
-fi
-if grep -q 'kind: ConfigMap' <<<"$cat_rendered"; then
-  ok "an inline catalog creates a ConfigMap"
-else
-  bad "an inline catalog did not create a ConfigMap"
-fi
-if grep -q 'mountPath: /etc/sandbox/catalog' <<<"$cat_rendered"; then
-  ok "the catalog is mounted where the server looks for it"
-else
-  bad "the catalog is not mounted at /etc/sandbox/catalog"
-fi
-
 # ── Istio ───────────────────────────────────────────────────────────────────
 
 section "with Istio"

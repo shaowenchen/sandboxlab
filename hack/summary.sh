@@ -64,7 +64,7 @@ catalog="${SANDBOX_CATALOG:-}"
   echo "sandbox catalog"
   echo
   echo "# A complete workspace — shell, files, browser and desktop:"
-  echo "sandbox create -t all-in-one --name demo --wait"
+  echo "sandbox create -t agent-infra --name demo --wait"
   echo "sandbox url demo"
   echo
   echo "# Or open the console and click Create."

@@ -59,6 +59,12 @@ func newStubService(cfg config.Config, c *model.Catalog) *stubService {
 
 func (s *stubService) Catalog() *model.Catalog { return s.catalog }
 
+// AddTemplate and RemoveTemplate go straight to the catalog, which is where the
+// real service keeps them too — there is no cluster involved.
+func (s *stubService) AddTemplate(t model.Template) (bool, error) { return s.catalog.Add(t) }
+
+func (s *stubService) RemoveTemplate(id string) bool { return s.catalog.Remove(id) }
+
 func (s *stubService) Cluster(context.Context) bool { return s.clusterUp }
 
 func (s *stubService) Create(_ context.Context, in sandbox.CreateInput) (model.Sandbox, error) {

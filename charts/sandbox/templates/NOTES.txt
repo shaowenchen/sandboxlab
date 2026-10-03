@@ -52,12 +52,12 @@ https://github.com/shaowenchen/sandboxlab:
   export SANDBOX_KEY='{{ if $key }}{{ $key }}{{ else }}<the key above>{{ end }}'
 
   sandbox catalog
-  sandbox create -t all-in-one --name myshop
+  sandbox create -t agent-infra --name myshop
   sandbox url myshop
 
-The catalog is {{ if or .Values.catalogDir .Values.catalog }}the built-in templates plus
-the ones this release configures{{ else }}the built-in templates{{ end }}; read it with
-`sandbox catalog` or `GET /api/v1/catalog`.
+The catalog is compiled into the control plane; read it with `sandbox catalog`
+or `GET /api/v1/catalog`. Add one to the running deployment with `sandbox
+catalog add <file>` — it is held in memory and not persisted.
 
 Sandboxes live in namespaces of their own, named {{ .Values.sandboxNamespacePrefix }}<id>,
 and are deleted when their lifetime runs out. Uninstalling this release removes

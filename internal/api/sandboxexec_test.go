@@ -17,7 +17,7 @@ import (
 func execServer(t *testing.T) (*Server, *stubService) {
 	t.Helper()
 	s, svc := newTestServerWithStub(t, config.Config{}, nil)
-	if _, err := svc.Create(t.Context(), sandbox.CreateInput{Template: "python", Name: "demo"}); err != nil {
+	if _, err := svc.Create(t.Context(), sandbox.CreateInput{Template: "agent-sandbox", Name: "demo"}); err != nil {
 		t.Fatalf("creating the sandbox: %v", err)
 	}
 	return s, svc

@@ -1,0 +1,33 @@
+# The Code Interpreter image from alibaba/OpenSandbox: one workspace with
+# Python, Java, Go and Node already installed, so a script in any of them runs
+# without installing anything first.
+#
+# OpenSandbox itself is a sandbox runtime — a control plane that injects an
+# `execd` daemon into whatever image you name and serves a lifecycle API over
+# it — not a single image. What is worth taking here is that polyglot
+# environment. This deployment reaches a sandbox through its own exec and file
+# API rather than OpenSandbox's execd, so the template declares no port: it is
+# a workspace to run things in, which is what the exec surface is for.
+#
+# The image name is `opensandbox/code-interpreter` on Docker Hub; the same
+# component is published under ghcr.io/opensandbox-group/opensandbox/ and an
+# Alibaba Cloud ACR mirror if one of those is what a cluster can pull.
+id: opensandbox
+title: OpenSandbox code interpreter
+description: >-
+  alibaba/OpenSandbox's code-interpreter image: Python, Java, Go and Node
+  preinstalled, for running model-generated code and inspecting the results.
+image: opensandbox/code-interpreter:v1.1.0
+
+# No ports, deliberately: the image serves nothing on its own until OpenSandbox
+# injects execd into it, so this is a workspace — reached through `sandbox exec`
+# and the file endpoints — rather than a service to open.
+
+command: ["sleep", "infinity"]
+
+resources:
+  cpu: "1"
+  memory: 2Gi
+
+ttlDefault: 1h
+ttlMax: 8h

@@ -50,12 +50,6 @@ type Config struct {
 	// the caller can tell the operator where it came from.
 	keyGenerated bool
 
-	// CatalogDir is a directory of extra template files. Its ids override the
-	// built-in ones.
-	CatalogDir string
-	// DisabledTemplates are template ids to leave out of the catalog.
-	DisabledTemplates []string
-
 	// DefaultTTL applies to a sandbox whose template names no default.
 	DefaultTTL time.Duration
 	// MaxTTL is a ceiling no template or caller can exceed. Zero is no ceiling.
@@ -106,7 +100,6 @@ func Load() (Config, error) {
 	setString(&cfg.PublicURL, "SANDBOX_PUBLIC_URL", "")
 	setString(&cfg.BasePath, "SANDBOX_BASE_PATH", "")
 	setString(&cfg.APIKey, "SANDBOX_API_KEY", "")
-	setString(&cfg.CatalogDir, "SANDBOX_CATALOG_DIR", "")
 	setString(&cfg.LogLevel, "SANDBOX_LOG_LEVEL", "info")
 	setString(&cfg.Kubeconfig, "SANDBOX_KUBECONFIG", "")
 
@@ -117,8 +110,6 @@ func Load() (Config, error) {
 		}
 		cfg.keyGenerated = true
 	}
-
-	cfg.DisabledTemplates = splitList(os.Getenv("SANDBOX_DISABLE_TEMPLATES"))
 
 	if cfg.DefaultTTL, err = durationEnv("SANDBOX_DEFAULT_TTL", time.Hour); err != nil {
 		return Config{}, err
@@ -294,16 +285,6 @@ func boolEnv(key string, def bool) (bool, error) {
 		return false, fmt.Errorf("%s: %w", key, err)
 	}
 	return b, nil
-}
-
-func splitList(v string) []string {
-	var out []string
-	for _, part := range strings.Split(v, ",") {
-		if p := strings.TrimSpace(part); p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
 }
 
 // validNamespacePart reports whether s can appear inside a namespace name.

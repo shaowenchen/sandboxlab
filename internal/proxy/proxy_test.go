@@ -84,7 +84,7 @@ func newProxyServerWithSandbox(t *testing.T, cfg config.Config, res *resolver) *
 	t.Helper()
 	s, svc := newServer(t, cfg, proxy.New(cfg, res, slog.New(slog.NewTextHandler(io.Discard, nil))))
 	if _, err := svc.Create(context.Background(), sandbox.CreateInput{
-		Template: "code-server",
+		Template: "agent-infra",
 		Name:     "demo",
 	}); err != nil {
 		t.Fatalf("creating the sandbox under test: %v", err)
@@ -131,9 +131,10 @@ func TestForwardsTheRemainderToTheSandbox(t *testing.T) {
 	if gotQuery != "wait=1" {
 		t.Errorf("the backend saw query %q, want wait=1", gotQuery)
 	}
-	// The Host is the target's. A sandbox that trusts its Host header —
-	// code-server, notably — would otherwise see the public hostname and either
-	// refuse or build redirects pointing outside.
+	// The Host is the target's. A sandbox that trusts its Host header — the
+	// agent-infra image's VS Code and desktop, notably — would otherwise see
+	// the public hostname and either refuse or build redirects pointing
+	// outside.
 	if gotHost != target.Host {
 		t.Errorf("the backend saw Host %q, want its own %q", gotHost, target.Host)
 	}
@@ -295,7 +296,7 @@ func TestBodiesAreForwarded(t *testing.T) {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
 	// A POST with a body is half of what these sandboxes are for — the
-	// all-in-one image's own API is driven entirely by them.
+	// agent-infra image's own API is driven entirely by them.
 	if got != `{"command":"ls"}` {
 		t.Errorf("the backend received %q, want the request body", got)
 	}

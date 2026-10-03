@@ -39,7 +39,7 @@ export SANDBOX_URL='https://<the link>/sandbox'
 export SANDBOX_KEY='<the key>'
 
 sandbox catalog
-sandbox create -t all-in-one --name demo --wait
+sandbox create -t agent-infra --name demo --wait
 sandbox url demo
 ```
 

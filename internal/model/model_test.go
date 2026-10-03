@@ -149,6 +149,88 @@ func TestCatalogGet(t *testing.T) {
 	}
 }
 
+func TestCatalogAddUpserts(t *testing.T) {
+	c, err := NewCatalog([]Template{{ID: "demo", Image: "busybox"}})
+	if err != nil {
+		t.Fatalf("NewCatalog: %v", err)
+	}
+
+	replaced, err := c.Add(Template{ID: "extra", Image: "alpine"})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if replaced {
+		t.Error("Add reported replacing a template that was not there")
+	}
+	if c.Len() != 2 {
+		t.Errorf("Len = %d, want 2", c.Len())
+	}
+
+	// Adding the same id again replaces it rather than being an error: with no
+	// persistence, re-adding is how a template is edited.
+	replaced, err = c.Add(Template{ID: "demo", Image: "busybox:1.36"})
+	if err != nil {
+		t.Fatalf("Add (replace): %v", err)
+	}
+	if !replaced {
+		t.Error("Add did not report replacing an existing template")
+	}
+	if c.Len() != 2 {
+		t.Errorf("Len after replace = %d, want 2", c.Len())
+	}
+	if got, _ := c.Get("demo"); got.Image != "busybox:1.36" {
+		t.Errorf("demo image = %q, want the replacement busybox:1.36", got.Image)
+	}
+
+	// An invalid template is rejected and leaves the catalog alone.
+	if _, err := c.Add(Template{ID: "bad"}); err == nil {
+		t.Error("Add accepted a template with no image")
+	}
+	if c.Len() != 2 {
+		t.Errorf("Len after a rejected add = %d, want 2", c.Len())
+	}
+}
+
+func TestCatalogRemove(t *testing.T) {
+	c, err := NewCatalog([]Template{{ID: "demo", Image: "busybox"}})
+	if err != nil {
+		t.Fatalf("NewCatalog: %v", err)
+	}
+	if !c.Remove("demo") {
+		t.Error("Remove reported a template that was there as missing")
+	}
+	if c.Len() != 0 {
+		t.Errorf("Len after remove = %d, want 0", c.Len())
+	}
+	if c.Remove("demo") {
+		t.Error("Remove reported removing a template that was already gone")
+	}
+}
+
+// TestCatalogConcurrentAccess is what makes `-race` mean something here: the
+// HTTP handlers read and write the catalog from many goroutines at once.
+func TestCatalogConcurrentAccess(t *testing.T) {
+	c, err := NewCatalog([]Template{{ID: "demo", Image: "busybox"}})
+	if err != nil {
+		t.Fatalf("NewCatalog: %v", err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 200; i++ {
+			c.Add(Template{ID: "demo", Image: "busybox"})
+			c.Remove("demo")
+		}
+	}()
+	for i := 0; i < 200; i++ {
+		c.List()
+		c.Get("demo")
+		c.Len()
+	}
+	<-done
+}
+
 func TestSandboxExpiry(t *testing.T) {
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 

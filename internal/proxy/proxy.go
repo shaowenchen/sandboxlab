@@ -71,10 +71,11 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, id, port, rest s
 			pr.Out.URL.RawPath = ""
 			pr.SetXForwarded()
 			// The Host is set explicitly rather than left as the caller's. A
-			// sandbox that trusts its Host header — code-server, notably —
-			// would otherwise see the public hostname and refuse, or build
-			// redirects pointing outside. It sees the address it is served at
-			// from the cluster, which is the one it can check.
+			// sandbox that trusts its Host header — the agent-infra image's
+			// VS Code and desktop, notably — would otherwise see the public
+			// hostname and refuse, or build redirects pointing outside. It
+			// sees the address it is served at from the cluster, which is the
+			// one it can check.
 			pr.Out.Host = target.Host
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {

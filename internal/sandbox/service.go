@@ -68,6 +68,26 @@ func New(cfg config.Config, catalog *model.Catalog, client *k8s.Client) *Service
 // Catalog returns the templates a sandbox can be created from.
 func (s *Service) Catalog() *model.Catalog { return s.catalog }
 
+// AddTemplate puts a template in the running catalog, replacing any template
+// with the same id.
+//
+// The catalog is shared with the API layer, which reads it on every request, so
+// this is the one way a template arrives at runtime. Nothing is persisted: the
+// catalog returns to the compiled-in templates when the process restarts, which
+// is the trade this deployment makes for not needing a store.
+//
+// It reports whether an existing template was replaced, so the HTTP layer can
+// answer 201 for a new id and 200 for an edit.
+func (s *Service) AddTemplate(t model.Template) (replaced bool, err error) {
+	return s.catalog.Add(t)
+}
+
+// RemoveTemplate takes a template out of the running catalog, reporting whether
+// it was there.
+func (s *Service) RemoveTemplate(id string) bool {
+	return s.catalog.Remove(id)
+}
+
 // Cluster reports whether the cluster is reachable.
 func (s *Service) Cluster(ctx context.Context) bool { return s.client.Ready(ctx) }
 

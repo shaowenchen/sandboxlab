@@ -1,0 +1,37 @@
+# The AIO Sandbox from agent-infra: an all-in-one Linux environment for an
+# agent — a browser, a shell, a filesystem, an MCP server and VS Code, all in
+# one container.
+#
+# It is the template to reach for when the question is "can this be done in a
+# real environment at all" — nothing has to be installed first, and the desktop
+# can be watched rather than read about in a log.
+#
+# Everything is served from one port: the HTTP API under /v1 (its docs at
+# /v1/docs), the desktop at /vnc, VS Code at /code-server/ and the MCP endpoint
+# at /mcp. So there is one address and no second port to explain.
+id: agent-infra
+title: AIO Sandbox (browser, shell, MCP)
+description: >-
+  An all-in-one agent sandbox: a browser, a shell, a filesystem, an MCP server
+  and VS Code in one container, all reached through the web UI on one port.
+image: ghcr.io/agent-infra/sandbox:1.11.0
+
+ports:
+  - name: aio
+    port: 8080
+    description: The whole sandbox — API, desktop, VS Code and MCP
+
+# No SANDBOX_API_KEY is set, deliberately. The image leaves its services open
+# when it is unset, and this deployment already authenticates every route with
+# its own API key and the tunnel — a second key on the sandbox would be a second
+# login for no additional protection. Set it if this template is ever served
+# somewhere without that.
+
+resources:
+  # A browser and VS Code together are heavier than a shell. Two cores and 4Gi
+  # is what the image wants to be usable rather than merely alive.
+  cpu: "2"
+  memory: 4Gi
+
+ttlDefault: 1h
+ttlMax: 8h

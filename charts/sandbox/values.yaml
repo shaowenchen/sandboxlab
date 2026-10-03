@@ -84,24 +84,10 @@ maxFileBytes: 2097152
 # still works and nothing can be reached inside a sandbox.
 dataPlane: true
 
-# A directory of extra template files, mounted into the pod. Its ids replace the
-# built-in ones; see `catalog` below for the inline equivalent.
-catalogDir: ""
-# Extra templates, keyed by filename. Each value is a template document, the
-# same shape as the built-in catalog's files.
-#
-#   catalog:
-#     internal-tool.yaml: |
-#       id: internal-tool
-#       title: Internal tool environment
-#       image: registry.example.com/internal/tool:1.2.3
-#       ttlDefault: 30m
-catalog: {}
-# Template ids to leave out of the catalog entirely.
-disableTemplates: []
-# Which tag of the built-in images to use where a template pins `latest`, for an
-# environment that must run pinned versions. Empty leaves the templates as
-# written.
+# Templates are compiled into the control plane; more can be added to a running
+# deployment through the API or the console (`sandbox catalog add`, `PUT
+# /api/v1/catalog/{id}`). They are held in memory and are not persisted, so
+# there is nothing to configure here.
 logLevel: info
 
 # The control plane's own resources. It is a small HTTP server; the work happens

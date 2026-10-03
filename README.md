@@ -10,16 +10,14 @@ nothing to install first and nothing left behind.
 
 ```
 $ sandbox catalog
-all-in-one     Linux desktop (browser) linuxserver/webtop:ubuntu-xfce
-code-server    VS Code (browser)      codercom/code-server:latest
-node           Node sandbox           node:22-slim
-python         Python sandbox         python:3.12-slim
+agent-infra    AIO Sandbox (browser, shell, MCP) ghcr.io/agent-infra/sandbox:1.11.0
+agent-sandbox  Agent Sandbox runtime            sandbox-runtime:latest
 
-$ sandbox create -t all-in-one --name demo --wait
-demo  all-in-one  Running
-  image      linuxserver/webtop:ubuntu-xfce
+$ sandbox create -t agent-infra --name demo --wait
+demo  agent-infra  Running
+  image      ghcr.io/agent-infra/sandbox:1.11.0
   lifetime   59m left (until 2026-10-01T13:41:12+08:00)
-  desktop    https://sandbox.example.com/sandbox/sandbox/demo/desktop/?key=...
+  aio        https://sandbox.example.com/sandbox/sandbox/demo/aio/?key=...
 
 $ sandbox rm demo
 deleted demo
@@ -96,7 +94,7 @@ export SANDBOX_URL='https://<the link>/sandbox'
 export SANDBOX_KEY='<the key>'
 
 sandbox catalog                          # what can be created
-sandbox create -t python --name scratch  # create one
+sandbox create -t agent-infra --name scratch  # create one
 sandbox list                             # what is running, and where
 sandbox url scratch                      # just the address, for a script
 sandbox logs scratch                     # what it has printed
@@ -123,6 +121,9 @@ curl -s https://<the link>/sandbox/api/v1/describe | jq
 | Method | Path | |
 |---|---|---|
 | `GET` | `/api/v1/catalog` | the templates a sandbox can be created from |
+| `POST` | `/api/v1/catalog` | add one: `{document}` as YAML. 409 if the id exists unless `{overwrite: true}`. Not persisted |
+| `GET` | `/api/v1/catalog/{id}` | one template |
+| `DELETE` | `/api/v1/catalog/{id}` | remove one. Not persisted |
 | `POST` | `/api/v1/sandboxes` | create one: `{template, name?, ttl?, env?}` |
 | `GET` | `/api/v1/sandboxes` | every sandbox in the deployment |
 | `GET` | `/api/v1/sandboxes/{id}` | one, with its addresses and remaining time |
@@ -156,7 +157,7 @@ if err != nil {
     return err
 }
 created, err := client.CreateSandboxWithResponse(ctx, sdk.CreateSandboxRequest{
-    Template: "all-in-one", Name: "myshop", TTL: ptr("30m"),
+    Template: "agent-infra", Name: "myshop", TTL: ptr("30m"),
 })
 ```
 
@@ -172,45 +173,61 @@ make sdk     # regenerate after editing the spec
 ## Templates
 
 A template says what image to run, what ports it serves, and how long a sandbox
-may live. They ship in the binary and can be extended by a directory of files or
-a ConfigMap, so an environment can be given a new one without a release.
+may live. Templates are compiled into the control plane, and more can be added
+to a **running** deployment without a release — from the console, the CLI or the
+API:
 
-```yaml
-id: all-in-one
-title: Linux desktop (browser)
-description: >-
-  A full Linux desktop in a browser: window manager, browser, terminal and
-  filesystem. Nothing to install first.
-image: linuxserver/webtop:ubuntu-xfce
-
-ports:
-  - name: desktop
-    port: 3000
-
-resources:
-  cpu: "2"
-  memory: 4Gi
-
-ttlDefault: 1h
-ttlMax: 8h
+```bash
+sandbox catalog add ./tool.yaml       # add or replace one
+sandbox catalog rm tool               # remove one
 ```
 
-The four that ship:
+They are held in memory and are **not persisted**: the control plane returns to
+the templates compiled into it when it restarts. That is the trade this makes
+for needing no store — a template added to debug something does not have to be
+cleaned up, and a change worth keeping is a change worth a release.
+
+```yaml
+id: tool
+title: Internal tool
+image: registry.example.com/me/tool:1.2.3
+
+ports:
+  - name: web
+    port: 8080
+
+ttlDefault: 30m
+ttlMax: 4h
+```
+
+The three that ship:
 
 | | |
 |---|---|
-| **all-in-one** | A full Linux desktop in a browser — window manager, browser, terminal, filesystem. `linuxserver/webtop`, the lightest flavor it ships. The one to reach for when the question is "can this be done at all". |
-| **python** | Python 3.12 that stays up, for scripts and pip. |
-| **node** | Node 22 on the same terms. |
-| **code-server** | VS Code in a browser, for work that is editing rather than running. |
+| **agent-infra** | [AIO Sandbox](https://github.com/agent-infra/sandbox) — a browser, a shell, a filesystem, an MCP server and VS Code in one container, all reached through the web UI on one port. The one to reach for when the question is "can this be done at all". |
+| **agent-sandbox** | The [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) reference runtime: a small server that executes commands over HTTP. |
+| **opensandbox** | [alibaba/OpenSandbox](https://github.com/alibaba/OpenSandbox)'s code-interpreter image — Python, Java, Go and Node preinstalled, for running model-generated code. |
 
-All four are public Docker Hub images, deliberately: nothing here has to be
-pulled from a registry with an account, so an environment works the moment it
-starts.
+Two of these need a word more. The `agent-sandbox` image has to be **built and
+pushed first**: agent-sandbox is a Kubernetes CRD and controller, not an image,
+so its quickstart builds one locally. Build it from the project's
+[`examples/python-runtime-sandbox`](https://github.com/kubernetes-sigs/agent-sandbox/tree/main/examples/python-runtime-sandbox),
+push it where your cluster can pull, and point the template's `image` at it. A
+sandbox created before that is a pod that cannot pull its image.
 
-Templates with no ports — `python` and `node` — serve no URL, because their
-image serves nothing. They are a workspace to run things in rather than a
-service to open, and they are reached through the API:
+`opensandbox` declares no port, and that is deliberate: OpenSandbox's image
+serves nothing until its own control plane injects an `execd` daemon into it.
+This deployment reaches a sandbox through its own exec and file API instead, so
+the template is a workspace — Python, Java, Go and Node to hand — rather than a
+service to open.
+
+The `agent-infra` image runs an unconfined seccomp profile in its own quickstart.
+A template cannot set that (`internal/k8s` builds a plain container), so on a
+cluster that enforces a restrictive default profile, allow it for the sandbox
+namespaces at the cluster level.
+
+A template with no ports serves no URL — a workspace to run things in rather than
+a service to open. It is reached through the API:
 
 ```bash
 sandbox exec scratch -- python3 -c 'print("hi")'

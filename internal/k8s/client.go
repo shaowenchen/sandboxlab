@@ -199,10 +199,10 @@ func (c *Client) Create(ctx context.Context, req CreateRequest) (model.Sandbox, 
 	// A Service is created only when the template serves a port. One with no
 	// ports is not merely pointless — Kubernetes refuses it, because a Service
 	// is an address and ports are what it publishes (`spec.ports` is required
-	// unless the Service is headless or ExternalName). A template like the
-	// catalog's `python` runs no service at all and is driven through exec and
-	// the file endpoints, so the missing Service is the correct state and
-	// `Target` has nothing to resolve for it.
+	// unless the Service is headless or ExternalName). A template with no ports
+	// runs no service at all and is driven through exec and the file endpoints,
+	// so the missing Service is the correct state and `Target` has nothing to
+	// resolve for it.
 	if hasPorts(req.Template.Ports) {
 		if err := c.createService(ctx, ns, req.Template); err != nil {
 			return cleanup(err)

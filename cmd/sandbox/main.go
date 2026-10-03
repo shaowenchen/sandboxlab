@@ -89,10 +89,7 @@ func serve(ctx context.Context, cfg config.Config) error {
 	log := logging.New(cfg.LogLevel, os.Stderr)
 	log.Info("starting sandboxlab", "build", buildinfo.String())
 
-	templates, err := catalog.Loader{
-		ExtraDir: cfg.CatalogDir,
-		Disabled: disabledSet(cfg.DisabledTemplates),
-	}.Load()
+	templates, err := catalog.Loader{}.Load()
 	if err != nil {
 		return err
 	}
@@ -180,14 +177,7 @@ func catalogCmd() *cobra.Command {
 		Use:   "catalog",
 		Short: "Print the templates this configuration serves",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := config.Load()
-			if err != nil {
-				return err
-			}
-			templates, err := catalog.Loader{
-				ExtraDir: cfg.CatalogDir,
-				Disabled: disabledSet(cfg.DisabledTemplates),
-			}.Load()
+			templates, err := catalog.Loader{}.Load()
 			if err != nil {
 				return err
 			}
@@ -218,8 +208,6 @@ func printResolved(cfg config.Config) {
 		"namespace_prefix", cfg.SandboxNamespacePrefix,
 		"base_path", cfg.BasePath,
 		"public_url", cfg.PublicURL,
-		"catalog_dir", cfg.CatalogDir,
-		"disabled_templates", cfg.DisabledTemplates,
 		"default_ttl", cfg.DefaultTTL,
 		"max_ttl", cfg.MaxTTL,
 		"max_sandboxes", cfg.MaxSandboxes,
@@ -229,15 +217,4 @@ func printResolved(cfg config.Config) {
 		"max_file_bytes", cfg.MaxFileBytes,
 		"data_plane", cfg.DataPlane,
 	)
-}
-
-func disabledSet(ids []string) map[string]bool {
-	if len(ids) == 0 {
-		return nil
-	}
-	out := make(map[string]bool, len(ids))
-	for _, id := range ids {
-		out[id] = true
-	}
-	return out
 }

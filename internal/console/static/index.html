@@ -87,11 +87,16 @@
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .links { display: flex; gap: 8px; flex-wrap: wrap; }
 
-  input, select {
+  input, select, textarea {
     font: inherit; padding: 6px 10px; border-radius: 7px;
     border: 1px solid var(--line); background: var(--panel); color: var(--ink);
   }
-  input:focus, select:focus, button:focus-visible {
+  textarea {
+    font-family: var(--mono); font-size: 12.5px; min-height: 200px;
+    line-height: 1.45; resize: vertical; white-space: pre; overflow-wrap: normal;
+    overflow-x: auto;
+  }
+  input:focus, select:focus, textarea:focus, button:focus-visible {
     outline: 2px solid var(--accent); outline-offset: 1px;
   }
   label { color: var(--muted); font-size: 12.5px; }
@@ -217,7 +222,10 @@
   </section>
 
   <section id="catalogSection" hidden>
-    <h2>Templates</h2>
+    <div class="row" style="justify-content: space-between; margin-bottom: 10px;">
+      <h2 style="margin: 0;">Templates</h2>
+      <button id="addTemplate">Add template</button>
+    </div>
     <div class="cards" id="catalog"></div>
   </section>
 
@@ -251,6 +259,31 @@
 </dialog>
 
 
+
+<dialog id="templateDialog">
+  <form method="dialog" id="templateForm">
+    <h3>Add a template</h3>
+    <!-- A template is a YAML document, and that is what is edited here rather
+         than a row of fields: it is the same shape as the catalog's own files,
+         so anything a template can express can be added, and nothing has to be
+         kept in step with the model by hand. -->
+    <div class="field">
+      <label for="tDocument">Template YAML <span class="muted">(id and image are required)</span></label>
+      <textarea id="tDocument" spellcheck="false" autocomplete="off"
+        placeholder="id: my-template&#10;title: My template&#10;image: registry.example.com/me/tool:1.2.3&#10;ports:&#10;  - name: web&#10;    port: 8080&#10;ttlDefault: 30m"></textarea>
+    </div>
+    <p class="muted" style="margin: 0; font-size: 12px;">
+      The template is saved under its <code>id</code>; saving an id that already
+      exists replaces it. Templates added here are kept in memory only — the
+      control plane forgets them when it restarts, and the ones compiled into it
+      come back.
+    </p>
+    <div class="actions">
+      <button value="cancel">Cancel</button>
+      <button class="primary" value="add">Add</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="execDialog">
   <form method="dialog" id="execForm">
@@ -377,10 +410,13 @@
       var ports = (t.ports || []).map(function (p) { return p.name + " " + p.port; }).join("  ");
       if (ports) card.appendChild(text("div", "meta", ports));
 
-      var foot = text("div", "foot");
+      var foot = text("div", "foot row");
       var btn = text("button", "primary", "Create");
       btn.onclick = function () { openCreate(t.id); };
       foot.appendChild(btn);
+      var rm = text("button", "danger small", "Remove");
+      rm.onclick = function () { removeTemplate(t.id); };
+      foot.appendChild(rm);
       card.appendChild(foot);
       wrap.appendChild(card);
     });
@@ -587,6 +623,37 @@
       .catch(function (err) { toast("Could not create: " + err.message, true); });
   }
 
+  // ── templates ─────────────────────────────────────────────────────────────
+
+  function openTemplate() {
+    $("tDocument").value = "";
+    $("templateDialog").showModal();
+    $("tDocument").focus();
+  }
+
+  function submitTemplate() {
+    var doc = $("tDocument").value;
+    if (!doc.trim()) { toast("A template document is required", true); return; }
+    // The whole document is sent as text and parsed by the server, so the
+    // console needs no YAML parser of its own — and nothing here reads the id
+    // out of the text. overwrite makes a save of an existing id replace it, so
+    // this dialog is both "add" and "edit".
+    api("/catalog", { method: "POST", body: { document: doc, overwrite: true } })
+      .then(function (t) {
+        toast("Saved " + t.id);
+        $("templateDialog").close();
+        return refresh();
+      })
+      .catch(function (err) { toast("Could not save: " + err.message, true); });
+  }
+
+  function removeTemplate(id) {
+    if (!confirm("Remove template " + id + "? A template compiled into the control plane comes back when it restarts; one added here is gone. Sandboxes already created are unaffected.")) return;
+    api("/catalog/" + encodeURIComponent(id), { method: "DELETE" })
+      .then(function () { toast("Removed " + id); return refresh(); })
+      .catch(function (err) { toast("Could not remove: " + err.message, true); });
+  }
+
   function removeSandbox(id) {
     if (!confirm("Delete sandbox " + id + "? Everything in it goes with it.")) return;
     api("/sandboxes/" + encodeURIComponent(id), { method: "DELETE" })
@@ -676,6 +743,18 @@
     // "Create" is the one value that does more than close.
     if (button && button.value === "create") submitCreate();
   });
+
+  $("templateForm").addEventListener("submit", function (ev) {
+    var button = ev.submitter;
+    // "Add" does the work and closes only on success, so YAML that was rejected
+    // is still there to be corrected rather than lost.
+    if (button && button.value === "add") {
+      ev.preventDefault();
+      submitTemplate();
+    }
+  });
+
+  $("addTemplate").onclick = openTemplate;
 
   $("execForm").addEventListener("submit", function (ev) {
     var button = ev.submitter;

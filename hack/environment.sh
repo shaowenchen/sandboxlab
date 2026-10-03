@@ -621,10 +621,24 @@ record SANDBOX_READY "true"
 # proves the control plane is up and none of it proves it can do its job. This
 # is also what proves the RBAC, which is the part most likely to be wrong: the
 # control plane can serve the catalog with no cluster access at all.
+#
+# The template is added at runtime first. The compiled-in ones are real
+# environments — the agent-infra image is a browser and a desktop, and the
+# agent-sandbox image is not on any registry — so neither is a five-minute
+# smoke test. A tiny one exercises the same path the console and the CLI use to
+# add a template, which is a second thing worth proving here.
+log "adding a small template to run a sandbox from"
+# `sleep` takes a number, not "infinity": busybox's applet is not GNU sleep.
+curl -fsS -X PUT -H "Host: ${TUNNEL_HOST}" -H "X-Sandbox-Key: ${API_KEY}" \
+  -H 'Content-Type: application/json' \
+  -d '{"document":"id: smoke\nimage: busybox:1.36\ncommand: [\"sleep\", \"2147483647\"]\nttlDefault: 5m\n"}' \
+  "${local_url}/api/v1/catalog/smoke" >/dev/null 2>&1 \
+  || die "a template could not be added at runtime"
+
 log "creating a sandbox to confirm the control plane can create one"
 created=$(curl -fsS -X POST -H "Host: ${TUNNEL_HOST}" -H "X-Sandbox-Key: ${API_KEY}" \
   -H 'Content-Type: application/json' \
-  -d '{"template":"python","name":"sandboxlab-smoke","ttl":"5m"}' \
+  -d '{"template":"smoke","name":"sandboxlab-smoke","ttl":"5m"}' \
   "${local_url}/api/v1/sandboxes" 2>&1) || die "the smoke sandbox could not be created: ${created}"
 
 # It is deleted by the reaper when its five minutes are up; the cluster goes
@@ -632,6 +646,9 @@ created=$(curl -fsS -X POST -H "Host: ${TUNNEL_HOST}" -H "X-Sandbox-Key: ${API_K
 # whoever is about to use it.
 curl -fsS -X DELETE -H "Host: ${TUNNEL_HOST}" -H "X-Sandbox-Key: ${API_KEY}" \
   "${local_url}/api/v1/sandboxes/sandboxlab-smoke" >/dev/null 2>&1 || true
+# And the template, so the summary lists what the control plane actually ships.
+curl -fsS -X DELETE -H "Host: ${TUNNEL_HOST}" -H "X-Sandbox-Key: ${API_KEY}" \
+  "${local_url}/api/v1/catalog/smoke" >/dev/null 2>&1 || true
 
 show "the sandboxes" kubectl get namespaces -l app.kubernetes.io/managed-by=sandboxlab
 
@@ -674,7 +691,7 @@ cat <<EOF
      export SANDBOX_URL='${PUBLIC_URL}${SANDBOXLAB_BASE_PATH}'
      export SANDBOX_KEY='${API_KEY}'
      sandbox catalog
-     sandbox create -t all-in-one --name demo --wait
+     sandbox create -t agent-infra --name demo --wait
      sandbox url demo
 
 =====================================================================

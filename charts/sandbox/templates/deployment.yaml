@@ -21,15 +21,10 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+      {{- with .Values.podAnnotations }}
       annotations:
-        # A checksum of the values the pod reads, so a change to them restarts
-        # the pod. Without it a `helm upgrade` that only changed, say, the
-        # default TTL would leave the old value running until something else
-        # happened to roll the Deployment.
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-        {{- end }}
+      {{- end }}
     spec:
       serviceAccountName: {{ include "sandbox.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
@@ -88,12 +83,6 @@ spec:
               value: {{ .Values.dataPlane | quote }}
             - name: SANDBOX_LOG_LEVEL
               value: {{ .Values.logLevel | quote }}
-            - name: SANDBOX_DISABLE_TEMPLATES
-              value: {{ join "," .Values.disableTemplates | quote }}
-            {{- if or .Values.catalogDir .Values.catalog }}
-            - name: SANDBOX_CATALOG_DIR
-              value: {{ default "/etc/sandbox/catalog" .Values.catalogDir | quote }}
-            {{- end }}
             # From the Secret, never a plain value: the pod spec is readable by
             # anyone who can read the Deployment.
             - name: SANDBOX_API_KEY
@@ -129,18 +118,6 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
-          {{- if or .Values.catalogDir .Values.catalog }}
-          volumeMounts:
-            - name: catalog
-              mountPath: /etc/sandbox/catalog
-              readOnly: true
-          {{- end }}
-      {{- if or .Values.catalogDir .Values.catalog }}
-      volumes:
-        - name: catalog
-          configMap:
-            name: {{ include "sandbox.fullname" . }}-catalog
-      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

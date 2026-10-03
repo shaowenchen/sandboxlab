@@ -126,6 +126,36 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/TemplateList"}
         "401": {$ref: "#/components/responses/Unauthorized"}
+    post:
+      tags: [sandboxes]
+      operationId: addCatalogEntry
+      summary: Add a template to the running catalog
+      description: >-
+        The template arrives as a YAML document — the same shape as the
+        catalog's own files — so the server parses it with one strict parser and
+        a client needs no YAML of its own. Nothing is persisted: the catalog
+        returns to the compiled-in templates when the process restarts. An id
+        that already exists is a 409 unless `overwrite` is set, so a mistyped or
+        retried create cannot silently clobber someone else's template.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/AddTemplateRequest"}
+      responses:
+        "201":
+          description: the template was added
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Template"}
+        "200":
+          description: an existing template was replaced because `overwrite` was set
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Template"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "409": {$ref: "#/components/responses/Conflict"}
 
   /api/v1/catalog/{id}:
     get:
@@ -143,6 +173,27 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Template"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    delete:
+      tags: [sandboxes]
+      operationId: deleteCatalogEntry
+      summary: Remove a template from the running catalog
+      description: >-
+        Nothing is persisted: a built-in template comes back when the process
+        restarts, and a template added at runtime is gone for good. Removing a
+        template does not touch the sandboxes already created from it.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: the template was removed
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Deleted"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "404": {$ref: "#/components/responses/NotFound"}
 
@@ -308,8 +359,8 @@ paths:
       description: >-
         The command is an argv, not a command line: pass ["sh", "-c", "..."] to
         have a shell interpret it, and pass anything else to have it not. This
-        is the way into a sandbox whose template serves no port — python and
-        node are a workspace with no URL, and this is what reaches them.
+        is the way into a sandbox whose template serves no port — a workspace
+        with no URL — and this is what reaches it.
 
 
         **A non-zero exitCode is not a failure.** The command ran and that is
@@ -530,7 +581,7 @@ components:
         defaultTTL: {type: string, description: "a duration, e.g. 1h0m0s"}
         maxTTL:     {type: string, description: "a duration, e.g. 8h0m0s"}
         maxSandboxes: {type: integer, description: "0 means no deployment-wide ceiling"}
-        templates:  {type: integer, description: "how many templates the catalog holds"}
+        templates:  {type: integer, description: "how many templates the catalog holds right now — the compiled-in ones plus anything added at runtime"}
 
     Describe:
       type: object
@@ -656,6 +707,28 @@ components:
       required: [templates]
       properties:
         templates: {type: array, items: {$ref: "#/components/schemas/Template"}}
+
+    AddTemplateRequest:
+      type: object
+      description: >-
+        A template to add, as its YAML document. It is text rather than the
+        Template object because the thing being sent is a document — the same
+        shape as a catalog file — and the server parses it strictly, so an
+        unknown field or an invalid template is a 400.
+      required: [document]
+      properties:
+        document:
+          type: string
+          description: >-
+            the template as YAML. The id must be lowercase alphanumerics and
+            '-'. Nothing here is persisted; the catalog returns to the
+            compiled-in templates on restart.
+        overwrite:
+          type: boolean
+          description: >-
+            replace a template that already has this id instead of answering
+            409. Without it an existing id is a conflict, so a create that was
+            meant to add cannot quietly overwrite.
 
     # ── sandboxes ─────────────────────────────────────────────────────────────
 

@@ -131,6 +131,15 @@ func (e WriteFileRequestEncoding) Valid() bool {
 	}
 }
 
+// AddTemplateRequest A template to add, as its YAML document. It is text rather than the Template object because the thing being sent is a document — the same shape as a catalog file — and the server parses it strictly, so an unknown field or an invalid template is a 400.
+type AddTemplateRequest struct {
+	// Document the template as YAML. The id must be lowercase alphanumerics and '-'. Nothing here is persisted; the catalog returns to the compiled-in templates on restart.
+	Document string `json:"document"`
+
+	// Overwrite replace a template that already has this id instead of answering 409. Without it an existing id is a conflict, so a create that was meant to add cannot quietly overwrite.
+	Overwrite bool `json:"overwrite,omitempty"`
+}
+
 // AuthDescription defines model for AuthDescription.
 type AuthDescription struct {
 	// Headers the headers a key may be sent in
@@ -167,7 +176,7 @@ type Config struct {
 	// PublicURL the address sandboxes are reported at; empty means relative addresses
 	PublicURL string `json:"publicURL,omitempty"`
 
-	// Templates how many templates the catalog holds
+	// Templates how many templates the catalog holds right now — the compiled-in ones plus anything added at runtime
 	Templates int `json:"templates"`
 }
 
@@ -184,6 +193,12 @@ type CreateSandboxRequest struct {
 
 	// TTL how long it may live, e.g. 90m; the template's default when empty
 	TTL string `json:"ttl,omitempty"`
+}
+
+// Deleted defines model for Deleted.
+type Deleted struct {
+	// Deleted the id that was deleted
+	Deleted string `json:"deleted"`
 }
 
 // Describe defines model for Describe.
@@ -456,6 +471,9 @@ type GetSandboxLogsParams struct {
 	Tail int `form:"tail,omitempty" json:"tail,omitempty"`
 }
 
+// AddCatalogEntryJSONRequestBody defines body for AddCatalogEntry for application/json ContentType.
+type AddCatalogEntryJSONRequestBody = AddTemplateRequest
+
 // CreateSandboxJSONRequestBody defines body for CreateSandbox for application/json ContentType.
 type CreateSandboxJSONRequestBody = CreateSandboxRequest
 
@@ -547,6 +565,31 @@ type ClientInterface interface {
 	// Corresponds with GET /api/v1/catalog (the `ListCatalog` operationId).
 	ListCatalog(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// AddCatalogEntryWithBody Add a template to the running catalog
+	//
+	// The template arrives as a YAML document — the same shape as the catalog's own files — so the server parses it with one strict parser and a client needs no YAML of its own. Nothing is persisted: the catalog returns to the compiled-in templates when the process restarts. An id that already exists is a 409 unless `overwrite` is set, so a mistyped or retried create cannot silently clobber someone else's template.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/catalog (the `AddCatalogEntry` operationId).
+	AddCatalogEntryWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AddCatalogEntry Add a template to the running catalog
+	//
+	// The template arrives as a YAML document — the same shape as the catalog's own files — so the server parses it with one strict parser and a client needs no YAML of its own. Nothing is persisted: the catalog returns to the compiled-in templates when the process restarts. An id that already exists is a 409 unless `overwrite` is set, so a mistyped or retried create cannot silently clobber someone else's template.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/catalog (the `AddCatalogEntry` operationId).
+	AddCatalogEntry(ctx context.Context, body AddCatalogEntryJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteCatalogEntry Remove a template from the running catalog
+	//
+	// Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+	//
+	// Corresponds with DELETE /api/v1/catalog/{id} (the `DeleteCatalogEntry` operationId).
+	DeleteCatalogEntry(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetCatalogEntry One template
 	//
 	// Corresponds with GET /api/v1/catalog/{id} (the `GetCatalogEntry` operationId).
@@ -606,7 +649,7 @@ type ClientInterface interface {
 
 	// ExecInSandboxWithBody Run a command in a sandbox and wait for it
 	//
-	// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.
+	// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.
 	//
 	// **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
 	//
@@ -617,7 +660,7 @@ type ClientInterface interface {
 
 	// ExecInSandbox Run a command in a sandbox and wait for it
 	//
-	// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.
+	// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.
 	//
 	// **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
 	//
@@ -703,6 +746,61 @@ type ClientInterface interface {
 // Corresponds with GET /api/v1/catalog (the `ListCatalog` operationId).
 func (c *Client) ListCatalog(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListCatalogRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AddCatalogEntryWithBody Add a template to the running catalog
+//
+// The template arrives as a YAML document — the same shape as the catalog's own files — so the server parses it with one strict parser and a client needs no YAML of its own. Nothing is persisted: the catalog returns to the compiled-in templates when the process restarts. An id that already exists is a 409 unless `overwrite` is set, so a mistyped or retried create cannot silently clobber someone else's template.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/catalog (the `AddCatalogEntry` operationId).
+func (c *Client) AddCatalogEntryWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAddCatalogEntryRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AddCatalogEntry Add a template to the running catalog
+//
+// The template arrives as a YAML document — the same shape as the catalog's own files — so the server parses it with one strict parser and a client needs no YAML of its own. Nothing is persisted: the catalog returns to the compiled-in templates when the process restarts. An id that already exists is a 409 unless `overwrite` is set, so a mistyped or retried create cannot silently clobber someone else's template.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/catalog (the `AddCatalogEntry` operationId).
+func (c *Client) AddCatalogEntry(ctx context.Context, body AddCatalogEntryJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAddCatalogEntryRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteCatalogEntry Remove a template from the running catalog
+//
+// Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+//
+// Corresponds with DELETE /api/v1/catalog/{id} (the `DeleteCatalogEntry` operationId).
+func (c *Client) DeleteCatalogEntry(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteCatalogEntryRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -862,7 +960,7 @@ func (c *Client) GetSandbox(ctx context.Context, id string, reqEditors ...Reques
 
 // ExecInSandboxWithBody Run a command in a sandbox and wait for it
 //
-// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.
+// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.
 //
 // **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
 //
@@ -883,7 +981,7 @@ func (c *Client) ExecInSandboxWithBody(ctx context.Context, id string, contentTy
 
 // ExecInSandbox Run a command in a sandbox and wait for it
 //
-// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.
+// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.
 //
 // **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
 //
@@ -1083,6 +1181,80 @@ func NewListCatalogRequest(server string) (*http.Request, error) {
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAddCatalogEntryRequest calls the generic AddCatalogEntry builder with application/json body
+func NewAddCatalogEntryRequest(server string, body AddCatalogEntryJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAddCatalogEntryRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewAddCatalogEntryRequestWithBody constructs an http.Request for the AddCatalogEntry method, with any body, and a specified content type
+func NewAddCatalogEntryRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/catalog")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteCatalogEntryRequest constructs an http.Request for the DeleteCatalogEntry method
+func NewDeleteCatalogEntryRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/catalog/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1764,6 +1936,33 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/v1/catalog (the `ListCatalog` operationId).
 	ListCatalogWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListCatalogResponse, error)
 
+	// AddCatalogEntryWithBodyWithResponse Add a template to the running catalog
+	//
+	// The template arrives as a YAML document — the same shape as the catalog's own files — so the server parses it with one strict parser and a client needs no YAML of its own. Nothing is persisted: the catalog returns to the compiled-in templates when the process restarts. An id that already exists is a 409 unless `overwrite` is set, so a mistyped or retried create cannot silently clobber someone else's template.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/catalog (the `AddCatalogEntry` operationId).
+	AddCatalogEntryWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddCatalogEntryResponse, error)
+
+	// AddCatalogEntryWithResponse Add a template to the running catalog
+	//
+	// The template arrives as a YAML document — the same shape as the catalog's own files — so the server parses it with one strict parser and a client needs no YAML of its own. Nothing is persisted: the catalog returns to the compiled-in templates when the process restarts. An id that already exists is a 409 unless `overwrite` is set, so a mistyped or retried create cannot silently clobber someone else's template.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/catalog (the `AddCatalogEntry` operationId).
+	AddCatalogEntryWithResponse(ctx context.Context, body AddCatalogEntryJSONRequestBody, reqEditors ...RequestEditorFn) (*AddCatalogEntryResponse, error)
+
+	// DeleteCatalogEntryWithResponse Remove a template from the running catalog
+	//
+	// Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/catalog/{id} (the `DeleteCatalogEntry` operationId).
+	DeleteCatalogEntryWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteCatalogEntryResponse, error)
+
 	// GetCatalogEntryWithResponse One template
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -1837,7 +2036,7 @@ type ClientWithResponsesInterface interface {
 
 	// ExecInSandboxWithBodyWithResponse Run a command in a sandbox and wait for it
 	//
-	// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.
+	// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.
 	//
 	// **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
 	//
@@ -1848,7 +2047,7 @@ type ClientWithResponsesInterface interface {
 
 	// ExecInSandboxWithResponse Run a command in a sandbox and wait for it
 	//
-	// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.
+	// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.
 	//
 	// **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
 	//
@@ -1981,6 +2180,130 @@ func (r ListCatalogResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ListCatalogResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type AddCatalogEntryResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Template
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *Template
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r AddCatalogEntryResponse) GetJSON200() *Template {
+	return r.JSON200
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r AddCatalogEntryResponse) GetJSON201() *Template {
+	return r.JSON201
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r AddCatalogEntryResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r AddCatalogEntryResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r AddCatalogEntryResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r AddCatalogEntryResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r AddCatalogEntryResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AddCatalogEntryResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AddCatalogEntryResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteCatalogEntryResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Deleted
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r DeleteCatalogEntryResponse) GetJSON200() *Deleted {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteCatalogEntryResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteCatalogEntryResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteCatalogEntryResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteCatalogEntryResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteCatalogEntryResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteCatalogEntryResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -2890,6 +3213,51 @@ func (c *ClientWithResponses) ListCatalogWithResponse(ctx context.Context, reqEd
 	return ParseListCatalogResponse(rsp)
 }
 
+// AddCatalogEntryWithBodyWithResponse Add a template to the running catalog
+//
+// The template arrives as a YAML document — the same shape as the catalog's own files — so the server parses it with one strict parser and a client needs no YAML of its own. Nothing is persisted: the catalog returns to the compiled-in templates when the process restarts. An id that already exists is a 409 unless `overwrite` is set, so a mistyped or retried create cannot silently clobber someone else's template.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/catalog (the `AddCatalogEntry` operationId).
+func (c *ClientWithResponses) AddCatalogEntryWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddCatalogEntryResponse, error) {
+	rsp, err := c.AddCatalogEntryWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAddCatalogEntryResponse(rsp)
+}
+
+// AddCatalogEntryWithResponse Add a template to the running catalog
+//
+// The template arrives as a YAML document — the same shape as the catalog's own files — so the server parses it with one strict parser and a client needs no YAML of its own. Nothing is persisted: the catalog returns to the compiled-in templates when the process restarts. An id that already exists is a 409 unless `overwrite` is set, so a mistyped or retried create cannot silently clobber someone else's template.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/catalog (the `AddCatalogEntry` operationId).
+func (c *ClientWithResponses) AddCatalogEntryWithResponse(ctx context.Context, body AddCatalogEntryJSONRequestBody, reqEditors ...RequestEditorFn) (*AddCatalogEntryResponse, error) {
+	rsp, err := c.AddCatalogEntry(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAddCatalogEntryResponse(rsp)
+}
+
+// DeleteCatalogEntryWithResponse Remove a template from the running catalog
+//
+// Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/catalog/{id} (the `DeleteCatalogEntry` operationId).
+func (c *ClientWithResponses) DeleteCatalogEntryWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteCatalogEntryResponse, error) {
+	rsp, err := c.DeleteCatalogEntry(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteCatalogEntryResponse(rsp)
+}
+
 // GetCatalogEntryWithResponse One template
 //
 // Returns a wrapper object for the known response body format(s).
@@ -3017,7 +3385,7 @@ func (c *ClientWithResponses) GetSandboxWithResponse(ctx context.Context, id str
 
 // ExecInSandboxWithBodyWithResponse Run a command in a sandbox and wait for it
 //
-// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.
+// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.
 //
 // **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
 //
@@ -3034,7 +3402,7 @@ func (c *ClientWithResponses) ExecInSandboxWithBodyWithResponse(ctx context.Cont
 
 // ExecInSandboxWithResponse Run a command in a sandbox and wait for it
 //
-// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — python and node are a workspace with no URL, and this is what reaches them.
+// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.
 //
 // **A non-zero exitCode is not a failure.** The command ran and that is what it returned, so the response is a 200 carrying the output and the status. Only an error response means the command could not be run at all — no pod yet, no permission, or the timeout below.
 //
@@ -3211,6 +3579,100 @@ func ParseListCatalogResponse(rsp *http.Response) (*ListCatalogResponse, error) 
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAddCatalogEntryResponse parses an HTTP response from a AddCatalogEntryWithResponse call
+func ParseAddCatalogEntryResponse(rsp *http.Response) (*AddCatalogEntryResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AddCatalogEntryResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Template
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Template
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteCatalogEntryResponse parses an HTTP response from a DeleteCatalogEntryWithResponse call
+func ParseDeleteCatalogEntryResponse(rsp *http.Response) (*DeleteCatalogEntryResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteCatalogEntryResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Deleted
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

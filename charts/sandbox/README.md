@@ -105,29 +105,31 @@ your own; the chart then expects a ServiceAccount named
 
 ## The catalog
 
-The templates a sandbox can be created from come from two places:
+The templates a sandbox can be created from are compiled into the control plane:
+`agent-infra` (the AIO Sandbox), `agent-sandbox` (the reference runtime from
+kubernetes-sigs/agent-sandbox, whose image must be built and pushed first) and
+`opensandbox` (alibaba/OpenSandbox's code-interpreter image). Read them with
+`sandbox catalog` or `GET /api/v1/catalog`.
 
-1. **Built in**, compiled into the image: `all-in-one`, `python`, `node`,
-   `code-server`.
-2. **This release**, through `catalog` (inline) or `catalogDir` (a mounted
-   directory). An id in either **replaces** the built-in of that name; it does
-   not merge with it.
+More can be added to a **running** deployment without a release, through the API
+or the console:
 
 ```yaml
-catalog:
-  internal-tool.yaml: |
-    id: internal-tool
-    title: Internal tool environment
-    image: registry.example.com/internal/tool:1.2.3
-    ports:
-      - name: web
-        port: 8080
-    ttlDefault: 30m
-    ttlMax: 4h
+# sandbox catalog add internal-tool.yaml
+id: internal-tool
+title: Internal tool environment
+image: registry.example.com/internal/tool:1.2.3
+ports:
+  - name: web
+    port: 8080
+ttlDefault: 30m
+ttlMax: 4h
 ```
 
-`disableTemplates` removes templates by id from the final catalog — a misspelled
-id there is a startup error rather than a template that quietly stays listed.
+An id that already exists is replaced, so adding is also how a template is
+edited. The additions live in memory only: the control plane returns to the
+compiled-in templates when it restarts, so there is nothing to configure here in
+the chart and nothing to persist. `sandbox catalog rm <id>` removes one.
 
 ## Uninstalling
 
@@ -157,8 +159,6 @@ to keep them, and delete them by hand.
 | `execTimeoutMax` | `10m` | The longest a caller may ask for. |
 | `maxFileBytes` | `2097152` | The largest file the API reads or writes. |
 | `dataPlane` | `true` | Serve `/sandbox/<id>/<port>/` by proxying into a sandbox. |
-| `catalog` / `catalogDir` | — | Templates to add or replace. |
-| `disableTemplates` | `[]` | Template ids to leave out. |
 | `istio.enabled` / `istio.gateway` | `false` / — | Write the VirtualService. The gateway must already exist. |
 | `ingress.enabled` / `ingress.host` | `false` / — | Write an Ingress instead. |
 | `cleanup.enabled` | `true` | Delete the sandboxes on uninstall. |

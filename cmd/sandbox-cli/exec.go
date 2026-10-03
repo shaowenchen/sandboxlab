@@ -18,8 +18,8 @@ import (
 
 // execCmd runs a command inside a sandbox.
 //
-// It is the way into a sandbox whose template serves no port: `python` and
-// `node` are a workspace with no URL, and this is what reaches them.
+// It is the way into a sandbox whose template serves no port: such a sandbox is
+// a workspace with no URL, and this is what reaches it.
 func execCmd() *cobra.Command {
 	var (
 		cwd      string

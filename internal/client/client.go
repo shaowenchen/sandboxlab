@@ -91,6 +91,24 @@ func (c *Client) Catalog(ctx context.Context) ([]model.Template, error) {
 	return out.Templates, err
 }
 
+// AddTemplate adds a template, replacing any template that already has its id.
+//
+// It sends "overwrite", so applying the same document twice replaces rather than
+// conflicting — the CLI is declarative, "make this template what the file says".
+// Nothing is persisted: the catalog returns to the compiled-in templates when
+// the control plane restarts.
+func (c *Client) AddTemplate(ctx context.Context, document string) (model.Template, error) {
+	var out model.Template
+	body := map[string]any{"document": document, "overwrite": true}
+	err := c.do(ctx, http.MethodPost, "/api/v1/catalog", body, &out, true)
+	return out, err
+}
+
+// DeleteTemplate removes a template from the running catalog.
+func (c *Client) DeleteTemplate(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodDelete, "/api/v1/catalog/"+url.PathEscape(id), nil, nil, true)
+}
+
 // List returns every sandbox.
 func (c *Client) List(ctx context.Context) ([]model.Sandbox, error) {
 	var out struct {

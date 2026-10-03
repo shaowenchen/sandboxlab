@@ -76,7 +76,7 @@ if err != nil {
 }
 
 created, err := client.CreateSandboxWithResponse(ctx, sdk.CreateSandboxRequest{
-    Template: "all-in-one",
+    Template: "agent-infra",
     Name:     "myshop",
     TTL:      ptr("30m"),
 })
@@ -101,7 +101,7 @@ config.api_key["ApiKey"] = os.environ["SANDBOXLAB_KEY"]
 api = SandboxesApi(ApiClient(configuration=config))
 
 sandbox = api.create_sandbox(CreateSandboxRequest(
-    template="all-in-one", name="myshop", ttl="30m",
+    template="agent-infra", name="myshop", ttl="30m",
 ))
 print(sandbox.id, sandbox.state)
 ```
@@ -123,7 +123,7 @@ const api = new SandboxesApi(new Configuration({
 }));
 
 const sandbox = await api.createSandbox({
-  createSandboxRequest: { template: "all-in-one", name: "myshop", ttl: "30m" },
+  createSandboxRequest: { template: "agent-infra", name: "myshop", ttl: "30m" },
 });
 console.log(sandbox.id, sandbox.state);
 ```
@@ -139,7 +139,7 @@ client.setRequestInterceptor(b -> b.header("X-Sandbox-Key", key));
 
 SandboxesApi api = new SandboxesApi(client);
 CreateSandboxRequest req = new CreateSandboxRequest();
-req.setTemplate("all-in-one");
+req.setTemplate("agent-infra");
 req.setName("myshop");
 req.setTtl("30m");
 Sandbox sandbox = api.createSandbox(req);

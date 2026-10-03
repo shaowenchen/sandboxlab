@@ -235,14 +235,14 @@ func TestListCatalog(t *testing.T) {
 func TestGetCatalogEntry(t *testing.T) {
 	s := newTestServer(t, config.Config{}, nil)
 
-	w := do(t, s, http.MethodGet, "/api/v1/catalog/python", testKey, "")
+	w := do(t, s, http.MethodGet, "/api/v1/catalog/agent-sandbox", testKey, "")
 	if w.Code != http.StatusOK {
-		t.Fatalf("GET /api/v1/catalog/python = %d, want 200", w.Code)
+		t.Fatalf("GET /api/v1/catalog/agent-sandbox = %d, want 200", w.Code)
 	}
 	var tmpl model.Template
 	decode(t, w, &tmpl)
-	if tmpl.ID != "python" {
-		t.Errorf("id = %q, want python", tmpl.ID)
+	if tmpl.ID != "agent-sandbox" {
+		t.Errorf("id = %q, want agent-sandbox", tmpl.ID)
 	}
 
 	if w := do(t, s, http.MethodGet, "/api/v1/catalog/nope", testKey, ""); w.Code != http.StatusNotFound {
@@ -250,11 +250,83 @@ func TestGetCatalogEntry(t *testing.T) {
 	}
 }
 
+// The catalog is writable at runtime, through the same POST/PUT/DELETE the
+// console and the CLI use. These are the handlers, not the model: they decode a
+// document, reject one that does not fit, and answer with the right status.
+func TestAddCatalogEntry(t *testing.T) {
+	s := newTestServer(t, config.Config{}, nil)
+
+	// A new id is a 201.
+	body := `{"document":"id: tool\nimage: registry.example.com/tool:1\nports:\n  - name: web\n    port: 8080\n"}`
+	w := do(t, s, http.MethodPost, "/api/v1/catalog", testKey, body)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("POST a new template = %d, want 201: %s", w.Code, w.Body.String())
+	}
+	var added model.Template
+	decode(t, w, &added)
+	if added.ID != "tool" || added.Image != "registry.example.com/tool:1" {
+		t.Errorf("added = %+v, want id tool", added)
+	}
+	// And it is now in the catalog, which is what makes it creatable.
+	if got, ok := s.svc.Catalog().Get("tool"); !ok || got.Image != "registry.example.com/tool:1" {
+		t.Errorf("the added template is not in the catalog: %+v", got)
+	}
+
+	// The same id again is a conflict, so a mistyped create cannot clobber a
+	// template someone else added.
+	conflict := `{"document":"id: tool\nimage: registry.example.com/tool:2\n"}`
+	if w := do(t, s, http.MethodPost, "/api/v1/catalog", testKey, conflict); w.Code != http.StatusConflict {
+		t.Fatalf("POST an existing template = %d, want 409: %s", w.Code, w.Body.String())
+	}
+	if got, _ := s.svc.Catalog().Get("tool"); got.Image != "registry.example.com/tool:1" {
+		t.Errorf("a conflicted POST changed the template: %q", got.Image)
+	}
+
+	// Unless the caller says overwrite, in which case it replaces and is a 200.
+	overwrite := `{"overwrite":true,"document":"id: tool\nimage: registry.example.com/tool:3\n"}`
+	if w := do(t, s, http.MethodPost, "/api/v1/catalog", testKey, overwrite); w.Code != http.StatusOK {
+		t.Fatalf("POST with overwrite = %d, want 200: %s", w.Code, w.Body.String())
+	}
+	if got, _ := s.svc.Catalog().Get("tool"); got.Image != "registry.example.com/tool:3" {
+		t.Errorf("the overwritten template image = %q, want ...tool:3", got.Image)
+	}
+
+	// A document that is not a usable template is a 400, and leaves the catalog
+	// as it was.
+	for _, tc := range []struct{ name, body string }{
+		{"no image", `{"document":"id: broken\n"}`},
+		{"a misspelled field", `{"document":"id: broken\nimage: x\nttlDefualt: 30m\n"}`},
+		{"an id that is not usable", `{"document":"id: Not An Id\nimage: x\n"}`},
+		{"not a document at all", `{"document":"::: not yaml :::"}`},
+		{"no document", `{}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if w := do(t, s, http.MethodPost, "/api/v1/catalog", testKey, tc.body); w.Code != http.StatusBadRequest {
+				t.Errorf("POST %s = %d, want 400: %s", tc.name, w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestDeleteCatalogEntry(t *testing.T) {
+	s := newTestServer(t, config.Config{}, nil)
+
+	if w := do(t, s, http.MethodDelete, "/api/v1/catalog/agent-infra", testKey, ""); w.Code != http.StatusOK {
+		t.Fatalf("DELETE a template = %d, want 200: %s", w.Code, w.Body.String())
+	}
+	if _, ok := s.svc.Catalog().Get("agent-infra"); ok {
+		t.Error("the template is still in the catalog after a delete")
+	}
+	if w := do(t, s, http.MethodDelete, "/api/v1/catalog/agent-infra", testKey, ""); w.Code != http.StatusNotFound {
+		t.Errorf("DELETE a template twice = %d, want 404", w.Code)
+	}
+}
+
 // ── sandboxes ───────────────────────────────────────────────────────────────
 
 func TestCreateSandbox(t *testing.T) {
 	s := newTestServer(t, config.Config{}, nil)
-	w := do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"python","name":"my-box"}`)
+	w := do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"agent-sandbox","name":"my-box"}`)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("POST /api/v1/sandboxes = %d, want 201: %s", w.Code, w.Body.String())
 	}
@@ -263,8 +335,8 @@ func TestCreateSandbox(t *testing.T) {
 	if sb.ID != "my-box" {
 		t.Errorf("id = %q, want my-box", sb.ID)
 	}
-	if sb.Template != "python" {
-		t.Errorf("template = %q, want python", sb.Template)
+	if sb.Template != "agent-sandbox" {
+		t.Errorf("template = %q, want agent-sandbox", sb.Template)
 	}
 }
 
@@ -279,17 +351,17 @@ func TestCreateSandboxRejects(t *testing.T) {
 	}{
 		{name: "no such template", body: `{"template":"nope"}`, status: http.StatusBadRequest},
 		{name: "no template at all", body: `{}`, status: http.StatusBadRequest},
-		{name: "a name with nothing usable in it", body: `{"template":"python","name":"!!!"}`, status: http.StatusBadRequest},
-		{name: "a bad ttl", body: `{"template":"python","ttl":"soon"}`, status: http.StatusBadRequest},
-		{name: "a negative ttl", body: `{"template":"python","ttl":"-1h"}`, status: http.StatusBadRequest},
-		{name: "an unknown field", body: `{"template":"python","colour":"blue"}`, status: http.StatusBadRequest},
-		{name: "a name that is taken", body: `{"template":"python","name":"taken"}`, status: http.StatusConflict, existing: "taken"},
+		{name: "a name with nothing usable in it", body: `{"template":"agent-sandbox","name":"!!!"}`, status: http.StatusBadRequest},
+		{name: "a bad ttl", body: `{"template":"agent-sandbox","ttl":"soon"}`, status: http.StatusBadRequest},
+		{name: "a negative ttl", body: `{"template":"agent-sandbox","ttl":"-1h"}`, status: http.StatusBadRequest},
+		{name: "an unknown field", body: `{"template":"agent-sandbox","colour":"blue"}`, status: http.StatusBadRequest},
+		{name: "a name that is taken", body: `{"template":"agent-sandbox","name":"taken"}`, status: http.StatusConflict, existing: "taken"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			s, svc := newTestServerWithStub(t, config.Config{}, nil)
 			if tc.existing != "" {
-				svc.boxes[tc.existing] = model.Sandbox{ID: tc.existing, Template: "python"}
+				svc.boxes[tc.existing] = model.Sandbox{ID: tc.existing, Template: "agent-sandbox"}
 			}
 			w := do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, tc.body)
 			if w.Code != tc.status {
@@ -308,8 +380,8 @@ func TestCreateSandboxRejects(t *testing.T) {
 
 func TestListSandboxes(t *testing.T) {
 	s := newTestServer(t, config.Config{}, nil)
-	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"python","name":"one"}`)
-	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"node","name":"two"}`)
+	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"agent-sandbox","name":"one"}`)
+	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"agent-infra","name":"two"}`)
 
 	w := do(t, s, http.MethodGet, "/api/v1/sandboxes", testKey, "")
 	if w.Code != http.StatusOK {
@@ -327,7 +399,7 @@ func TestListSandboxes(t *testing.T) {
 
 func TestGetAndDeleteSandbox(t *testing.T) {
 	s := newTestServer(t, config.Config{}, nil)
-	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"python","name":"one"}`)
+	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"agent-sandbox","name":"one"}`)
 
 	if w := do(t, s, http.MethodGet, "/api/v1/sandboxes/one", testKey, ""); w.Code != http.StatusOK {
 		t.Errorf("GET /api/v1/sandboxes/one = %d, want 200", w.Code)
@@ -356,7 +428,7 @@ func TestMethodNotAllowed(t *testing.T) {
 
 func TestRenewSandbox(t *testing.T) {
 	s := newTestServer(t, config.Config{}, nil)
-	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"python","name":"one","ttl":"30m"}`)
+	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"agent-sandbox","name":"one","ttl":"30m"}`)
 
 	w := do(t, s, http.MethodPost, "/api/v1/sandboxes/one/renew", testKey, `{"ttl":"2h"}`)
 	if w.Code != http.StatusOK {
@@ -375,7 +447,7 @@ func TestRenewSandbox(t *testing.T) {
 
 func TestRenewWithoutATTLRemovesTheExpiry(t *testing.T) {
 	s := newTestServer(t, config.Config{}, nil)
-	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"python","name":"one","ttl":"30m"}`)
+	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"agent-sandbox","name":"one","ttl":"30m"}`)
 
 	// An empty ttl is a real request: a sandbox someone is working in should be
 	// able to be made to stop disappearing.
@@ -392,7 +464,7 @@ func TestRenewWithoutATTLRemovesTheExpiry(t *testing.T) {
 
 func TestGetSandboxLogs(t *testing.T) {
 	s := newTestServer(t, config.Config{}, nil)
-	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"python","name":"one"}`)
+	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"agent-sandbox","name":"one"}`)
 
 	w := do(t, s, http.MethodGet, "/api/v1/sandboxes/one/logs?tail=50", testKey, "")
 	if w.Code != http.StatusOK {
@@ -406,9 +478,9 @@ func TestGetSandboxLogs(t *testing.T) {
 
 func TestOverview(t *testing.T) {
 	s := newTestServer(t, config.Config{}, nil)
-	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"python","name":"one"}`)
-	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"python","name":"two"}`)
-	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"node","name":"three"}`)
+	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"agent-sandbox","name":"one"}`)
+	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"agent-sandbox","name":"two"}`)
+	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"agent-infra","name":"three"}`)
 
 	w := do(t, s, http.MethodGet, "/api/v1/overview", testKey, "")
 	if w.Code != http.StatusOK {
@@ -423,8 +495,8 @@ func TestOverview(t *testing.T) {
 	if body.Total != 3 {
 		t.Errorf("total = %d, want 3", body.Total)
 	}
-	if body.ByTemplate["python"] != 2 || body.ByTemplate["node"] != 1 {
-		t.Errorf("byTemplate = %v, want python 2 and node 1", body.ByTemplate)
+	if body.ByTemplate["agent-sandbox"] != 2 || body.ByTemplate["agent-infra"] != 1 {
+		t.Errorf("byTemplate = %v, want agent-sandbox 2 and agent-infra 1", body.ByTemplate)
 	}
 	if !body.Cluster {
 		t.Error("cluster reported as down when it is reachable")
@@ -641,7 +713,7 @@ func TestDataPlaneRouting(t *testing.T) {
 	// so the sandbox has to be there — a route that forwarded first would be
 	// one a user could reach another user's port through.
 	if _, err := svc.Create(context.Background(), sandbox.CreateInput{
-		Template: "code-server",
+		Template: "agent-infra",
 		Name:     "demo",
 	}); err != nil {
 		t.Fatalf("creating the sandbox under test: %v", err)
@@ -696,7 +768,7 @@ func TestDataPlaneRouting(t *testing.T) {
 		inner := &queryCapturing{on: func(q string) { sawQuery = q }}
 		innerServer, innerSvc := newTestServerWithStub(t, config.Config{}, inner)
 		if _, err := innerSvc.Create(context.Background(), sandbox.CreateInput{
-			Template: "code-server",
+			Template: "agent-infra",
 			Name:     "demo",
 		}); err != nil {
 			t.Fatalf("creating the sandbox under test: %v", err)

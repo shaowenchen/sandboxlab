@@ -1,0 +1,35 @@
+# A runtime sandbox in the shape kubernetes-sigs/agent-sandbox uses: the
+# project is a Kubernetes Sandbox CRD and controller, not an image, and this is
+# the reference runtime its quickstart builds — a small FastAPI server that
+# executes commands and returns their output.
+#
+# The image has to be built and pushed before this template will run.
+# agent-sandbox ships no image of its own, and its quickstart builds one
+# locally, so `sandbox-runtime:latest` exists on no registry yet: build it from
+# the project's examples/python-runtime-sandbox and push it somewhere this
+# cluster can pull, then point `image` below at it. A sandbox created from this
+# template before that is a pod that cannot pull its image.
+#
+# What is worth taking from agent-sandbox here is the shape of the runtime its
+# examples use — a single container serving an exec API on a port, nothing to
+# configure — not its CRDs. This control plane creates a plain Deployment, so
+# the CRD side of that project does not apply; a template is what stands in for
+# it.
+id: agent-sandbox
+title: Agent Sandbox runtime
+description: >-
+  The python-runtime container kubernetes-sigs/agent-sandbox builds: a small
+  server that executes commands over HTTP. Build and push the image first.
+image: sandbox-runtime:latest
+
+ports:
+  - name: runtime
+    port: 8888
+    description: The runtime's API
+
+resources:
+  cpu: "1"
+  memory: 1Gi
+
+ttlDefault: 30m
+ttlMax: 4h

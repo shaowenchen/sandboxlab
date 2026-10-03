@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -163,7 +164,15 @@ func (s Sandbox) Expired(now time.Time) bool {
 }
 
 // Catalog is an ordered set of templates.
+//
+// It is mutable: templates can be added and removed while a deployment is
+// running, which is what makes a sandbox environment extensible without a
+// release. It is therefore safe for concurrent use — the HTTP handlers read it
+// on every request and write it when a template is added or removed — and it
+// must not be copied, because the mutex lives inside it (a pointer is what the
+// service, the console's API and the CLI all share).
 type Catalog struct {
+	mu        sync.RWMutex
 	templates map[string]Template
 }
 
@@ -184,7 +193,14 @@ func NewCatalog(templates []Template) (*Catalog, error) {
 }
 
 // Get returns the template with the given id.
+//
+// The value is a snapshot; it is safe to read without holding the lock, but its
+// slices and maps still alias the stored template's. Templates are treated as
+// immutable once stored — Add replaces the whole value rather than editing one
+// in place — so a reader never observes a half-changed template.
 func (c *Catalog) Get(id string) (Template, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	t, ok := c.templates[id]
 	return t, ok
 }
@@ -192,6 +208,8 @@ func (c *Catalog) Get(id string) (Template, bool) {
 // List returns every template, ordered by id so the console and the CLI do not
 // reshuffle between calls.
 func (c *Catalog) List() []Template {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	out := make([]Template, 0, len(c.templates))
 	for _, t := range c.templates {
 		out = append(out, t)
@@ -201,7 +219,47 @@ func (c *Catalog) List() []Template {
 }
 
 // Len is how many templates the catalog holds.
-func (c *Catalog) Len() int { return len(c.templates) }
+func (c *Catalog) Len() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.templates)
+}
+
+// Add puts a template in the catalog, replacing any template with the same id.
+//
+// It is an upsert rather than an insert because templates are not persisted: a
+// deployment that wants to change a template it added earlier — a new image, a
+// different port — does it by adding the same id again, and the alternative
+// would be delete-then-add for the common case of fixing a typo. The template
+// is validated before the lock is taken, so an invalid one is rejected without
+// disturbing the catalog.
+//
+// It reports whether an existing template was replaced, which is what lets the
+// HTTP layer answer 200 for an edit and 201 for a new id.
+func (c *Catalog) Add(t Template) (replaced bool, err error) {
+	if err := t.Validate(); err != nil {
+		return false, err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, replaced = c.templates[t.ID]
+	c.templates[t.ID] = t
+	return replaced, nil
+}
+
+// Remove takes a template out of the catalog, reporting whether it was there.
+//
+// Nothing is persisted, so removing a built-in template lasts until the process
+// restarts and removes a runtime-added one for good.
+func (c *Catalog) Remove(id string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, ok := c.templates[id]; !ok {
+		return false
+	}
+	delete(c.templates, id)
+	return true
+}
 
 // Validate checks a template is one a sandbox could actually be created from.
 //

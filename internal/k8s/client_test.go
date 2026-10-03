@@ -109,8 +109,8 @@ func TestCreateBuildsANamespacePerSandbox(t *testing.T) {
 }
 
 // TestCreateWithoutPortsMakesNoService covers the templates that publish
-// nothing — the catalog's `python` and `node` are driven through exec and the
-// file endpoints, so they declare no ports.
+// nothing — `opensandbox` is one, driven through exec and the file endpoints,
+// so it declares no ports.
 //
 // It is a regression test for a real failure: the Service was created
 // unconditionally, and Kubernetes refuses a Service with no ports ("spec.ports:

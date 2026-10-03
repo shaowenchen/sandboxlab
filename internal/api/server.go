@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/shaowenchen/sandboxlab/internal/auth"
 	"github.com/shaowenchen/sandboxlab/internal/buildinfo"
+	"github.com/shaowenchen/sandboxlab/internal/catalog"
 	"github.com/shaowenchen/sandboxlab/internal/config"
 	"github.com/shaowenchen/sandboxlab/internal/k8s"
 	"github.com/shaowenchen/sandboxlab/internal/model"
@@ -37,6 +39,12 @@ type Deps struct {
 // and far faster.
 type SandboxService interface {
 	Catalog() *model.Catalog
+	// AddTemplate and RemoveTemplate change the running catalog. They are the
+	// one pair of writes that do not touch the cluster, so they are here rather
+	// than folded into Create: what they change is what a create can be asked
+	// for.
+	AddTemplate(t model.Template) (replaced bool, err error)
+	RemoveTemplate(id string) bool
 	Cluster(ctx context.Context) bool
 	Create(ctx context.Context, in sandbox.CreateInput) (model.Sandbox, error)
 	Get(ctx context.Context, id string) (model.Sandbox, error)
@@ -135,7 +143,7 @@ func (s *Server) handle(pattern, allowed string, m map[string]http.HandlerFunc) 
 // than the shape a caller sees.
 //
 // The data plane is the one of those. It forwards to a sandbox's own port, and
-// the methods there belong to whatever the sandbox runs — the all-in-one
+// the methods there belong to whatever the sandbox runs — the agent-infra
 // image's API is driven entirely by POSTs — so this API cannot list them
 // without being wrong about someone else's program. What it can say is the
 // shape, which is what documented names: "/sandbox/{id}/{port}/...".
@@ -166,8 +174,14 @@ func (s *Server) routes(d Deps) {
 
 	// The templates and the sandboxes. There is one caller, so these are every
 	// template and every sandbox.
-	s.handle("/api/v1/catalog", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.listCatalog)})
-	s.handle("/api/v1/catalog/{id}", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.getCatalogEntry)})
+	s.handle("/api/v1/catalog", "GET, POST", map[string]http.HandlerFunc{
+		"GET":  s.authenticated(s.listCatalog),
+		"POST": s.authenticated(s.addCatalogEntry),
+	})
+	s.handle("/api/v1/catalog/{id}", "GET, DELETE", map[string]http.HandlerFunc{
+		"GET":    s.authenticated(s.getCatalogEntry),
+		"DELETE": s.authenticated(s.deleteCatalogEntry),
+	})
 	s.handle("/api/v1/overview", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.overview)})
 	s.handle("/api/v1/sandboxes", "GET, POST", map[string]http.HandlerFunc{
 		"GET":  s.authenticated(s.sandboxes),
@@ -339,7 +353,10 @@ func (s *Server) describe(w http.ResponseWriter, r *http.Request) {
 		{"method": "GET", "path": "/healthz", "description": "the process is up; no key required"},
 		{"method": "GET", "path": "/readyz", "description": "the process can reach the cluster; no key required"},
 		{"method": "GET", "path": "/api/v1/catalog", "description": "the templates a sandbox can be created from"},
+		{"method": "POST", "path": "/api/v1/catalog", "description": "add a template; body {document} as YAML, {overwrite} to replace one that exists. Not persisted"},
 		{"method": "GET", "path": "/api/v1/catalog/{id}", "description": "one template"},
+		{"method": "DELETE", "path": "/api/v1/catalog/{id}", "description": "remove a template. Not persisted; built-ins return on restart"},
+		{"method": "DELETE", "path": "/api/v1/catalog/{id}", "description": "remove a template. Not persisted; built-ins return on restart"},
 		{"method": "GET", "path": "/api/v1/overview", "description": "counts of sandboxes by state and template"},
 		{"method": "GET", "path": "/api/v1/sandboxes", "description": "every sandbox in the deployment"},
 		{"method": "POST", "path": "/api/v1/sandboxes", "description": "create one; body {template, name?, ttl?, env?}"},
@@ -399,6 +416,80 @@ func (s *Server) getCatalogEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, t)
+}
+
+// addTemplateRequest is the body POST /api/v1/catalog accepts: a template
+// document as YAML text.
+//
+// It is text rather than the Template object the GET routes return, because the
+// thing being sent is a document — the same shape as a template file — and the
+// server can parse it with the one strict parser the loader already uses.
+type addTemplateRequest struct {
+	Document string `json:"document"`
+	// Overwrite permits replacing a template that already exists. Without it an
+	// existing id is a 409, so a create that was meant to add cannot silently
+	// overwrite one someone else put there.
+	Overwrite bool `json:"overwrite,omitempty"`
+}
+
+// addCatalogEntry adds a template, or replaces one with the same id.
+//
+// An id that already exists is a 409 unless the caller passed "overwrite", so a
+// mistyped or retried create cannot silently clobber a template someone else
+// added — a caller that means to edit one asks to. Nothing is persisted: the
+// catalog returns to the compiled-in templates when the process restarts.
+func (s *Server) addCatalogEntry(w http.ResponseWriter, r *http.Request) {
+	var body addTemplateRequest
+	if err := decodeJSON(r, &body); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: "could not read the request body: " + err.Error()})
+		return
+	}
+	template, err := parseTemplate(body.Document)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: err.Error()})
+		return
+	}
+	if _, exists := s.svc.Catalog().Get(template.ID); exists && !body.Overwrite {
+		writeJSON(w, http.StatusConflict, errorBody{
+			Error: "a template named " + template.ID + " already exists; pass \"overwrite\": true to replace it",
+		})
+		return
+	}
+	replaced, err := s.svc.AddTemplate(template)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: err.Error()})
+		return
+	}
+	logger(r).Info("added a template", "template", template.ID, "replaced", replaced)
+	// 201 for a new id, 200 when an overwrite replaced one — so a client can
+	// tell "I created this" from "I changed it", which is what lets a
+	// generated SDK expose a response for each.
+	status := http.StatusCreated
+	if replaced {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, template)
+}
+
+// parseTemplate reads a template document, wrapping the failure in the sentence
+// the API returns for a body it cannot use.
+func parseTemplate(document string) (model.Template, error) {
+	t, err := catalog.Parse([]byte(document))
+	if err != nil {
+		return model.Template{}, fmt.Errorf("the template is not usable: %w", err)
+	}
+	return t, nil
+}
+
+// deleteCatalogEntry removes a template from the running catalog.
+func (s *Server) deleteCatalogEntry(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !s.svc.RemoveTemplate(id) {
+		writeJSON(w, http.StatusNotFound, errorBody{Error: "no template named " + id})
+		return
+	}
+	logger(r).Info("removed a template", "template", id)
+	writeJSON(w, http.StatusOK, map[string]string{"deleted": id})
 }
 
 // ── overview ────────────────────────────────────────────────────────────────

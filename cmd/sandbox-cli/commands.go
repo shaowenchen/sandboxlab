@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -19,7 +20,7 @@ import (
 const requestTimeout = 30 * time.Second
 
 func catalogCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "catalog",
 		Short: "List the templates a sandbox can be created from",
 		Args:  cobra.NoArgs,
@@ -49,6 +50,97 @@ func catalogCmd() *cobra.Command {
 				})
 			}
 			printTable(out, rows)
+			return nil
+		},
+	}
+	// Bare `catalog` still lists, which is what the README, the CI check and
+	// anyone's fingers expect; the subcommands are for changing what is listed.
+	cmd.AddCommand(catalogAddCmd(), catalogRmCmd())
+	return cmd
+}
+
+// catalogAddCmd adds a template to a running control plane from a file or stdin.
+//
+// It comes from a file because that is where a template lives — the same YAML
+// the built-ins are written in — and adding one is otherwise the same act as
+// adding a seed file, minus the release.
+func catalogAddCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "add <file|->",
+		Short: "Add or replace a template on a running control plane",
+		Long: "Add a template from a YAML file, or from stdin with '-'. Adding an id\n" +
+			"that already exists replaces it, so this is also how a template is\n" +
+			"edited.\n\n" +
+			"Nothing is persisted: the catalog returns to the templates compiled into\n" +
+			"the control plane when it restarts.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var data []byte
+			var err error
+			if args[0] == "-" {
+				data, err = io.ReadAll(cmd.InOrStdin())
+			} else {
+				data, err = os.ReadFile(args[0])
+			}
+			if err != nil {
+				return err
+			}
+
+			c, err := newClient(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), requestTimeout)
+			defer cancel()
+
+			tmpl, err := c.AddTemplate(ctx, string(data))
+			if err != nil {
+				return err
+			}
+			if jsonOut(cmd) {
+				return printJSON(cmd, tmpl)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "added %s (%s)\n", tmpl.ID, tmpl.Image)
+			return nil
+		},
+	}
+}
+
+// catalogRmCmd removes templates from a running control plane.
+//
+// No confirmation, unlike deleting a sandbox: removing a template touches no
+// running sandbox and is undone by adding it again.
+func catalogRmCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     "rm <id> [id...]",
+		Aliases: []string{"remove"},
+		Short:   "Remove templates from a running control plane",
+		Long: "Remove one or more templates. Sandboxes already created from them are\n" +
+			"untouched. Nothing is persisted: a template compiled into the control\n" +
+			"plane comes back when it restarts.",
+		Args: cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := newClient(cmd)
+			if err != nil {
+				return err
+			}
+			out := cmd.OutOrStdout()
+
+			var failed int
+			for _, id := range args {
+				ctx, cancel := context.WithTimeout(cmd.Context(), requestTimeout)
+				err := c.DeleteTemplate(ctx, id)
+				cancel()
+				if err != nil {
+					fmt.Fprintf(cmd.ErrOrStderr(), "could not remove %s: %v\n", id, err)
+					failed++
+					continue
+				}
+				fmt.Fprintf(out, "removed %s\n", id)
+			}
+			if failed > 0 {
+				return errExitQuiet
+			}
 			return nil
 		},
 	}

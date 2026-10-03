@@ -210,26 +210,27 @@ func TestIntegrationLifecycle(t *testing.T) {
 	ctx := context.Background()
 
 	// ── create ──────────────────────────────────────────────────────────────
-	w := call(t, s, http.MethodPost, "/api/v1/sandboxes", `{"template":"all-in-one","name":"myshop","ttl":"30m"}`)
+	w := call(t, s, http.MethodPost, "/api/v1/sandboxes", `{"template":"agent-infra","name":"myshop","ttl":"30m"}`)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("create = %d, want 201: %s", w.Code, w.Body.String())
 	}
 	created := unmarshal[model.Sandbox](t, w)
 
-	if created.ID != "myshop" || created.Template != "all-in-one" {
-		t.Errorf("created = %+v, want id myshop from all-in-one", created)
+	if created.ID != "myshop" || created.Template != "agent-infra" {
+		t.Errorf("created = %+v, want id myshop from agent-infra", created)
 	}
-	if created.Image != "linuxserver/webtop:ubuntu-xfce" {
-		t.Errorf("image = %q, want %s", created.Image, "linuxserver/webtop:ubuntu-xfce")
+	if created.Image != "ghcr.io/agent-infra/sandbox:1.11.0" {
+		t.Errorf("image = %q, want %s", created.Image, "ghcr.io/agent-infra/sandbox:1.11.0")
 	}
 	// The state comes back from the cluster, not from the create call.
 	if created.State != model.StateRunning {
 		t.Errorf("state = %q, want Running", created.State)
 	}
 	// The address carries the deployment's public URL and base path, and names
-	// the port in the path. all-in-one serves exactly one port — the desktop —
-	// so this is also what checks the port list survives the round trip.
-	wantURL := "https://sandbox.example.com/sandbox/sandbox/myshop/desktop/"
+	// the port in the path. agent-infra serves everything from one port — the
+	// whole sandbox — so this is also what checks the port list survives the
+	// round trip.
+	wantURL := "https://sandbox.example.com/sandbox/sandbox/myshop/aio/"
 	if len(created.Endpoints) == 0 || created.Endpoints[0].URL != wantURL {
 		t.Errorf("endpoints = %+v, want the first at %s", created.Endpoints, wantURL)
 	}
@@ -265,8 +266,8 @@ func TestIntegrationLifecycle(t *testing.T) {
 	// ── overview ────────────────────────────────────────────────────────────
 	w = call(t, s, http.MethodGet, "/api/v1/overview", "")
 	ov := unmarshal[api.OverviewResponse](t, w)
-	if ov.Total != 1 || ov.ByTemplate["all-in-one"] != 1 {
-		t.Errorf("overview = %+v, want one all-in-one", ov)
+	if ov.Total != 1 || ov.ByTemplate["agent-infra"] != 1 {
+		t.Errorf("overview = %+v, want one agent-infra", ov)
 	}
 
 	// ── renew ───────────────────────────────────────────────────────────────
@@ -297,7 +298,7 @@ func TestIntegrationEnvironmentAndTemplateDefaults(t *testing.T) {
 	// The caller's environment has to survive the JSON layer and land on the
 	// container, merged over the template's.
 	w := call(t, s, http.MethodPost, "/api/v1/sandboxes", `{
-		"template": "python",
+		"template": "agent-sandbox",
 		"name": "wither",
 		"env": {"GREETING": "hello", "DEBUG": "1"}
 	}`)
@@ -318,17 +319,17 @@ func TestIntegrationLimitsAndConflicts(t *testing.T) {
 	s, _ := newIntegrationServer(t)
 	ctx := context.Background()
 
-	if w := call(t, s, http.MethodPost, "/api/v1/sandboxes", `{"template":"python","name":"taken"}`); w.Code != http.StatusCreated {
+	if w := call(t, s, http.MethodPost, "/api/v1/sandboxes", `{"template":"agent-sandbox","name":"taken"}`); w.Code != http.StatusCreated {
 		t.Fatalf("the first create = %d, want 201: %s", w.Code, w.Body.String())
 	}
-	w := call(t, s, http.MethodPost, "/api/v1/sandboxes", `{"template":"python","name":"taken"}`)
+	w := call(t, s, http.MethodPost, "/api/v1/sandboxes", `{"template":"agent-sandbox","name":"taken"}`)
 	if w.Code != http.StatusConflict {
 		t.Errorf("a create with a taken name = %d, want 409", w.Code)
 	}
 
 	// And a second, differently spelled, create of the same name is the same
 	// conflict — normalization is visible from outside, which is the point.
-	w = call(t, s, http.MethodPost, "/api/v1/sandboxes", `{"template":"python","name":"Taken"}`)
+	w = call(t, s, http.MethodPost, "/api/v1/sandboxes", `{"template":"agent-sandbox","name":"Taken"}`)
 	if w.Code != http.StatusConflict {
 		t.Errorf("a create with a differently-spelled taken name = %d, want 409", w.Code)
 	}
@@ -401,7 +402,7 @@ func TestIntegrationNotFoundIsAGoodMessage(t *testing.T) {
 // rather than assumed.
 func aRunningSandbox(t *testing.T, s *api.Server) string {
 	t.Helper()
-	w := call(t, s, http.MethodPost, "/api/v1/sandboxes", `{"template":"python","name":"demo"}`)
+	w := call(t, s, http.MethodPost, "/api/v1/sandboxes", `{"template":"agent-sandbox","name":"demo"}`)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("creating a sandbox = %d: %s", w.Code, w.Body)
 	}
