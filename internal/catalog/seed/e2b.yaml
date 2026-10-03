@@ -1,0 +1,26 @@
+# E2B's code-interpreter image: a Python environment with the tooling for
+# running model-generated code and reading the results.
+#
+# E2B itself is a hosted sandbox service — you drive it through its SDK and it
+# runs your code in a Firecracker microVM — not a single container. What is
+# reusable here is this image, which is what an E2B sandbox runs. It carries
+# E2B's own execution daemon (envd) on 49983, which this deployment does not
+# use: a sandbox is reached through its exec and file API instead, so the
+# template declares no port and is a plain workspace.
+#
+# The entrypoint starts envd and stays in the foreground, so the container is
+# held open without a command override. The image is large — a full Python data
+# stack — which is why the TTL is generous.
+id: e2b
+title: E2B code interpreter
+description: >-
+  E2B's code-interpreter image: Python with a data-science stack, for running
+  model-generated code and inspecting what it produced.
+image: e2bdev/code-interpreter:latest
+
+resources:
+  cpu: "1"
+  memory: 2Gi
+
+ttlDefault: 1h
+ttlMax: 8h

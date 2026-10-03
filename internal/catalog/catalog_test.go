@@ -103,7 +103,7 @@ func TestLoad(t *testing.T) {
 		if c.Len() == 0 {
 			t.Fatal("the built-in catalog is empty")
 		}
-		for _, want := range []string{"agent-infra", "agent-sandbox", "opensandbox"} {
+		for _, want := range []string{"agent-infra", "agent-sandbox", "opensandbox", "cubesandbox", "e2b"} {
 			if _, ok := c.Get(want); !ok {
 				t.Errorf("the built-in catalog has no %q template", want)
 			}

@@ -283,6 +283,28 @@ func (s *Service) Logs(ctx context.Context, id string, tail int64) (string, erro
 	return logs, err
 }
 
+// Usage reads what a sandbox is using right now.
+//
+// It looks the sandbox up first so a call against an id that is not a sandbox
+// is a 404 rather than an empty reading — "no usage" and "no such sandbox" are
+// different answers and a console shows them differently.
+func (s *Service) Usage(ctx context.Context, id string) (k8s.Usage, error) {
+	sb, err := s.lookup(ctx, id)
+	if err != nil {
+		return k8s.Usage{}, err
+	}
+	return s.client.Usage(ctx, sb.ID)
+}
+
+// Events reads recent cluster events about a sandbox.
+func (s *Service) Events(ctx context.Context, id string, limit int) ([]k8s.Event, error) {
+	sb, err := s.lookup(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return s.client.Events(ctx, sb.ID, limit)
+}
+
 // Overview summarises the deployment.
 type Overview struct {
 	Total        int                        `json:"total"`

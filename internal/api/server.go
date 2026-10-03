@@ -52,6 +52,11 @@ type SandboxService interface {
 	Delete(ctx context.Context, id string) error
 	Renew(ctx context.Context, id string, in sandbox.RenewInput) (model.Sandbox, error)
 	Logs(ctx context.Context, id string, tail int64) (string, error)
+	// Usage and Events describe what a sandbox is doing, read from the cluster:
+	// resource use from the metrics API, and the events that explain a state the
+	// pod list cannot.
+	Usage(ctx context.Context, id string) (k8s.Usage, error)
+	Events(ctx context.Context, id string, limit int) ([]k8s.Event, error)
 	Overview(ctx context.Context) (sandbox.Overview, error)
 	// The three that reach into a running sandbox rather than describing it.
 	Exec(ctx context.Context, id string, in sandbox.ExecInput) (sandbox.ExecResult, error)
@@ -193,6 +198,10 @@ func (s *Server) routes(d Deps) {
 	})
 	s.handle("/api/v1/sandboxes/{id}/renew", "POST", map[string]http.HandlerFunc{"POST": s.authenticated(s.renewSandbox)})
 	s.handle("/api/v1/sandboxes/{id}/logs", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.sandboxLogs)})
+	// What the sandbox is doing: resource use from the metrics API, and the
+	// cluster events that explain a state the pod list does not.
+	s.handle("/api/v1/sandboxes/{id}/usage", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.sandboxUsage)})
+	s.handle("/api/v1/sandboxes/{id}/events", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.sandboxEvents)})
 	// Reaching into a running sandbox. These are the control plane's own
 	// operations on the pod, not proxying to something the sandbox serves, so
 	// they are here rather than under /sandbox/ — a portless sandbox has no URL
@@ -364,6 +373,8 @@ func (s *Server) describe(w http.ResponseWriter, r *http.Request) {
 		{"method": "DELETE", "path": "/api/v1/sandboxes/{id}", "description": "delete one"},
 		{"method": "POST", "path": "/api/v1/sandboxes/{id}/renew", "description": "reset its expiry; body {ttl}"},
 		{"method": "GET", "path": "/api/v1/sandboxes/{id}/logs", "description": "the tail of its output; ?tail=<lines>"},
+		{"method": "GET", "path": "/api/v1/sandboxes/{id}/usage", "description": "its CPU and memory now, from the metrics API"},
+		{"method": "GET", "path": "/api/v1/sandboxes/{id}/events", "description": "recent cluster events about it; ?limit=<n>"},
 		{"method": "POST", "path": "/api/v1/sandboxes/{id}/exec", "description": "run a command in it and wait; body {command, stdin?, cwd?, timeout?}"},
 		{"method": "GET", "path": "/api/v1/sandboxes/{id}/files", "description": "read a file: ?path=/abs/path"},
 		{"method": "PUT", "path": "/api/v1/sandboxes/{id}/files", "description": "write a file: ?path=/abs/path, body {content, encoding?, createParents?}"},
@@ -645,6 +656,34 @@ func (s *Server) sandboxLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"logs": out})
+}
+
+// sandboxUsage reports what the sandbox is using now. The metrics API is what
+// carries it, so a cluster without metrics-server answers with available:false
+// rather than an error — a legitimate way to run a cluster, not a fault.
+func (s *Server) sandboxUsage(w http.ResponseWriter, r *http.Request) {
+	usage, err := s.svc.Usage(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeError(w, logger(r), err)
+		return
+	}
+	writeJSON(w, http.StatusOK, usage)
+}
+
+// sandboxEvents reports recent cluster events about the sandbox.
+func (s *Server) sandboxEvents(w http.ResponseWriter, r *http.Request) {
+	limit := 50
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := parsePositiveInt(v); err == nil {
+			limit = int(n)
+		}
+	}
+	events, err := s.svc.Events(r.Context(), r.PathValue("id"), limit)
+	if err != nil {
+		writeError(w, logger(r), err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"events": events})
 }
 
 func (s *Server) placeholder() http.HandlerFunc {

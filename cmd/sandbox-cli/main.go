@@ -54,6 +54,7 @@ func main() {
 		getCmd(),
 		urlCmd(),
 		logsCmd(),
+		eventsCmd(),
 		execCmd(),
 		cpCmd(),
 		renewCmd(),

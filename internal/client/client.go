@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/shaowenchen/sandboxlab/internal/model"
 	"github.com/shaowenchen/sandboxlab/internal/sandbox"
@@ -161,6 +162,42 @@ func (c *Client) Logs(ctx context.Context, id string, tail int) (string, error) 
 	}
 	err := c.do(ctx, http.MethodGet, path, nil, &out, true)
 	return out.Logs, err
+}
+
+// Usage is what a sandbox is using right now.
+type Usage struct {
+	Available bool   `json:"available"`
+	CPU       string `json:"cpu"`
+	Memory    string `json:"memory"`
+	Timestamp string `json:"timestamp"`
+}
+
+// Usage reads a sandbox's CPU and memory from the metrics API.
+func (c *Client) Usage(ctx context.Context, id string) (Usage, error) {
+	var out Usage
+	err := c.do(ctx, http.MethodGet, "/api/v1/sandboxes/"+url.PathEscape(id)+"/usage", nil, &out, true)
+	return out, err
+}
+
+// Event is one cluster event about a sandbox.
+type Event struct {
+	Type      string    `json:"type"`
+	Reason    string    `json:"reason"`
+	Message   string    `json:"message"`
+	Object    string    `json:"object"`
+	Count     int32     `json:"count"`
+	FirstSeen time.Time `json:"firstSeen"`
+	LastSeen  time.Time `json:"lastSeen"`
+}
+
+// Events reads recent cluster events about a sandbox.
+func (c *Client) Events(ctx context.Context, id string, limit int) ([]Event, error) {
+	path := fmt.Sprintf("/api/v1/sandboxes/%s/events?limit=%d", url.PathEscape(id), limit)
+	var out struct {
+		Events []Event `json:"events"`
+	}
+	err := c.do(ctx, http.MethodGet, path, nil, &out, true)
+	return out.Events, err
 }
 
 // ExecInput is a command to run in a sandbox.

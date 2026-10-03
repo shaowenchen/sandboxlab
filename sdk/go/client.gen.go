@@ -234,6 +234,21 @@ type Error struct {
 	Error string `json:"error"`
 }
 
+// Event defines model for Event.
+type Event struct {
+	Count     int32     `json:"count,omitempty"`
+	FirstSeen time.Time `json:"firstSeen,omitempty"`
+	LastSeen  time.Time `json:"lastSeen,omitempty"`
+	Message   string    `json:"message"`
+
+	// Object the kind/name the event is about
+	Object string `json:"object"`
+	Reason string `json:"reason"`
+
+	// Type Normal or Warning
+	Type string `json:"type"`
+}
+
 // ExecRequest defines model for ExecRequest.
 type ExecRequest struct {
 	// Command the command and its arguments, as separate values. Pass ["sh", "-c", "..."] to have a shell interpret a command line; anything else is executed directly.
@@ -420,6 +435,21 @@ type TemplateList struct {
 	Templates []Template `json:"templates"`
 }
 
+// Usage defines model for Usage.
+type Usage struct {
+	// Available whether the cluster could report usage at all. False on a cluster with no metrics-server; the reading is then absent rather than zero.
+	Available bool `json:"available"`
+
+	// CPU e.g. "12m"; a Kubernetes quantity
+	CPU string `json:"cpu,omitempty"`
+
+	// Memory e.g. "48Mi"; a Kubernetes quantity
+	Memory string `json:"memory,omitempty"`
+
+	// Timestamp when the sample was taken
+	Timestamp string `json:"timestamp,omitempty"`
+}
+
 // WriteFileRequest defines model for WriteFileRequest.
 type WriteFileRequest struct {
 	// Content the file's bytes, decoded per encoding
@@ -455,6 +485,12 @@ type TooLarge = Error
 
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
+
+// GetSandboxEventsParams defines parameters for GetSandboxEvents.
+type GetSandboxEventsParams struct {
+	// Limit how many to return; 50 when omitted
+	Limit int `form:"limit,omitempty" json:"limit,omitempty"`
+}
 
 // ReadSandboxFileParams defines parameters for ReadSandboxFile.
 type ReadSandboxFileParams struct {
@@ -650,6 +686,13 @@ type ClientInterface interface {
 	// Corresponds with GET /api/v1/sandboxes/{id} (the `GetSandbox` operationId).
 	GetSandbox(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetSandboxEvents Recent cluster events about a sandbox
+	//
+	// The events that explain a state the pod list cannot — why a pod was never scheduled, why an image pull failed, why a probe killed the container. Warnings first, then newest first. They expire after about an hour, so this reads what is there now.
+	//
+	// Corresponds with GET /api/v1/sandboxes/{id}/events (the `GetSandboxEvents` operationId).
+	GetSandboxEvents(ctx context.Context, id string, params *GetSandboxEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ExecInSandboxWithBody Run a command in a sandbox and wait for it
 	//
 	// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.
@@ -721,6 +764,13 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/v1/sandboxes/{id}/renew (the `RenewSandbox` operationId).
 	RenewSandbox(ctx context.Context, id string, body RenewSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetSandboxUsage What a sandbox is using right now
+	//
+	// CPU and memory, read from the resource metrics API. A cluster without metrics-server answers with available:false rather than an error — that is a legitimate way to run a cluster, and a caller shows "unavailable" rather than a zero that reads as an idle sandbox.
+	//
+	// Corresponds with GET /api/v1/sandboxes/{id}/usage (the `GetSandboxUsage` operationId).
+	GetSandboxUsage(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// Health Liveness
 	//
@@ -961,6 +1011,23 @@ func (c *Client) GetSandbox(ctx context.Context, id string, reqEditors ...Reques
 	return c.Client.Do(req)
 }
 
+// GetSandboxEvents Recent cluster events about a sandbox
+//
+// The events that explain a state the pod list cannot — why a pod was never scheduled, why an image pull failed, why a probe killed the container. Warnings first, then newest first. They expire after about an hour, so this reads what is there now.
+//
+// Corresponds with GET /api/v1/sandboxes/{id}/events (the `GetSandboxEvents` operationId).
+func (c *Client) GetSandboxEvents(ctx context.Context, id string, params *GetSandboxEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSandboxEventsRequest(c.Server, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // ExecInSandboxWithBody Run a command in a sandbox and wait for it
 //
 // The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.
@@ -1103,6 +1170,23 @@ func (c *Client) RenewSandboxWithBody(ctx context.Context, id string, contentTyp
 // Corresponds with POST /api/v1/sandboxes/{id}/renew (the `RenewSandbox` operationId).
 func (c *Client) RenewSandbox(ctx context.Context, id string, body RenewSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRenewSandboxRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetSandboxUsage What a sandbox is using right now
+//
+// CPU and memory, read from the resource metrics API. A cluster without metrics-server answers with available:false rather than an error — that is a legitimate way to run a cluster, and a caller shows "unavailable" rather than a zero that reads as an idle sandbox.
+//
+// Corresponds with GET /api/v1/sandboxes/{id}/usage (the `GetSandboxUsage` operationId).
+func (c *Client) GetSandboxUsage(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSandboxUsageRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1515,6 +1599,63 @@ func NewGetSandboxRequest(server string, id string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewGetSandboxEventsRequest constructs an http.Request for the GetSandboxEvents method
+func NewGetSandboxEventsRequest(server string, id string, params *GetSandboxEventsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/sandboxes/%s/events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewExecInSandboxRequest calls the generic ExecInSandbox builder with application/json body
 func NewExecInSandboxRequest(server string, id string, body ExecInSandboxJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -1793,6 +1934,40 @@ func NewRenewSandboxRequestWithBody(server string, id string, contentType string
 	return req, nil
 }
 
+// NewGetSandboxUsageRequest constructs an http.Request for the GetSandboxUsage method
+func NewGetSandboxUsageRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/sandboxes/%s/usage", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewHealthRequest constructs an http.Request for the Health method
 func NewHealthRequest(server string) (*http.Request, error) {
 	var err error
@@ -2037,6 +2212,15 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/v1/sandboxes/{id} (the `GetSandbox` operationId).
 	GetSandboxWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetSandboxResponse, error)
 
+	// GetSandboxEventsWithResponse Recent cluster events about a sandbox
+	//
+	// The events that explain a state the pod list cannot — why a pod was never scheduled, why an image pull failed, why a probe killed the container. Warnings first, then newest first. They expire after about an hour, so this reads what is there now.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/sandboxes/{id}/events (the `GetSandboxEvents` operationId).
+	GetSandboxEventsWithResponse(ctx context.Context, id string, params *GetSandboxEventsParams, reqEditors ...RequestEditorFn) (*GetSandboxEventsResponse, error)
+
 	// ExecInSandboxWithBodyWithResponse Run a command in a sandbox and wait for it
 	//
 	// The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.
@@ -2112,6 +2296,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/sandboxes/{id}/renew (the `RenewSandbox` operationId).
 	RenewSandboxWithResponse(ctx context.Context, id string, body RenewSandboxJSONRequestBody, reqEditors ...RequestEditorFn) (*RenewSandboxResponse, error)
+
+	// GetSandboxUsageWithResponse What a sandbox is using right now
+	//
+	// CPU and memory, read from the resource metrics API. A cluster without metrics-server answers with available:false rather than an error — that is a legitimate way to run a cluster, and a caller shows "unavailable" rather than a zero that reads as an idle sandbox.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/sandboxes/{id}/usage (the `GetSandboxUsage` operationId).
+	GetSandboxUsageWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetSandboxUsageResponse, error)
 
 	// HealthWithResponse Liveness
 	//
@@ -2738,6 +2931,65 @@ func (r GetSandboxResponse) ContentType() string {
 	return ""
 }
 
+type GetSandboxEventsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Events []Event `json:"events"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetSandboxEventsResponse) GetJSON200() *struct {
+	Events []Event `json:"events"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetSandboxEventsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetSandboxEventsResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r GetSandboxEventsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSandboxEventsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSandboxEventsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetSandboxEventsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ExecInSandboxResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3080,6 +3332,61 @@ func (r RenewSandboxResponse) ContentType() string {
 	return ""
 }
 
+type GetSandboxUsageResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Usage
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetSandboxUsageResponse) GetJSON200() *Usage {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetSandboxUsageResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetSandboxUsageResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r GetSandboxUsageResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSandboxUsageResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSandboxUsageResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetSandboxUsageResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type HealthResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3393,6 +3700,21 @@ func (c *ClientWithResponses) GetSandboxWithResponse(ctx context.Context, id str
 	return ParseGetSandboxResponse(rsp)
 }
 
+// GetSandboxEventsWithResponse Recent cluster events about a sandbox
+//
+// The events that explain a state the pod list cannot — why a pod was never scheduled, why an image pull failed, why a probe killed the container. Warnings first, then newest first. They expire after about an hour, so this reads what is there now.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/sandboxes/{id}/events (the `GetSandboxEvents` operationId).
+func (c *ClientWithResponses) GetSandboxEventsWithResponse(ctx context.Context, id string, params *GetSandboxEventsParams, reqEditors ...RequestEditorFn) (*GetSandboxEventsResponse, error) {
+	rsp, err := c.GetSandboxEvents(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSandboxEventsResponse(rsp)
+}
+
 // ExecInSandboxWithBodyWithResponse Run a command in a sandbox and wait for it
 //
 // The command is an argv, not a command line: pass ["sh", "-c", "..."] to have a shell interpret it, and pass anything else to have it not. This is the way into a sandbox whose template serves no port — a workspace with no URL — and this is what reaches it.
@@ -3515,6 +3837,21 @@ func (c *ClientWithResponses) RenewSandboxWithResponse(ctx context.Context, id s
 		return nil, err
 	}
 	return ParseRenewSandboxResponse(rsp)
+}
+
+// GetSandboxUsageWithResponse What a sandbox is using right now
+//
+// CPU and memory, read from the resource metrics API. A cluster without metrics-server answers with available:false rather than an error — that is a legitimate way to run a cluster, and a caller shows "unavailable" rather than a zero that reads as an idle sandbox.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/sandboxes/{id}/usage (the `GetSandboxUsage` operationId).
+func (c *ClientWithResponses) GetSandboxUsageWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetSandboxUsageResponse, error) {
+	rsp, err := c.GetSandboxUsage(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSandboxUsageResponse(rsp)
 }
 
 // HealthWithResponse Liveness
@@ -3991,6 +4328,48 @@ func ParseGetSandboxResponse(rsp *http.Response) (*GetSandboxResponse, error) {
 	return response, nil
 }
 
+// ParseGetSandboxEventsResponse parses an HTTP response from a GetSandboxEventsWithResponse call
+func ParseGetSandboxEventsResponse(rsp *http.Response) (*GetSandboxEventsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSandboxEventsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Events []Event `json:"events"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseExecInSandboxResponse parses an HTTP response from a ExecInSandboxWithResponse call
 func ParseExecInSandboxResponse(rsp *http.Response) (*ExecInSandboxResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4236,6 +4615,46 @@ func ParseRenewSandboxResponse(rsp *http.Response) (*RenewSandboxResponse, error
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetSandboxUsageResponse parses an HTTP response from a GetSandboxUsageWithResponse call
+func ParseGetSandboxUsageResponse(rsp *http.Response) (*GetSandboxUsageResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSandboxUsageResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Usage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized

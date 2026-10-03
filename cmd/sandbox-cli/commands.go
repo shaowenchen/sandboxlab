@@ -353,6 +353,49 @@ func logsCmd() *cobra.Command {
 	return cmd
 }
 
+// eventsCmd prints the cluster events about a sandbox, which is what explains a
+// sandbox that will not start — an image pull that failed, a probe that killed
+// the container, a pod that was never scheduled.
+func eventsCmd() *cobra.Command {
+	var limit int
+	cmd := &cobra.Command{
+		Use:   "events <name>",
+		Short: "Print the cluster events about a sandbox",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := newClient(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), requestTimeout)
+			defer cancel()
+
+			events, err := c.Events(ctx, args[0], limit)
+			if err != nil {
+				return err
+			}
+			if jsonOut(cmd) {
+				return printJSON(cmd, events)
+			}
+			if len(events) == 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), "no events")
+				return nil
+			}
+			rows := [][]string{{"type", "reason", "object", "count", "last seen", "message"}}
+			for _, e := range events {
+				rows = append(rows, []string{
+					e.Type, e.Reason, e.Object, fmt.Sprint(e.Count),
+					e.LastSeen.Local().Format("15:04:05"), e.Message,
+				})
+			}
+			printTable(cmd.OutOrStdout(), rows)
+			return nil
+		},
+	}
+	cmd.Flags().IntVar(&limit, "limit", 50, "how many events to fetch")
+	return cmd
+}
+
 func renewCmd() *cobra.Command {
 	var ttl string
 	cmd := &cobra.Command{

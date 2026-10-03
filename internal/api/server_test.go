@@ -15,6 +15,7 @@ import (
 	"github.com/shaowenchen/sandboxlab/internal/catalog"
 	"github.com/shaowenchen/sandboxlab/internal/config"
 	"github.com/shaowenchen/sandboxlab/internal/console"
+	"github.com/shaowenchen/sandboxlab/internal/k8s"
 	"github.com/shaowenchen/sandboxlab/internal/model"
 	"github.com/shaowenchen/sandboxlab/internal/sandbox"
 )
@@ -487,6 +488,46 @@ func TestGetSandboxLogs(t *testing.T) {
 		Logs string `json:"logs"`
 	}
 	decode(t, w, &body)
+}
+
+func TestGetSandboxUsageAndEvents(t *testing.T) {
+	s, svc := newTestServerWithStub(t, config.Config{}, nil)
+	do(t, s, http.MethodPost, "/api/v1/sandboxes", testKey, `{"template":"agent-sandbox","name":"one"}`)
+
+	svc.usage = k8s.Usage{Available: true, CPU: "12m", Memory: "48Mi"}
+	svc.events = []k8s.Event{{Type: "Warning", Reason: "Failed", Message: "pull failed", Object: "Pod/one", Count: 3}}
+
+	w := do(t, s, http.MethodGet, "/api/v1/sandboxes/one/usage", testKey, "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("usage = %d, want 200: %s", w.Code, w.Body.String())
+	}
+	var usage k8s.Usage
+	decode(t, w, &usage)
+	if !usage.Available || usage.CPU != "12m" || usage.Memory != "48Mi" {
+		t.Errorf("usage = %+v, want available 12m/48Mi", usage)
+	}
+
+	w = do(t, s, http.MethodGet, "/api/v1/sandboxes/one/events?limit=10", testKey, "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("events = %d, want 200: %s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Events []k8s.Event `json:"events"`
+	}
+	decode(t, w, &body)
+	if len(body.Events) != 1 || body.Events[0].Reason != "Failed" {
+		t.Errorf("events = %+v, want one Failed", body.Events)
+	}
+
+	// Both are behind the key, and both 404 for a sandbox that is not there.
+	for _, path := range []string{"/api/v1/sandboxes/one/usage", "/api/v1/sandboxes/one/events"} {
+		if w := do(t, s, http.MethodGet, path, "", ""); w.Code != http.StatusUnauthorized {
+			t.Errorf("GET %s with no key = %d, want 401", path, w.Code)
+		}
+		if w := do(t, s, http.MethodGet, strings.Replace(path, "/one/", "/nope/", 1), testKey, ""); w.Code != http.StatusNotFound {
+			t.Errorf("GET %s for a missing sandbox = %d, want 404", path, w.Code)
+		}
+	}
 }
 
 func TestOverview(t *testing.T) {

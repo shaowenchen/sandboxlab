@@ -30,6 +30,10 @@ type stubService struct {
 	logs      string
 	now       func() time.Time
 
+	// The observe surface, so a test can set what usage and events come back.
+	usage  k8s.Usage
+	events []k8s.Event
+
 	// The exec and file surface, so a test can set what it wants back.
 	execExitCode int
 	execErr      error
@@ -173,6 +177,23 @@ func (s *stubService) Logs(ctx context.Context, id string, _ int64) (string, err
 		return "", err
 	}
 	return s.logs, nil
+}
+
+// Usage and Events answer the same way the real ones do for a stubbed cluster:
+// nothing to report. A test that wants a reading sets the fields, which is what
+// makes these numbers rather than a second API to keep in step.
+func (s *stubService) Usage(ctx context.Context, id string) (k8s.Usage, error) {
+	if _, err := s.Get(ctx, id); err != nil {
+		return k8s.Usage{}, err
+	}
+	return s.usage, nil
+}
+
+func (s *stubService) Events(ctx context.Context, id string, _ int) ([]k8s.Event, error) {
+	if _, err := s.Get(ctx, id); err != nil {
+		return nil, err
+	}
+	return s.events, nil
 }
 
 // Exec answers with canned output, and echoes the command back so a test can

@@ -1,0 +1,29 @@
+# The base image from TencentCloud/CubeSandbox: a minimal Ubuntu with `envd`
+# preinstalled. CubeSandbox itself is a microVM sandbox service — hardware-
+# isolated MicroVMs on RustVMM/KVM, driven through an E2B-compatible API — and
+# it is not a single container. What is reusable here is this image, which is
+# what a CubeSandbox sandbox is built FROM.
+#
+# No port, deliberately. The image exposes envd on 49983, but envd is
+# CubeSandbox's own execution daemon, and this deployment reaches a sandbox
+# through its own exec and file API instead — so the template is a plain Ubuntu
+# workspace rather than a service to open. The entrypoint starts envd and keeps
+# the container in the foreground on its own, so nothing overrides the command.
+#
+# The image is on GitHub Container Registry. It is Ubuntu 22.04 with little
+# else, so a template that wants Python, Node or a browser is built FROM it —
+# see the project's docker/ directory — rather than being this one.
+id: cubesandbox
+title: CubeSandbox base
+description: >-
+  TencentCloud/CubeSandbox's base image: a minimal Ubuntu with envd, for
+  running shell commands and working with files. The starting point a
+  CubeSandbox sandbox is built from.
+image: ghcr.io/tencentcloud/cubesandbox-base:2026.16
+
+resources:
+  cpu: "1"
+  memory: 1Gi
+
+ttlDefault: 30m
+ttlMax: 4h

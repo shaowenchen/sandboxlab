@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -90,6 +91,12 @@ type Client struct {
 	// execRunner. It exists because neither the clientset interface nor its
 	// fake can exec.
 	runner Runner
+
+	// dynamic reads the resource metrics API, which is a group the typed
+	// clientset does not carry. nil on a client built over an injected
+	// clientset, in which case usage is reported as unavailable rather than
+	// as zero — see PodUsage.
+	dynamic dynamic.Interface
 }
 
 // New builds a client from the resolved configuration.
@@ -107,10 +114,17 @@ func New(cfg config.Config) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("building the Kubernetes client: %w", err)
 	}
+	// The dynamic client is for the resource metrics API alone — see PodUsage.
+	// Built only when the typed one was, so a deployment reaches metrics by the
+	// same route it reaches everything else, or not at all.
+	dyn, err := dynamic.NewForConfig(rc)
+	if err != nil {
+		return nil, fmt.Errorf("building the dynamic client: %w", err)
+	}
 	// NewForConfig mutates the config it is given — it installs rate limiters
 	// and wraps the transport — so the copy kept for exec is taken from what it
 	// returns rather than sharing its mutable state with the clientset's.
-	return &Client{cs: cs, cfg: cfg, now: time.Now, rc: rest.CopyConfig(rc)}, nil
+	return &Client{cs: cs, cfg: cfg, now: time.Now, rc: rest.CopyConfig(rc), dynamic: dyn}, nil
 }
 
 // NewWithClientset builds a client over an injected clientset, for tests.

@@ -354,6 +354,65 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
 
+  /api/v1/sandboxes/{id}/usage:
+    get:
+      tags: [sandboxes]
+      operationId: getSandboxUsage
+      summary: What a sandbox is using right now
+      description: >-
+        CPU and memory, read from the resource metrics API. A cluster without
+        metrics-server answers with available:false rather than an error — that
+        is a legitimate way to run a cluster, and a caller shows "unavailable"
+        rather than a zero that reads as an idle sandbox.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: the reading
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Usage"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /api/v1/sandboxes/{id}/events:
+    get:
+      tags: [sandboxes]
+      operationId: getSandboxEvents
+      summary: Recent cluster events about a sandbox
+      description: >-
+        The events that explain a state the pod list cannot — why a pod was
+        never scheduled, why an image pull failed, why a probe killed the
+        container. Warnings first, then newest first. They expire after about an
+        hour, so this reads what is there now.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+        - name: limit
+          in: query
+          required: false
+          description: how many to return; 50 when omitted
+          schema: {type: integer}
+      responses:
+        "200":
+          description: the events
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events]
+                properties:
+                  events:
+                    type: array
+                    items: {$ref: "#/components/schemas/Event"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
   /api/v1/sandboxes/{id}/exec:
     post:
       tags: [sandboxes]
@@ -788,6 +847,31 @@ components:
         url:
           type: string
           description: the address to open; absent when the deployment has no public URL
+
+    Usage:
+      type: object
+      required: [available]
+      properties:
+        available:
+          type: boolean
+          description: >-
+            whether the cluster could report usage at all. False on a cluster
+            with no metrics-server; the reading is then absent rather than zero.
+        cpu: {type: string, description: 'e.g. "12m"; a Kubernetes quantity'}
+        memory: {type: string, description: 'e.g. "48Mi"; a Kubernetes quantity'}
+        timestamp: {type: string, description: "when the sample was taken"}
+
+    Event:
+      type: object
+      required: [type, reason, message, object]
+      properties:
+        type: {type: string, description: "Normal or Warning"}
+        reason: {type: string}
+        message: {type: string}
+        object: {type: string, description: "the kind/name the event is about"}
+        count: {type: integer, format: int32}
+        firstSeen: {type: string, format: date-time}
+        lastSeen: {type: string, format: date-time}
 
     SandboxList:
       type: object

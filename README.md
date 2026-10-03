@@ -130,6 +130,8 @@ curl -s https://<the link>/sandbox/api/v1/describe | jq
 | `DELETE` | `/api/v1/sandboxes/{id}` | delete one |
 | `POST` | `/api/v1/sandboxes/{id}/renew` | reset its expiry |
 | `GET` | `/api/v1/sandboxes/{id}/logs` | the tail of its output |
+| `GET` | `/api/v1/sandboxes/{id}/usage` | its CPU and memory now, from the metrics API |
+| `GET` | `/api/v1/sandboxes/{id}/events` | recent cluster events about it |
 | `POST` | `/api/v1/sandboxes/{id}/exec` | run a command in it and wait; `{command, stdin?, cwd?, timeout?}` |
 | `GET` | `/api/v1/sandboxes/{id}/files` | read a file: `?path=/abs/path` |
 | `PUT` | `/api/v1/sandboxes/{id}/files` | write a file: `?path=/abs/path`, `{content, encoding?, createParents?}` |
@@ -203,26 +205,28 @@ ttlDefault: 30m
 ttlMax: 4h
 ```
 
-The three that ship:
+The five that ship:
 
 | | |
 |---|---|
 | **agent-infra** | [AIO Sandbox](https://github.com/agent-infra/sandbox) — a browser, a shell, a filesystem, an MCP server and VS Code in one container, all reached through the web UI on one port. The one to reach for when the question is "can this be done at all". |
 | **agent-sandbox** | The [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) reference runtime: a small server that executes commands over HTTP. |
 | **opensandbox** | [alibaba/OpenSandbox](https://github.com/alibaba/OpenSandbox)'s code-interpreter image — Python, Java, Go and Node preinstalled, for running model-generated code. |
+| **e2b** | [E2B](https://github.com/e2b-dev/E2B)'s code-interpreter image — Python with a data-science stack, for running model-generated code. |
+| **cubesandbox** | [TencentCloud/CubeSandbox](https://github.com/TencentCloud/CubeSandbox)'s base image — a minimal Ubuntu, the workspace others are built from. |
 
-Two of these need a word more. The `agent-sandbox` image has to be **built and
+Some of these need a word more. The `agent-sandbox` image has to be **built and
 pushed first**: agent-sandbox is a Kubernetes CRD and controller, not an image,
 so its quickstart builds one locally. Build it from the project's
 [`examples/python-runtime-sandbox`](https://github.com/kubernetes-sigs/agent-sandbox/tree/main/examples/python-runtime-sandbox),
 push it where your cluster can pull, and point the template's `image` at it. A
 sandbox created before that is a pod that cannot pull its image.
 
-`opensandbox` declares no port, and that is deliberate: OpenSandbox's image
-serves nothing until its own control plane injects an `execd` daemon into it.
-This deployment reaches a sandbox through its own exec and file API instead, so
-the template is a workspace — Python, Java, Go and Node to hand — rather than a
-service to open.
+`opensandbox`, `e2b` and `cubesandbox` are the images those projects run their
+sandboxes *in* — each ships its own control plane (OpenSandbox's execd, E2B's
+envd, CubeSandbox's microVM runtime) which this deployment does not use. They
+declare no port for that reason: a sandbox here is a workspace reached through
+`sandbox exec`, not a service to open.
 
 The `agent-infra` image runs an unconfined seccomp profile in its own quickstart.
 A template cannot set that (`internal/k8s` builds a plain container), so on a

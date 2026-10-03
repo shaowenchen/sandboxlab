@@ -57,28 +57,51 @@
                gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
   .page-head h1 { font-size: 18px; margin: 0; font-weight: 650; }
 
-  .tiles { display: flex; gap: 10px; flex-wrap: wrap; }
-  .tile {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-    padding: 12px 16px; min-width: 108px;
-  }
-  .tile b { display: block; font-size: 22px; font-weight: 650; line-height: 1.2; }
-  .tile span { color: var(--muted); font-size: 12px; }
-
   .cards { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
   /* A heading that separates groups of cards. The first one sits right under the
      page title, so it loses the top margin the later ones need. */
   h2.group { margin: 22px 0 8px; }
   h2.group:first-child { margin-top: 0; }
   .card {
+    position: relative;
     background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
     padding: 14px; display: flex; flex-direction: column; gap: 8px;
   }
+  .card .card-head { display: flex; align-items: flex-start; gap: 8px; }
+  .card .card-head h3 { flex: 1; }
   .card h3 { margin: 0; font-size: 14px; font-weight: 600; }
   .card p { margin: 0; color: var(--muted); font-size: 13px; }
   .card .meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted);
                 word-break: break-all; }
   .card .foot { margin-top: auto; padding-top: 6px; }
+
+  /* The ⋮ menu on a card. A <details> so it opens and closes without script,
+     and positioned absolutely so it does not push the title around. */
+  .menu { position: relative; }
+  .menu > summary { list-style: none; cursor: pointer; }
+  .menu > summary::-webkit-details-marker { display: none; }
+  .menu-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 7px; color: var(--muted);
+    border: 1px solid transparent; line-height: 1;
+  }
+  .menu-btn span { transform: translateY(-3px); font-size: 16px; }
+  .menu-btn:hover { color: var(--ink); background: var(--bg); border-color: var(--line); }
+  .menu[open] .menu-btn { color: var(--ink); background: var(--bg); border-color: var(--line); }
+  .menu-items {
+    position: absolute; right: 0; top: calc(100% + 4px); z-index: 5;
+    min-width: 176px; padding: 4px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 9px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.16);
+    display: flex; flex-direction: column;
+  }
+  .menu-items button {
+    border-color: transparent; background: transparent; text-align: left;
+    border-radius: 6px; padding: 7px 9px; color: var(--ink);
+  }
+  .menu-items button:hover { background: var(--bg); border-color: transparent; }
+  .menu-items button.danger { color: var(--bad); }
+  .menu-sep { height: 1px; margin: 4px 2px; background: var(--line); }
 
   table { width: 100%; border-collapse: collapse; background: var(--panel);
           border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
@@ -148,6 +171,11 @@
   dialog h3 { margin: 0; font-size: 15px; }
   dialog .field { display: flex; flex-direction: column; gap: 4px; }
   dialog .actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
+  /* The events dialog carries a table, which needs more room than the form
+     dialogs; the metrics one is a single row and stays narrow. */
+  dialog.wide { width: min(820px, 94vw); }
+  dialog .scroll { max-height: 60vh; overflow: auto; }
+  dialog #metricsBody, dialog #eventsBody { font-size: 13px; }
 
   .check { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 13px; }
   .check input { width: auto; }
@@ -285,7 +313,6 @@
       <h1>Sandboxes</h1>
       <button id="createSandbox" class="primary">New sandbox</button>
     </div>
-    <div class="tiles" id="tiles"></div>
     <div id="sandboxes"></div>
   </section>
 
@@ -344,11 +371,12 @@
     <h2>Templates</h2>
     <p>
       A template says what image to run, what ports it serves, and how long a
-      sandbox may live. Three ship compiled in — <b>agent-infra</b> (a browser,
+      sandbox may live. Five ship compiled in — <b>agent-infra</b> (a browser,
       shell, filesystem, MCP server and VS Code), <b>agent-sandbox</b> (a small
-      command-execution runtime) and <b>opensandbox</b> (a polyglot
-      Python/Java/Go/Node workspace). These are <i>built-in</i> and cannot be
-      removed. More can be added to the running control plane from the
+      command-execution runtime), <b>opensandbox</b> (a polyglot
+      Python/Java/Go/Node workspace), <b>e2b</b> (a Python data-science stack)
+      and <b>cubesandbox</b> (a minimal Ubuntu). These are <i>built-in</i> and
+      cannot be removed. More can be added to the running control plane from the
       <b>Templates</b> tab, with <code>sandbox catalog add</code>, or with
       <code>POST /api/v1/catalog</code>; an added one appears under an
       <b>Added</b> list and can be removed. Additions are held in memory and are
@@ -439,6 +467,22 @@
   </form>
 </dialog>
 
+<dialog id="metricsDialog">
+  <form method="dialog">
+    <h3 id="metricsTitle">Metrics</h3>
+    <div id="metricsBody"></div>
+    <div class="actions"><button value="close">Close</button></div>
+  </form>
+</dialog>
+
+<dialog id="eventsDialog">
+  <form method="dialog" class="wide">
+    <h3 id="eventsTitle">Events</h3>
+    <div id="eventsBody"></div>
+    <div class="actions"><button value="close">Close</button></div>
+  </form>
+</dialog>
+
 <div id="toast"></div>
 
 <script>
@@ -507,21 +551,7 @@
   }
   // ── rendering ─────────────────────────────────────────────────────────────
 
-  function renderOverview(ov) {
-    var tiles = $("tiles");
-    tiles.replaceChildren();
-
-    var add = function (value, label) {
-      var t = text("div", "tile");
-      t.appendChild(text("b", null, String(value)));
-      t.appendChild(text("span", null, label));
-      tiles.appendChild(t);
-    };
-    add(ov.total, "sandboxes");
-    Object.keys(ov.byState || {}).sort().forEach(function (s) { add(ov.byState[s], s.toLowerCase()); });
-    add(ov.cluster ? "up" : "unreachable", "cluster");
-    if (ov.maxSandboxes) add(ov.maxSandboxes, "limit");
-  }
+  // ── rendering ─────────────────────────────────────────────────────────────
 
   function renderCatalog() {
     var wrap = $("catalog");
@@ -551,29 +581,78 @@
 
   function templateCard(t) {
     var card = text("div", "card");
-    card.appendChild(text("h3", null, t.title || t.id));
+
+    var head = text("div", "card-head");
+    head.appendChild(text("h3", null, t.title || t.id));
+    head.appendChild(templateMenu(t));
+    card.appendChild(head);
+
     card.appendChild(text("p", null, t.description || ""));
     card.appendChild(text("div", "meta", t.image));
 
     var ports = (t.ports || []).map(function (p) { return p.name + " " + p.port; }).join("  ");
     if (ports) card.appendChild(text("div", "meta", ports));
 
-    var foot = text("div", "foot row");
-    var btn = text("button", "primary", "Create");
-    btn.onclick = function () { openCreate(t.id); };
-    foot.appendChild(btn);
-    // A built-in template is compiled into the control plane, so it cannot be
-    // removed; its card says so rather than carrying a button that would be
-    // refused. A runtime-added one can be removed.
-    if (t.builtin) {
-      foot.appendChild(text("span", "muted", "built-in"));
-    } else {
-      var rm = text("button", "danger small", "Remove");
-      rm.onclick = function () { removeTemplate(t.id); };
-      foot.appendChild(rm);
-    }
-    card.appendChild(foot);
+    // A built-in is compiled into the control plane and cannot be removed, so
+    // the card says which it is; the menu then offers no Remove for one.
+    card.appendChild(text("div", "meta", t.builtin ? "built-in" : "added at runtime"));
     return card;
+  }
+
+  // actionMenu is the ⋮ a card or a row shows its actions behind. A <details>
+  // so it opens and closes without script. Each item is {label, onclick,
+  // danger?, sep?}; a sep draws a divider before the entry that follows it.
+  function actionMenu(label, items) {
+    var menu = document.createElement("details");
+    menu.className = "menu";
+
+    var summary = document.createElement("summary");
+    summary.className = "menu-btn";
+    summary.setAttribute("aria-label", label);
+    summary.appendChild(text("span", null, "⋮"));
+    menu.appendChild(summary);
+
+    var box = text("div", "menu-items");
+    var close = function () { menu.removeAttribute("open"); };
+    items.forEach(function (it) {
+      if (it.sep) { box.appendChild(text("div", "menu-sep")); return; }
+      var b = text("button", it.danger ? "danger" : null, it.label);
+      b.onclick = function () { close(); it.onclick(); };
+      box.appendChild(b);
+    });
+    menu.appendChild(box);
+    return menu;
+  }
+
+  // templateMenu is the ⋮ in a template card's corner. The actions live here
+  // rather than as buttons across the card, so the card stays a description of
+  // the template.
+  function templateMenu(t) {
+    var items = [
+      { label: "Create sandbox", onclick: function () { openCreate(t.id); } },
+      { label: "Copy create command", onclick: function () {
+        copyText(createCommandFor(t.id), "Copied the create command for " + t.id);
+      } }
+    ];
+    // Remove only for a template added at runtime: a built-in would be refused,
+    // so the card does not offer what the API would reject.
+    if (!t.builtin) {
+      items.push({ sep: true });
+      items.push({ label: "Remove", danger: true, onclick: function () { removeTemplate(t.id); } });
+    }
+    return actionMenu("Actions for " + (t.title || t.id), items);
+  }
+
+  // createCommandFor is the shell an agent can paste to create a sandbox from a
+  // template, with this deployment's address and key.
+  function createCommandFor(id) {
+    var base = location.origin + API.replace(/\/api\/v1$/, "");
+    return [
+      "export SANDBOX_URL='" + base + "'",
+      "export SANDBOX_KEY='" + (state.key || "<your API key>") + "'",
+      "",
+      "sandbox create -t " + id + " --name scratch --wait && sandbox url scratch"
+    ].join("\n");
   }
 
   function renderSandboxes() {
@@ -629,6 +708,10 @@
 
       var actions = text("td");
       var row = text("div", "row");
+      var svc = text("button", "small", "Metrics");
+      svc.onclick = function () { showMetrics(sb.id); };
+      var ev = text("button", "small", "Events");
+      ev.onclick = function () { showEvents(sb.id); };
       var copy = text("button", "small", "Copy usage");
       copy.title = "Copy commands for this sandbox, to paste to an agent";
       copy.onclick = function () { copyUsage(sb); };
@@ -638,6 +721,8 @@
       renew.onclick = function () { renewSandbox(sb.id); };
       var rm = text("button", "small danger", "Delete");
       rm.onclick = function () { removeSandbox(sb.id); };
+      row.appendChild(svc);
+      row.appendChild(ev);
       row.appendChild(copy);
       row.appendChild(logs);
       row.appendChild(renew);
@@ -720,7 +805,6 @@
       state.catalog = [];
       state.sandboxes = [];
       state.view = "sandboxes";
-      $("tiles").replaceChildren();
       $("catalog").replaceChildren();
       $("sandboxes").replaceChildren();
     }
@@ -777,13 +861,11 @@
   // is answered where it was typed rather than by a second round trip.
   function refresh() {
     return Promise.all([
-      api("/overview"),
       api("/catalog"),
       api("/sandboxes")
     ]).then(function (r) {
-      renderOverview(r[0]);
-      state.catalog = r[1].templates || [];
-      state.sandboxes = r[2].sandboxes || [];
+      state.catalog = r[0].templates || [];
+      state.sandboxes = r[1].sandboxes || [];
       renderCatalog();
       renderSandboxes();
     });
@@ -868,6 +950,76 @@
       .catch(function (err) { $("logsBody").textContent = "could not read logs: " + err.message; });
   }
 
+  // showMetrics opens a sandbox's current CPU and memory, read from the metrics
+  // API. A cluster without metrics-server answers with available:false, which is
+  // shown as "unavailable" rather than as a zero that reads as idle.
+  function showMetrics(id) {
+    $("metricsTitle").textContent = "Metrics — " + id;
+    var body = $("metricsBody");
+    body.replaceChildren(text("p", "muted", "loading…"));
+    $("metricsDialog").showModal();
+    api("/sandboxes/" + encodeURIComponent(id) + "/usage")
+      .then(function (u) {
+        body.replaceChildren();
+        if (!u.available) {
+          body.appendChild(text("p", "muted", "This cluster has no metrics API (metrics-server), so usage is unavailable."));
+          return;
+        }
+        var table = text("table");
+        var head = text("tr");
+        head.appendChild(text("th", null, "CPU"));
+        head.appendChild(text("th", null, "Memory"));
+        table.appendChild(head);
+        var row = text("tr");
+        row.appendChild(text("td", "mono", u.cpu || "—"));
+        row.appendChild(text("td", "mono", u.memory || "—"));
+        table.appendChild(row);
+        body.appendChild(table);
+        if (u.timestamp) body.appendChild(text("p", "muted", "sampled " + u.timestamp));
+      })
+      .catch(function (err) { body.replaceChildren(text("p", "muted", "could not read metrics: " + err.message)); });
+  }
+
+  // showEvents opens the cluster events about a sandbox — what explains a state
+  // the pod list cannot. Warnings first, which is what the API already sorts to.
+  function showEvents(id) {
+    $("eventsTitle").textContent = "Events — " + id;
+    var body = $("eventsBody");
+    body.replaceChildren(text("p", "muted", "loading…"));
+    $("eventsDialog").showModal();
+    api("/sandboxes/" + encodeURIComponent(id) + "/events?limit=100")
+      .then(function (d) {
+        body.replaceChildren();
+        var events = d.events || [];
+        if (!events.length) {
+          body.appendChild(text("p", "muted", "No events. They expire after about an hour, so a sandbox that has been quiet has none."));
+          return;
+        }
+        var table = text("table");
+        var head = text("tr");
+        ["type", "reason", "object", "count", "last seen", "message"].forEach(function (h) {
+          head.appendChild(text("th", null, h));
+        });
+        table.appendChild(head);
+        events.forEach(function (e) {
+          var tr = text("tr");
+          var typeTd = text("td");
+          typeTd.appendChild(text("span", "badge " + (e.type === "Warning" ? "s-Failed" : "s-Running"), e.type));
+          tr.appendChild(typeTd);
+          tr.appendChild(text("td", null, e.reason));
+          tr.appendChild(text("td", "mono", e.object));
+          tr.appendChild(text("td", "muted", String(e.count)));
+          tr.appendChild(text("td", "muted", new Date(e.lastSeen).toLocaleString()));
+          tr.appendChild(text("td", null, e.message));
+          table.appendChild(tr);
+        });
+        var scroller = text("div", "scroll");
+        scroller.appendChild(table);
+        body.appendChild(scroller);
+      })
+      .catch(function (err) { body.replaceChildren(text("p", "muted", "could not read events: " + err.message)); });
+  }
+
   // copyUsage copies a ready-to-paste brief for this sandbox: its address, the
   // key, and the commands an agent would run against it. The console does not
   // run commands itself — the point is to hand the sandbox, configured and
@@ -897,15 +1049,21 @@
     return lines.join("\n");
   }
 
-  function copyUsage(sb) {
-    var text = usageText(sb);
-    var done = function () { toast("Copied usage for " + sb.id); };
-    var failed = function () { toast("Could not copy — select it from the Logs view instead", true); };
+  // copyText puts a string on the clipboard, answering with a toast. The
+  // clipboard API needs a secure context, so a failure is reported rather than
+  // swallowed — the reader can still select the text from Docs.
+  function copyText(value, doneMessage) {
+    var done = function () { toast(doneMessage); };
+    var failed = function () { toast("Could not copy to the clipboard", true); };
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, failed);
+      navigator.clipboard.writeText(value).then(done, failed);
     } else {
       failed();
     }
+  }
+
+  function copyUsage(sb) {
+    copyText(usageText(sb), "Copied usage for " + sb.id);
   }
 
   // ── docs ──────────────────────────────────────────────────────────────────
