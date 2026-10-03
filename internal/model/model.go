@@ -60,6 +60,13 @@ type Template struct {
 	Persistent bool `yaml:"persistent,omitempty" json:"persistent,omitempty"`
 	// WorkDir is where a persistent volume is mounted.
 	WorkDir string `yaml:"workDir,omitempty" json:"workDir,omitempty"`
+
+	// Builtin marks a template that was compiled into the control plane rather
+	// than added to it at runtime. It is not read from a document — a caller
+	// cannot make a template built-in by setting it — but is set when the
+	// catalog is loaded and reported over the API, where it is what protects
+	// the shipped templates from being removed or overwritten by name.
+	Builtin bool `yaml:"-" json:"builtin,omitempty"`
 }
 
 // Port is one port a sandbox serves.
@@ -234,6 +241,9 @@ func (c *Catalog) Len() int {
 // is validated before the lock is taken, so an invalid one is rejected without
 // disturbing the catalog.
 //
+// A built-in template is replaced too, but the replacement is marked Builtin:
+// editing a shipped template is allowed, moving it is not.
+//
 // It reports whether an existing template was replaced, which is what lets the
 // HTTP layer answer 200 for an edit and 201 for a new id.
 func (c *Catalog) Add(t Template) (replaced bool, err error) {
@@ -242,19 +252,22 @@ func (c *Catalog) Add(t Template) (replaced bool, err error) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	_, replaced = c.templates[t.ID]
+	old, replaced := c.templates[t.ID]
+	if replaced {
+		t.Builtin = old.Builtin
+	}
 	c.templates[t.ID] = t
 	return replaced, nil
 }
 
 // Remove takes a template out of the catalog, reporting whether it was there.
-//
-// Nothing is persisted, so removing a built-in template lasts until the process
-// restarts and removes a runtime-added one for good.
+// A built-in template is not removed — it is marked Builtin and left alone, so
+// the templates the binary ships cannot be deleted through the API.
 func (c *Catalog) Remove(id string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if _, ok := c.templates[id]; !ok {
+	t, ok := c.templates[id]
+	if !ok || t.Builtin {
 		return false
 	}
 	delete(c.templates, id)

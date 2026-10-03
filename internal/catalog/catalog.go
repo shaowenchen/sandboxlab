@@ -27,10 +27,17 @@ import (
 type Loader struct{}
 
 // Load returns the catalog this build ships.
+//
+// Every template read here is marked built-in: these are the ones compiled into
+// the binary, and the mark is what stops them being removed through the API or
+// replaced by a runtime /catalog add of the same id.
 func (Loader) Load() (*model.Catalog, error) {
 	templates, err := LoadDir(defaultFS())
 	if err != nil {
 		return nil, fmt.Errorf("loading built-in templates: %w", err)
+	}
+	for i := range templates {
+		templates[i].Builtin = true
 	}
 	return model.NewCatalog(templates)
 }

@@ -207,6 +207,36 @@ func TestCatalogRemove(t *testing.T) {
 	}
 }
 
+func TestCatalogKeepsBuiltins(t *testing.T) {
+	c, err := NewCatalog([]Template{{ID: "shipped", Image: "busybox", Builtin: true}})
+	if err != nil {
+		t.Fatalf("NewCatalog: %v", err)
+	}
+
+	if c.Remove("shipped") {
+		t.Error("Remove reported removing a built-in template")
+	}
+	if _, ok := c.Get("shipped"); !ok {
+		t.Error("a built-in template was removed")
+	}
+
+	// A built-in can be edited — a new image, a different port — and the edit
+	// keeps the mark, so an edited built-in is still not removable.
+	if _, err := c.Add(Template{ID: "shipped", Image: "busybox:1.36"}); err != nil {
+		t.Fatalf("Add over a built-in: %v", err)
+	}
+	got, _ := c.Get("shipped")
+	if got.Image != "busybox:1.36" {
+		t.Errorf("image = %q, want the edit busybox:1.36", got.Image)
+	}
+	if !got.Builtin {
+		t.Error("editing a built-in cleared its Builtin mark")
+	}
+	if c.Remove("shipped") {
+		t.Error("an edited built-in became removable")
+	}
+}
+
 // TestCatalogConcurrentAccess is what makes `-race` mean something here: the
 // HTTP handlers read and write the catalog from many goroutines at once.
 func TestCatalogConcurrentAccess(t *testing.T) {

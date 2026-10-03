@@ -311,14 +311,27 @@ func TestAddCatalogEntry(t *testing.T) {
 func TestDeleteCatalogEntry(t *testing.T) {
 	s := newTestServer(t, config.Config{}, nil)
 
-	if w := do(t, s, http.MethodDelete, "/api/v1/catalog/agent-infra", testKey, ""); w.Code != http.StatusOK {
-		t.Fatalf("DELETE a template = %d, want 200: %s", w.Code, w.Body.String())
+	// A built-in template is compiled into the binary, so removing it would be
+	// undone by the next restart; the request is refused rather than ignored.
+	if w := do(t, s, http.MethodDelete, "/api/v1/catalog/agent-infra", testKey, ""); w.Code != http.StatusConflict {
+		t.Fatalf("DELETE a built-in template = %d, want 409: %s", w.Code, w.Body.String())
 	}
-	if _, ok := s.svc.Catalog().Get("agent-infra"); ok {
-		t.Error("the template is still in the catalog after a delete")
+	if _, ok := s.svc.Catalog().Get("agent-infra"); !ok {
+		t.Error("a built-in template was removed by a refused delete")
 	}
-	if w := do(t, s, http.MethodDelete, "/api/v1/catalog/agent-infra", testKey, ""); w.Code != http.StatusNotFound {
-		t.Errorf("DELETE a template twice = %d, want 404", w.Code)
+
+	// A template added at runtime is removed.
+	if w := do(t, s, http.MethodPost, "/api/v1/catalog", testKey, `{"document":"id: temp\nimage: x:1\n"}`); w.Code != http.StatusCreated {
+		t.Fatalf("adding a template = %d, want 201", w.Code)
+	}
+	if w := do(t, s, http.MethodDelete, "/api/v1/catalog/temp", testKey, ""); w.Code != http.StatusOK {
+		t.Fatalf("DELETE an added template = %d, want 200: %s", w.Code, w.Body.String())
+	}
+	if _, ok := s.svc.Catalog().Get("temp"); ok {
+		t.Error("the added template is still in the catalog after a delete")
+	}
+	if w := do(t, s, http.MethodDelete, "/api/v1/catalog/temp", testKey, ""); w.Code != http.StatusNotFound {
+		t.Errorf("DELETE it again = %d, want 404", w.Code)
 	}
 }
 

@@ -180,9 +180,11 @@ paths:
       operationId: deleteCatalogEntry
       summary: Remove a template from the running catalog
       description: >-
-        Nothing is persisted: a built-in template comes back when the process
-        restarts, and a template added at runtime is gone for good. Removing a
-        template does not touch the sandboxes already created from it.
+        A template added at runtime is removed; it is gone for good, because
+        nothing was persisted. A built-in template — one compiled into the
+        control plane, reported with builtin: true — cannot be removed, and the
+        request is a 409 rather than silently ignored. Removing a template does
+        not touch the sandboxes already created from it.
       parameters:
         - name: id
           in: path
@@ -196,6 +198,7 @@ paths:
               schema: {$ref: "#/components/schemas/Deleted"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
 
   /api/v1/overview:
     get:
@@ -668,6 +671,14 @@ components:
         workDir:
           type: string
           x-oapi-codegen-extra-tags: {yaml: "workDir,omitempty"}
+        builtin:
+          type: boolean
+          description: >-
+            true for a template compiled into the control plane. A built-in
+            cannot be removed through the API, and one edited with the same id
+            keeps the mark.
+          readOnly: true
+          x-oapi-codegen-extra-tags: {yaml: "-"}
 
     Port:
       type: object

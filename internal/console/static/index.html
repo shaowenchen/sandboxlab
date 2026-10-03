@@ -66,6 +66,10 @@
   .tile span { color: var(--muted); font-size: 12px; }
 
   .cards { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  /* A heading that separates groups of cards. The first one sits right under the
+     page title, so it loses the top margin the later ones need. */
+  h2.group { margin: 22px 0 8px; }
+  h2.group:first-child { margin-top: 0; }
   .card {
     background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
     padding: 14px; display: flex; flex-direction: column; gap: 8px;
@@ -343,11 +347,13 @@
       sandbox may live. Three ship compiled in — <b>agent-infra</b> (a browser,
       shell, filesystem, MCP server and VS Code), <b>agent-sandbox</b> (a small
       command-execution runtime) and <b>opensandbox</b> (a polyglot
-      Python/Java/Go/Node workspace). More can be added to the running control
-      plane from the <b>Templates</b> tab, with <code>sandbox catalog add</code>,
-      or with <code>POST /api/v1/catalog</code>. They are held in memory and are
-      not persisted: the control plane returns to the compiled-in three when it
-      restarts.
+      Python/Java/Go/Node workspace). These are <i>built-in</i> and cannot be
+      removed. More can be added to the running control plane from the
+      <b>Templates</b> tab, with <code>sandbox catalog add</code>, or with
+      <code>POST /api/v1/catalog</code>; an added one appears under an
+      <b>Added</b> list and can be removed. Additions are held in memory and are
+      not persisted: they are forgotten when the control plane restarts, and the
+      built-ins are what it comes back to.
     </p>
 
     <h2>The API</h2>
@@ -520,25 +526,54 @@
   function renderCatalog() {
     var wrap = $("catalog");
     wrap.replaceChildren();
-    state.catalog.forEach(function (t) {
-      var card = text("div", "card");
-      card.appendChild(text("h3", null, t.title || t.id));
-      card.appendChild(text("p", null, t.description || ""));
-      card.appendChild(text("div", "meta", t.image));
 
-      var ports = (t.ports || []).map(function (p) { return p.name + " " + p.port; }).join("  ");
-      if (ports) card.appendChild(text("div", "meta", ports));
+    var builtin = state.catalog.filter(function (t) { return t.builtin; });
+    var added = state.catalog.filter(function (t) { return !t.builtin; });
 
-      var foot = text("div", "foot row");
-      var btn = text("button", "primary", "Create");
-      btn.onclick = function () { openCreate(t.id); };
-      foot.appendChild(btn);
+    // Built-in first, then what was added at runtime — the two read differently
+    // because they behave differently: one is compiled in and permanent, the
+    // other lives only until a restart.
+    var groups = [["Built-in", builtin], ["Added", added]];
+    groups.forEach(function (g) {
+      if (!g[1].length) return;
+      wrap.appendChild(text("h2", "group", g[0]));
+      var cards = text("div", "cards");
+      g[1].forEach(function (t) { cards.appendChild(templateCard(t)); });
+      wrap.appendChild(cards);
+    });
+
+    if (!added.length) {
+      var hint = text("p", "muted", "Add a template to give this deployment an environment it does not ship with.");
+      hint.style.marginTop = "14px";
+      wrap.appendChild(hint);
+    }
+  }
+
+  function templateCard(t) {
+    var card = text("div", "card");
+    card.appendChild(text("h3", null, t.title || t.id));
+    card.appendChild(text("p", null, t.description || ""));
+    card.appendChild(text("div", "meta", t.image));
+
+    var ports = (t.ports || []).map(function (p) { return p.name + " " + p.port; }).join("  ");
+    if (ports) card.appendChild(text("div", "meta", ports));
+
+    var foot = text("div", "foot row");
+    var btn = text("button", "primary", "Create");
+    btn.onclick = function () { openCreate(t.id); };
+    foot.appendChild(btn);
+    // A built-in template is compiled into the control plane, so it cannot be
+    // removed; its card says so rather than carrying a button that would be
+    // refused. A runtime-added one can be removed.
+    if (t.builtin) {
+      foot.appendChild(text("span", "muted", "built-in"));
+    } else {
       var rm = text("button", "danger small", "Remove");
       rm.onclick = function () { removeTemplate(t.id); };
       foot.appendChild(rm);
-      card.appendChild(foot);
-      wrap.appendChild(card);
-    });
+    }
+    card.appendChild(foot);
+    return card;
   }
 
   function renderSandboxes() {
@@ -707,23 +742,28 @@
   // answered on the form that asked rather than by an empty console.
   function connect(key) {
     setSigninError("");
+    // An empty key is not a key that was refused; it is nothing to check, so
+    // the card is shown and the field focused rather than an error raised.
+    if (!key) { showSignedIn(false); return Promise.resolve(false); }
     state.key = key;
     return refresh().then(function () {
       saveKey(key);
       showSignedIn(true);
       return true;
     }).catch(function (err) {
-      // The key is dropped on failure: keeping one that did not work would make
-      // the next load retry it and show the same error, behind a card that had
-      // already been filled in from storage.
+      // The stored copy is dropped on failure — keeping one that did not work
+      // would make the next load retry it — but the field keeps what was tried,
+      // so a rejection is answered against the key that caused it rather than
+      // against an empty box the reader cannot connect to the message.
       clearKey();
       state.key = "";
+      showSignedIn(false);
+      $("signin-key").value = key;
       if (err.status === 401 || err.status === 403) {
         setSigninError("That key was not accepted. Check it and try again.");
       } else {
         setSigninError(err.message);
       }
-      showSignedIn(false);
       return false;
     });
   }
@@ -798,7 +838,7 @@
   }
 
   function removeTemplate(id) {
-    if (!confirm("Remove template " + id + "? A template compiled into the control plane comes back when it restarts; one added here is gone. Sandboxes already created are unaffected.")) return;
+    if (!confirm("Remove template " + id + "? Sandboxes already created from it are unaffected. A template compiled into the control plane cannot be removed.")) return;
     api("/catalog/" + encodeURIComponent(id), { method: "DELETE" })
       .then(function () { toast("Removed " + id); return refresh(); })
       .catch(function (err) { toast("Could not remove: " + err.message, true); });

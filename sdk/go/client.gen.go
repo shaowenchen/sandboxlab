@@ -389,7 +389,10 @@ type Status struct {
 
 // Template defines model for Template.
 type Template struct {
-	Args        []string `json:"args,omitempty" yaml:"args,omitempty"`
+	Args []string `json:"args,omitempty" yaml:"args,omitempty"`
+
+	// Builtin true for a template compiled into the control plane. A built-in cannot be removed through the API, and one edited with the same id keeps the mark.
+	Builtin     bool     `json:"builtin,omitempty" yaml:"-"`
 	Command     []string `json:"command,omitempty" yaml:"command,omitempty"`
 	Description string   `json:"description,omitempty" yaml:"description,omitempty"`
 
@@ -585,7 +588,7 @@ type ClientInterface interface {
 
 	// DeleteCatalogEntry Remove a template from the running catalog
 	//
-	// Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+	// A template added at runtime is removed; it is gone for good, because nothing was persisted. A built-in template — one compiled into the control plane, reported with builtin: true — cannot be removed, and the request is a 409 rather than silently ignored. Removing a template does not touch the sandboxes already created from it.
 	//
 	// Corresponds with DELETE /api/v1/catalog/{id} (the `DeleteCatalogEntry` operationId).
 	DeleteCatalogEntry(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -796,7 +799,7 @@ func (c *Client) AddCatalogEntry(ctx context.Context, body AddCatalogEntryJSONRe
 
 // DeleteCatalogEntry Remove a template from the running catalog
 //
-// Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+// A template added at runtime is removed; it is gone for good, because nothing was persisted. A built-in template — one compiled into the control plane, reported with builtin: true — cannot be removed, and the request is a 409 rather than silently ignored. Removing a template does not touch the sandboxes already created from it.
 //
 // Corresponds with DELETE /api/v1/catalog/{id} (the `DeleteCatalogEntry` operationId).
 func (c *Client) DeleteCatalogEntry(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1956,7 +1959,7 @@ type ClientWithResponsesInterface interface {
 
 	// DeleteCatalogEntryWithResponse Remove a template from the running catalog
 	//
-	// Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+	// A template added at runtime is removed; it is gone for good, because nothing was persisted. A built-in template — one compiled into the control plane, reported with builtin: true — cannot be removed, and the request is a 409 rather than silently ignored. Removing a template does not touch the sandboxes already created from it.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -2264,6 +2267,8 @@ type DeleteCatalogEntryResponse struct {
 	JSON401 *Unauthorized
 	// JSON404 the response for an HTTP 404 `application/json` response
 	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -2279,6 +2284,11 @@ func (r DeleteCatalogEntryResponse) GetJSON401() *Unauthorized {
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
 func (r DeleteCatalogEntryResponse) GetJSON404() *NotFound {
 	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DeleteCatalogEntryResponse) GetJSON409() *Conflict {
+	return r.JSON409
 }
 
 // GetBody returns the raw response body bytes
@@ -3245,7 +3255,7 @@ func (c *ClientWithResponses) AddCatalogEntryWithResponse(ctx context.Context, b
 
 // DeleteCatalogEntryWithResponse Remove a template from the running catalog
 //
-// Nothing is persisted: a built-in template comes back when the process restarts, and a template added at runtime is gone for good. Removing a template does not touch the sandboxes already created from it.
+// A template added at runtime is removed; it is gone for good, because nothing was persisted. A built-in template — one compiled into the control plane, reported with builtin: true — cannot be removed, and the request is a 409 rather than silently ignored. Removing a template does not touch the sandboxes already created from it.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -3673,6 +3683,13 @@ func ParseDeleteCatalogEntryResponse(rsp *http.Response) (*DeleteCatalogEntryRes
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	}
 

@@ -355,7 +355,7 @@ func (s *Server) describe(w http.ResponseWriter, r *http.Request) {
 		{"method": "GET", "path": "/api/v1/catalog", "description": "the templates a sandbox can be created from"},
 		{"method": "POST", "path": "/api/v1/catalog", "description": "add a template; body {document} as YAML, {overwrite} to replace one that exists. Not persisted"},
 		{"method": "GET", "path": "/api/v1/catalog/{id}", "description": "one template"},
-		{"method": "DELETE", "path": "/api/v1/catalog/{id}", "description": "remove a template. Not persisted; built-ins return on restart"},
+		{"method": "DELETE", "path": "/api/v1/catalog/{id}", "description": "remove a template; a built-in one cannot be removed"},
 		{"method": "DELETE", "path": "/api/v1/catalog/{id}", "description": "remove a template. Not persisted; built-ins return on restart"},
 		{"method": "GET", "path": "/api/v1/overview", "description": "counts of sandboxes by state and template"},
 		{"method": "GET", "path": "/api/v1/sandboxes", "description": "every sandbox in the deployment"},
@@ -482,12 +482,22 @@ func parseTemplate(document string) (model.Template, error) {
 }
 
 // deleteCatalogEntry removes a template from the running catalog.
+//
+// A built-in template cannot be removed: it is compiled into the binary, so
+// removing it would be undone by the next restart — and the request is refused
+// rather than silently ignored, so the caller is told.
 func (s *Server) deleteCatalogEntry(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if !s.svc.RemoveTemplate(id) {
+	t, ok := s.svc.Catalog().Get(id)
+	if !ok {
 		writeJSON(w, http.StatusNotFound, errorBody{Error: "no template named " + id})
 		return
 	}
+	if t.Builtin {
+		writeJSON(w, http.StatusConflict, errorBody{Error: id + " is a built-in template and cannot be removed"})
+		return
+	}
+	s.svc.RemoveTemplate(id)
 	logger(r).Info("removed a template", "template", id)
 	writeJSON(w, http.StatusOK, map[string]string{"deleted": id})
 }

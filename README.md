@@ -123,7 +123,7 @@ curl -s https://<the link>/sandbox/api/v1/describe | jq
 | `GET` | `/api/v1/catalog` | the templates a sandbox can be created from |
 | `POST` | `/api/v1/catalog` | add one: `{document}` as YAML. 409 if the id exists unless `{overwrite: true}`. Not persisted |
 | `GET` | `/api/v1/catalog/{id}` | one template |
-| `DELETE` | `/api/v1/catalog/{id}` | remove one. Not persisted |
+| `DELETE` | `/api/v1/catalog/{id}` | remove one added at runtime; a built-in is a 409 |
 | `POST` | `/api/v1/sandboxes` | create one: `{template, name?, ttl?, env?}` |
 | `GET` | `/api/v1/sandboxes` | every sandbox in the deployment |
 | `GET` | `/api/v1/sandboxes/{id}` | one, with its addresses and remaining time |
@@ -178,14 +178,17 @@ to a **running** deployment without a release — from the console, the CLI or t
 API:
 
 ```bash
-sandbox catalog add ./tool.yaml       # add or replace one
-sandbox catalog rm tool               # remove one
+sandbox catalog add ./tool.yaml       # add, or replace one with the same id
+sandbox catalog rm tool               # remove an added one
 ```
 
-They are held in memory and are **not persisted**: the control plane returns to
-the templates compiled into it when it restarts. That is the trade this makes
-for needing no store — a template added to debug something does not have to be
-cleaned up, and a change worth keeping is a change worth a release.
+The compiled-in templates are **built-in** and cannot be removed — `DELETE` on
+one is a 409 — and an edit to a built-in with the same id keeps the mark. Only a
+template added at runtime can be removed. Additions are held in memory and are
+**not persisted**: they are forgotten when the control plane restarts, and the
+built-ins are what it comes back to. That is the trade this makes for needing no
+store — a template added to debug something does not have to be cleaned up, and
+a change worth keeping is a change worth a release.
 
 ```yaml
 id: tool
