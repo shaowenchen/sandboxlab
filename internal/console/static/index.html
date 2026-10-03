@@ -33,10 +33,29 @@
   }
   header h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .01em; }
   header .grow { flex: 1; }
+
+  /* The tabs. Which view is showing has to read at a glance rather than be
+     inferred from the content, so the current one carries aria-current and the
+     styling follows from it — the two cannot disagree. */
+  nav { display: flex; gap: 2px; margin-left: 6px; }
+  nav button {
+    border-color: transparent; background: transparent; color: var(--muted);
+    padding: 6px 12px; font-weight: 500;
+  }
+  nav button:hover { color: var(--ink); background: var(--bg); }
+  nav button[aria-current="page"] { color: var(--ink); background: var(--bg); font-weight: 600; }
+  @media (max-width: 640px) {
+    nav { order: 3; width: 100%; margin: 4px 0 0; }
+  }
   main { padding: 20px; max-width: 1180px; margin: 0 auto; }
   section { margin-bottom: 26px; }
   h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
        color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  /* A view's own title, sized as the page it names rather than as the small
+     label a section header is. */
+  .page-head { display: flex; align-items: center; justify-content: space-between;
+               gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .page-head h1 { font-size: 18px; margin: 0; font-weight: 650; }
 
   .tiles { display: flex; gap: 10px; flex-wrap: wrap; }
   .tile {
@@ -96,6 +115,21 @@
     line-height: 1.45; resize: vertical; white-space: pre; overflow-wrap: normal;
     overflow-x: auto;
   }
+  /* The dropdown, with an arrow drawn in CSS rather than left to the platform:
+     the default control is the one piece of chrome a page cannot theme, and an
+     unstyled one beside styled buttons reads as an oversight. Two corner
+     gradients make the caret; it takes its colour from --muted, so it follows
+     the palette into dark mode. */
+  select {
+    appearance: none; -webkit-appearance: none;
+    padding-right: 30px;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+      linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 16px) center, calc(100% - 11px) center;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+  }
   input:focus, select:focus, textarea:focus, button:focus-visible {
     outline: 2px solid var(--accent); outline-offset: 1px;
   }
@@ -129,6 +163,21 @@
     max-width: 44ch;
   }
   #toast div.err { border-left-color: var(--bad); }
+
+  /* Docs. Prose, so it is measured in characters rather than pixels: 74ch is
+     about where a line stops being comfortable to track back from. */
+  .doc { max-width: 74ch; }
+  .doc h2 { font-size: 15px; text-transform: none; letter-spacing: 0;
+            color: var(--ink); margin: 26px 0 8px; }
+  .doc h2:first-of-type { margin-top: 4px; }
+  .doc p { margin: 0 0 10px; }
+  .doc ul { margin: 0 0 12px; padding-left: 20px; }
+  .doc li { margin-bottom: 6px; }
+  .doc code { font-family: var(--mono); font-size: 12.5px;
+              background: var(--bg); border: 1px solid var(--line);
+              border-radius: 5px; padding: 1px 5px; }
+  .doc pre { margin: 0 0 12px; }
+  .doc a { color: var(--accent); }
   .empty { color: var(--muted); background: var(--panel); border: 1px dashed var(--line);
            border-radius: 10px; padding: 18px; text-align: center; }
   .muted { color: var(--muted); }
@@ -192,8 +241,16 @@
 <body>
 <header>
   <h1>Sandboxes</h1>
+  <!-- Tabs. Docs carries .always because it is the one view worth reading before
+       there is a key — someone deciding whether to use this, or with a key they
+       have not entered yet, is exactly who needs it. The other two are drawn
+       from the deployment and wait for a session. -->
+  <nav id="nav" hidden>
+    <button id="nav-sandboxes">Sandboxes</button>
+    <button id="nav-templates">Templates</button>
+    <button id="nav-docs" class="always">Docs</button>
+  </nav>
   <span class="grow"></span>
-  <button id="refresh" title="Reload">Refresh</button>
   <button id="signout" hidden>Sign out</button>
 </header>
 
@@ -216,22 +273,105 @@
     </div>
   </section>
 
-  <section id="overview" hidden>
-    <h2>Overview</h2>
+  <!-- Sandboxes. A list, with the one action that matters — create — at the top
+       rather than a template card per row: the list is what is running, and a
+       create starts from a template chosen out of a dropdown. -->
+  <section id="sandboxes-view" hidden>
+    <div class="page-head">
+      <h1>Sandboxes</h1>
+      <button id="createSandbox" class="primary">New sandbox</button>
+    </div>
     <div class="tiles" id="tiles"></div>
+    <div id="sandboxes"></div>
   </section>
 
-  <section id="catalogSection" hidden>
-    <div class="row" style="justify-content: space-between; margin-bottom: 10px;">
-      <h2 style="margin: 0;">Templates</h2>
-      <button id="addTemplate">Add template</button>
+  <section id="templates-view" hidden>
+    <div class="page-head">
+      <h1>Templates</h1>
+      <button id="addTemplate">New template</button>
     </div>
     <div class="cards" id="catalog"></div>
   </section>
 
-  <section id="sandboxSection" hidden>
-    <h2>Sandboxes</h2>
-    <div id="sandboxes"></div>
+  <!-- Docs. The usage, written for the person reading it: what a template is,
+       how to create a sandbox, and how to reach one. It is a static page — the
+       commands are filled from the current address and key when known, but it
+       reads the same signed out. -->
+  <section id="docs-view" class="doc" hidden>
+    <div class="page-head"><h1>Using Sandboxes</h1></div>
+
+    <h2>What this is</h2>
+    <p>
+      Sandboxes are disposable Kubernetes environments created from a template.
+      A sandbox is a namespace of its own, reached at an address the console and
+      the CLI print, and deleted when its lifetime runs out or when you delete
+      it. The whole thing runs on a throwaway cluster, so nothing is left behind.
+    </p>
+
+    <h2>Create one</h2>
+    <p>
+      From the console, open <b>Sandboxes</b> and press <b>New sandbox</b>, then
+      choose a template. Or from the CLI:
+    </p>
+    <pre id="docs-create-cmd"></pre>
+    <p>
+      A create returns as soon as the objects exist; the container is pulled
+      after that, and the list shows a sandbox still starting as
+      <span class="badge s-Pending">Pending</span> until it is up.
+    </p>
+
+    <h2>Reach it</h2>
+    <p>
+      A template with a port gives the sandbox a URL — the <code>aio</code>
+      address on the <b>agent-infra</b> template opens a desktop in a browser.
+      A template with no port serves no URL; it is a workspace you run things in.
+      Either way, two primitives reach inside:
+    </p>
+    <pre id="docs-exec-cmd"></pre>
+    <p>
+      <code>exec</code> runs one command and waits — its exit status is the
+      command's own. <code>cp</code> moves a file in whichever direction the side
+      naming a sandbox says, and <code>-</code> means stdin or stdout. This is
+      also how an agent reaches a sandbox: the same two over HTTP at
+      <code>POST /api/v1/sandboxes/{id}/exec</code> and
+      <code>GET|PUT /api/v1/sandboxes/{id}/files</code>.
+    </p>
+
+    <h2>Templates</h2>
+    <p>
+      A template says what image to run, what ports it serves, and how long a
+      sandbox may live. Three ship compiled in — <b>agent-infra</b> (a browser,
+      shell, filesystem, MCP server and VS Code), <b>agent-sandbox</b> (a small
+      command-execution runtime) and <b>opensandbox</b> (a polyglot
+      Python/Java/Go/Node workspace). More can be added to the running control
+      plane from the <b>Templates</b> tab, with <code>sandbox catalog add</code>,
+      or with <code>POST /api/v1/catalog</code>. They are held in memory and are
+      not persisted: the control plane returns to the compiled-in three when it
+      restarts.
+    </p>
+
+    <h2>The API</h2>
+    <p>
+      The console is a client of the same HTTP API the CLI uses. It is described
+      at <a id="docs-describe" href="#">/api/v1/describe</a>, and every call
+      carries the key in <code>Authorization: Bearer &lt;key&gt;</code> or
+      <code>X-Sandbox-Key</code>. The data-plane addresses under
+      <code>/sandbox/</code> also take <code>?key=</code>, because a browser
+      navigation cannot set a header.
+    </p>
+    <pre id="docs-api-cmd"></pre>
+
+    <h2>When it is not working</h2>
+    <ul>
+      <li>A <span class="badge s-Failed">Failed</span> sandbox has a message —
+          hover the state to read it.</li>
+      <li><b>Logs</b> on a row shows the tail of the container's output, which
+          is where a command that exited non-zero leaves its error.</li>
+      <li>A sandbox that cannot pull its image stays
+          <span class="badge s-Pending">Pending</span>: the
+          <code>agent-sandbox</code> template ships no image, so its
+          <code>image</code> must be built and pushed first.</li>
+    </ul>
   </section>
 
 </main>
@@ -285,28 +425,6 @@
   </form>
 </dialog>
 
-<dialog id="execDialog">
-  <form method="dialog" id="execForm">
-    <h3 id="execTitle">Run a command</h3>
-    <!-- A command line, so the shell reads it as one. The API takes an argv, and
-         that is what a script wants; a person at a keyboard wants to type
-         `ls -la` and have it work. -->
-    <div class="field">
-      <label for="execCommand">Command</label>
-      <input id="execCommand" placeholder="e.g. python3 --version" autocomplete="off" spellcheck="false">
-    </div>
-    <label class="check">
-      <input type="checkbox" id="execShell" checked>
-      <span>Run through <code>sh -c</code>, so pipes and quoting work</span>
-    </label>
-    <pre id="execOutput" hidden></pre>
-    <div class="actions">
-      <button value="cancel">Close</button>
-      <button class="primary" value="run">Run</button>
-    </div>
-  </form>
-</dialog>
-
 <dialog id="logsDialog">
   <form method="dialog">
     <h3 id="logsTitle">Logs</h3>
@@ -327,8 +445,11 @@
   // SANDBOX_BASE_PATH on the server.
   var API = location.pathname.replace(/\/+$/, "") + "/api/v1";
 
-  var state = { key: "", catalog: [], sandboxes: [] };
+  var state = { key: "", catalog: [], sandboxes: [], view: "sandboxes" };
   var $ = function (id) { return document.getElementById(id); };
+
+  // The views, in tab order. Only these are toggled by showView.
+  var VIEWS = ["sandboxes", "templates", "docs"];
 
   // ── plumbing ──────────────────────────────────────────────────────────────
 
@@ -394,8 +515,6 @@
     Object.keys(ov.byState || {}).sort().forEach(function (s) { add(ov.byState[s], s.toLowerCase()); });
     add(ov.cluster ? "up" : "unreachable", "cluster");
     if (ov.maxSandboxes) add(ov.maxSandboxes, "limit");
-
-    $("overview").hidden = false;
   }
 
   function renderCatalog() {
@@ -420,7 +539,6 @@
       card.appendChild(foot);
       wrap.appendChild(card);
     });
-    $("catalogSection").hidden = false;
   }
 
   function renderSandboxes() {
@@ -431,9 +549,8 @@
       var empty = text("div", "empty");
       empty.appendChild(text("p", null, "No sandboxes yet."));
       empty.appendChild(text("p", "muted",
-        "Create one from a template above; it is deleted when its lifetime runs out, or when you delete it."));
+        "Create one from a template; it is deleted when its lifetime runs out, or when you delete it."));
       wrap.appendChild(empty);
-      $("sandboxSection").hidden = false;
       return;
     }
 
@@ -477,15 +594,16 @@
 
       var actions = text("td");
       var row = text("div", "row");
-      var exec = text("button", "small", "Exec");
-      exec.onclick = function () { openExec(sb.id); };
+      var copy = text("button", "small", "Copy usage");
+      copy.title = "Copy commands for this sandbox, to paste to an agent";
+      copy.onclick = function () { copyUsage(sb); };
       var logs = text("button", "small", "Logs");
       logs.onclick = function () { showLogs(sb.id); };
       var renew = text("button", "small", "Renew");
       renew.onclick = function () { renewSandbox(sb.id); };
       var rm = text("button", "small danger", "Delete");
       rm.onclick = function () { removeSandbox(sb.id); };
-      row.appendChild(exec);
+      row.appendChild(copy);
       row.appendChild(logs);
       row.appendChild(renew);
       row.appendChild(rm);
@@ -499,8 +617,6 @@
     var scroller = text("div", "scroll");
     scroller.appendChild(table);
     wrap.appendChild(scroller);
-
-    $("sandboxSection").hidden = false;
   }
 
 
@@ -531,15 +647,49 @@
     el.hidden = !message;
   }
 
-  // Show the console or the sign-in card, never both. One function because the
-  // two must not disagree: a page showing the sign-in card over a drawn console
-  // is how a stale key looks like a working session.
-  function showSignedIn(signedIn) {
-    $("signin").hidden = signedIn;
-    $("signout").hidden = !signedIn;
-    ["overview", "catalogSection", "sandboxSection"].forEach(function (id) {
-      if (!signedIn) $(id).hidden = true;
+  // showView switches tabs. The current one carries aria-current and the
+  // styling follows from it, so what is selected on screen cannot disagree with
+  // what a screen reader reads.
+  //
+  // Docs is reachable without a key and is the only view that is; the other two
+  // are the deployment's own data. So a signed-out reader who opens Docs has to
+  // have the sign-in card put away, or the document would be a page with a login
+  // form floating over it — and the header's tabs are what let them get back.
+  function showView(name) {
+    state.view = name;
+    VIEWS.forEach(function (v) {
+      // A data view needs a session; Docs is the one that does not, so it is
+      // the one a signed-out reader can be looking at.
+      $(v + "-view").hidden = !(v === name && (state.signedIn || v === "docs"));
     });
+    VIEWS.forEach(function (v) {
+      var b = $("nav-" + v);
+      if (v === name) b.setAttribute("aria-current", "page");
+      else b.removeAttribute("aria-current");
+    });
+    // The sign-in card is shown for a data view without a key, and put away for
+    // Docs — a document with a login form floating over it is neither.
+    $("signin").hidden = state.signedIn || name === "docs";
+    if (name === "docs") renderDocs();
+  }
+
+  // showSignedIn handles the session transition: which tabs a reader may use,
+  // and where they land. It does not touch the views beyond what showView does.
+  function showSignedIn(signedIn) {
+    state.signedIn = signedIn;
+    $("nav").hidden = false; // the tabs always exist; only their data needs a key
+    $("signout").hidden = !signedIn;
+    if (!signedIn) {
+      // Clear the previous session's data rather than leaving it on screen
+      // behind the card, and land on the default view.
+      state.catalog = [];
+      state.sandboxes = [];
+      state.view = "sandboxes";
+      $("tiles").replaceChildren();
+      $("catalog").replaceChildren();
+      $("sandboxes").replaceChildren();
+    }
+    showView(state.view);
     if (!signedIn) {
       $("signin-key").value = "";
       $("signin-key").focus();
@@ -678,61 +828,79 @@
       .catch(function (err) { $("logsBody").textContent = "could not read logs: " + err.message; });
   }
 
-  // ── users ─────────────────────────────────────────────────────────────────
-  // ── running a command ─────────────────────────────────────────────────────
-
-  // openExec asks for a command to run in one sandbox.
-  //
-  // There is no file browser here, deliberately. Files are for the CLI and for
-  // a program; what the console is for is the question "what is actually going
-  // on in there", and running one command answers it without a second surface
-  // to build and keep in step.
-  var execTarget = "";
-
-  function openExec(id) {
-    execTarget = id;
-    $("execTitle").textContent = "Run a command in " + id;
-    $("execCommand").value = "";
-    $("execOutput").hidden = true;
-    $("execOutput").textContent = "";
-    $("execDialog").showModal();
-    $("execCommand").focus();
+  // copyUsage copies a ready-to-paste brief for this sandbox: its address, the
+  // key, and the commands an agent would run against it. The console does not
+  // run commands itself — the point is to hand the sandbox, configured and
+  // working, to something that will.
+  function usageText(sb) {
+    var base = location.origin + API.replace(/\/api\/v1$/, "");
+    var urls = (sb.endpoints || []).filter(function (e) { return e.url; })
+      .map(function (e) { return e.name + ": " + e.url + "?key=" + encodeURIComponent(state.key); });
+    var lines = [
+      "Sandbox \"" + sb.id + "\" is running in Kubernetes, reachable through the sandboxlab API.",
+      "URL: " + base,
+      "Key: " + state.key + "   (send as header X-Sandbox-Key on every call)",
+      ""
+    ];
+    if (urls.length) lines = lines.concat(["Open in a browser:", urls.join("\n")], [""]);
+    lines = lines.concat([
+      "Run a command in it and wait (argv; its exit status is the result):",
+      "  curl -s -X POST \"" + base + "/api/v1/sandboxes/" + sb.id + "/exec\" \\",
+      "    -H \"X-Sandbox-Key: " + state.key + "\" -H 'Content-Type: application/json' \\",
+      "    -d '{\"command\": [\"sh\",\"-c\",\"echo hi\"]}'",
+      "",
+      "Read a file:   GET  " + base + "/api/v1/sandboxes/" + sb.id + "/files?path=/workspace/x",
+      "Write a file:  PUT  " + base + "/api/v1/sandboxes/" + sb.id + "/files?path=/workspace/x  body {\"content\":\"...\"}",
+      "",
+      "The full interface is described at " + base + "/api/v1/describe."
+    ]);
+    return lines.join("\n");
   }
 
-  function runExec() {
-    var id = execTarget;
-    var line = $("execCommand").value.trim();
-    if (!line) return;
+  function copyUsage(sb) {
+    var text = usageText(sb);
+    var done = function () { toast("Copied usage for " + sb.id); };
+    var failed = function () { toast("Could not copy — select it from the Logs view instead", true); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, failed);
+    } else {
+      failed();
+    }
+  }
 
-    // Through a shell, the line is one argument; directly, it is split on
-    // whitespace. Neither is a real command-line parser, which is exactly why
-    // the checkbox is there for the case that needs one.
-    var command = $("execShell").checked ? ["sh", "-c", line] : line.split(/\s+/);
+  // ── docs ──────────────────────────────────────────────────────────────────
 
-    var out = $("execOutput");
-    out.hidden = false;
-    out.textContent = "running…";
+  // renderDocs fills the document's commands with the address and key this
+  // console is using, so the block is not a template to adapt but something to
+  // copy and run. Signed out it still renders, with a placeholder key, because
+  // reading the usage before entering one is the point of the page.
+  //
+  // The address is the deployment's own, derived the same way API is: the page
+  // knows where it is served from, so nothing here has to be kept in step with
+  // SANDBOX_BASE_PATH on the server.
+  function renderDocs() {
+    var base = location.origin + API.replace(/\/api\/v1$/, "");
+    var key = state.key || "<your API key>";
+    $("docs-describe").href = base + "/api/v1/describe";
 
-    api("/sandboxes/" + encodeURIComponent(id) + "/exec", {
-      method: "POST",
-      body: { command: command }
-    }).then(function (res) {
-      // The exit status is part of the answer rather than an error, so it is
-      // shown beside the output instead of replacing it.
-      var parts = [];
-      if (res.stdout) parts.push(res.stdout);
-      if (res.stderr) parts.push((parts.length ? "\n" : "") + res.stderr);
-      if (!parts.length) parts.push("(no output)");
-      if (res.stdoutTruncated || res.stderrTruncated) {
-        parts.push("\n[output was cut off at the limit]");
-      }
-      out.textContent = parts.join("");
-      var status = text("div", res.exitCode === 0 ? "muted" : "exit-bad",
-        res.exitCode === 0 ? "exited 0" : "exited " + res.exitCode);
-      out.appendChild(status);
-    }).catch(function (err) {
-      out.textContent = "could not run it: " + err.message;
-    });
+    $("docs-create-cmd").textContent = [
+      "export SANDBOX_URL='" + base + "'",
+      "export SANDBOX_KEY='" + key + "'",
+      "",
+      "sandbox create -t agent-infra --name scratch --wait"
+    ].join("\n");
+
+    $("docs-exec-cmd").textContent = [
+      "sandbox exec scratch -- python3 -c 'print(\"hi\")'",
+      "sandbox cp ./setup.sh scratch:/workspace/setup.sh",
+      "sandbox cp scratch:/workspace/report.csv ."
+    ].join("\n");
+
+    $("docs-api-cmd").textContent = [
+      'curl -s -X POST "$SANDBOX_URL/api/v1/sandboxes" \\',
+      '  -H "X-Sandbox-Key: $SANDBOX_KEY" -H \'Content-Type: application/json\' \\',
+      '  -d \'{"template":"agent-infra","name":"scratch","ttl":"30m"}\''
+    ].join("\n");
   }
 
   // ── wiring ────────────────────────────────────────────────────────────────
@@ -756,14 +924,7 @@
 
   $("addTemplate").onclick = openTemplate;
 
-  $("execForm").addEventListener("submit", function (ev) {
-    var button = ev.submitter;
-    // method=dialog closes the form on any submit; "Run" also does the work.
-    if (button && button.value === "run") {
-      ev.preventDefault();
-      runExec();
-    }
-  });
+  $("createSandbox").onclick = function () { openCreate(""); };
 
   $("signin-form").addEventListener("submit", function (ev) {
     ev.preventDefault();
@@ -801,18 +962,13 @@
   })();
 
   $("signout").onclick = signOut;
-  $("refresh").onclick = function () {
-    refresh().catch(function (err) {
-      // A key that stopped working — rotated, or the user deleted — ends the
-      // session rather than leaving a console that fails every click.
-      if (err.status === 401 || err.status === 403) {
-        setSigninError("That key is no longer accepted.");
-        signOut();
-        return;
-      }
-      toast("Could not refresh: " + err.message, true);
-    });
-  };
+
+  // The tabs. Each is wired by name rather than in a loop so the handlers are
+  // plain to read and to grep; clicking a data tab without a key lands on the
+  // sign-in card, which is the honest answer rather than a dead button.
+  $("nav-sandboxes").onclick = function () { showView("sandboxes"); };
+  $("nav-templates").onclick = function () { showView("templates"); };
+  $("nav-docs").onclick = function () { showView("docs"); };
 
   // Sign in from a key in the query string, which is how the link the API and
   // the CLI print works: a browser navigation cannot set a header, so `?key=`
