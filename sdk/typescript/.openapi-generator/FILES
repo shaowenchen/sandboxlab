@@ -15,10 +15,12 @@ src/models/Deleted.ts
 src/models/Describe.ts
 src/models/Endpoint.ts
 src/models/EndpointDescription.ts
+src/models/Event.ts
 src/models/ExecRequest.ts
 src/models/ExecResult.ts
 src/models/FileContent.ts
 src/models/FileInfo.ts
+src/models/GetSandboxEvents200Response.ts
 src/models/GetSandboxLogs200Response.ts
 src/models/ModelError.ts
 src/models/Overview.ts
@@ -31,6 +33,7 @@ src/models/SandboxState.ts
 src/models/Status.ts
 src/models/Template.ts
 src/models/TemplateList.ts
+src/models/Usage.ts
 src/models/WriteFileRequest.ts
 src/models/index.ts
 src/runtime.ts

@@ -96,7 +96,9 @@ Class | Method | HTTP request | Description
 *SandboxesApi* | [**get_catalog_entry**](docs/SandboxesApi.md#get_catalog_entry) | **GET** /api/v1/catalog/{id} | One template
 *SandboxesApi* | [**get_overview**](docs/SandboxesApi.md#get_overview) | **GET** /api/v1/overview | Counts of sandboxes by state and template
 *SandboxesApi* | [**get_sandbox**](docs/SandboxesApi.md#get_sandbox) | **GET** /api/v1/sandboxes/{id} | One sandbox
+*SandboxesApi* | [**get_sandbox_events**](docs/SandboxesApi.md#get_sandbox_events) | **GET** /api/v1/sandboxes/{id}/events | Recent cluster events about a sandbox
 *SandboxesApi* | [**get_sandbox_logs**](docs/SandboxesApi.md#get_sandbox_logs) | **GET** /api/v1/sandboxes/{id}/logs | The tail of a sandbox&#39;s output
+*SandboxesApi* | [**get_sandbox_usage**](docs/SandboxesApi.md#get_sandbox_usage) | **GET** /api/v1/sandboxes/{id}/usage | What a sandbox is using right now
 *SandboxesApi* | [**list_catalog**](docs/SandboxesApi.md#list_catalog) | **GET** /api/v1/catalog | The templates a sandbox can be created from
 *SandboxesApi* | [**list_sandboxes**](docs/SandboxesApi.md#list_sandboxes) | **GET** /api/v1/sandboxes | Every sandbox in the deployment
 *SandboxesApi* | [**proxy_to_sandbox**](docs/SandboxesApi.md#proxy_to_sandbox) | **GET** /sandbox/{id}/{port}/ | Proxy to a sandbox&#39;s own port
@@ -117,10 +119,12 @@ Class | Method | HTTP request | Description
  - [Endpoint](docs/Endpoint.md)
  - [EndpointDescription](docs/EndpointDescription.md)
  - [Error](docs/Error.md)
+ - [Event](docs/Event.md)
  - [ExecRequest](docs/ExecRequest.md)
  - [ExecResult](docs/ExecResult.md)
  - [FileContent](docs/FileContent.md)
  - [FileInfo](docs/FileInfo.md)
+ - [GetSandboxEvents200Response](docs/GetSandboxEvents200Response.md)
  - [GetSandboxLogs200Response](docs/GetSandboxLogs200Response.md)
  - [Overview](docs/Overview.md)
  - [Port](docs/Port.md)
@@ -132,6 +136,7 @@ Class | Method | HTTP request | Description
  - [Status](docs/Status.md)
  - [Template](docs/Template.md)
  - [TemplateList](docs/TemplateList.md)
+ - [Usage](docs/Usage.md)
  - [WriteFileRequest](docs/WriteFileRequest.md)
 
 

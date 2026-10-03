@@ -57,7 +57,9 @@ All URIs are relative to *https://sandboxlab.example.com/sandbox*
 *SandboxesApi* | [**getCatalogEntry**](docs/SandboxesApi.md#getcatalogentry) | **GET** /api/v1/catalog/{id} | One template
 *SandboxesApi* | [**getOverview**](docs/SandboxesApi.md#getoverview) | **GET** /api/v1/overview | Counts of sandboxes by state and template
 *SandboxesApi* | [**getSandbox**](docs/SandboxesApi.md#getsandbox) | **GET** /api/v1/sandboxes/{id} | One sandbox
+*SandboxesApi* | [**getSandboxEvents**](docs/SandboxesApi.md#getsandboxevents) | **GET** /api/v1/sandboxes/{id}/events | Recent cluster events about a sandbox
 *SandboxesApi* | [**getSandboxLogs**](docs/SandboxesApi.md#getsandboxlogs) | **GET** /api/v1/sandboxes/{id}/logs | The tail of a sandbox\&#39;s output
+*SandboxesApi* | [**getSandboxUsage**](docs/SandboxesApi.md#getsandboxusage) | **GET** /api/v1/sandboxes/{id}/usage | What a sandbox is using right now
 *SandboxesApi* | [**listCatalog**](docs/SandboxesApi.md#listcatalog) | **GET** /api/v1/catalog | The templates a sandbox can be created from
 *SandboxesApi* | [**listSandboxes**](docs/SandboxesApi.md#listsandboxes) | **GET** /api/v1/sandboxes | Every sandbox in the deployment
 *SandboxesApi* | [**proxyToSandbox**](docs/SandboxesApi.md#proxytosandbox) | **GET** /sandbox/{id}/{port}/ | Proxy to a sandbox\&#39;s own port
@@ -77,10 +79,12 @@ All URIs are relative to *https://sandboxlab.example.com/sandbox*
 - [Describe](docs/Describe.md)
 - [Endpoint](docs/Endpoint.md)
 - [EndpointDescription](docs/EndpointDescription.md)
+- [Event](docs/Event.md)
 - [ExecRequest](docs/ExecRequest.md)
 - [ExecResult](docs/ExecResult.md)
 - [FileContent](docs/FileContent.md)
 - [FileInfo](docs/FileInfo.md)
+- [GetSandboxEvents200Response](docs/GetSandboxEvents200Response.md)
 - [GetSandboxLogs200Response](docs/GetSandboxLogs200Response.md)
 - [ModelError](docs/ModelError.md)
 - [Overview](docs/Overview.md)
@@ -93,6 +97,7 @@ All URIs are relative to *https://sandboxlab.example.com/sandbox*
 - [Status](docs/Status.md)
 - [Template](docs/Template.md)
 - [TemplateList](docs/TemplateList.md)
+- [Usage](docs/Usage.md)
 - [WriteFileRequest](docs/WriteFileRequest.md)
 
 ### Authorization

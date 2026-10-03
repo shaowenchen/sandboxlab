@@ -39,10 +39,12 @@ __all__ = [
     "Endpoint",
     "EndpointDescription",
     "Error",
+    "Event",
     "ExecRequest",
     "ExecResult",
     "FileContent",
     "FileInfo",
+    "GetSandboxEvents200Response",
     "GetSandboxLogs200Response",
     "Overview",
     "Port",
@@ -54,6 +56,7 @@ __all__ = [
     "Status",
     "Template",
     "TemplateList",
+    "Usage",
     "WriteFileRequest",
 ]
 
@@ -83,10 +86,12 @@ from sandboxlab.models.describe import Describe as Describe
 from sandboxlab.models.endpoint import Endpoint as Endpoint
 from sandboxlab.models.endpoint_description import EndpointDescription as EndpointDescription
 from sandboxlab.models.error import Error as Error
+from sandboxlab.models.event import Event as Event
 from sandboxlab.models.exec_request import ExecRequest as ExecRequest
 from sandboxlab.models.exec_result import ExecResult as ExecResult
 from sandboxlab.models.file_content import FileContent as FileContent
 from sandboxlab.models.file_info import FileInfo as FileInfo
+from sandboxlab.models.get_sandbox_events200_response import GetSandboxEvents200Response as GetSandboxEvents200Response
 from sandboxlab.models.get_sandbox_logs200_response import GetSandboxLogs200Response as GetSandboxLogs200Response
 from sandboxlab.models.overview import Overview as Overview
 from sandboxlab.models.port import Port as Port
@@ -98,5 +103,6 @@ from sandboxlab.models.sandbox_state import SandboxState as SandboxState
 from sandboxlab.models.status import Status as Status
 from sandboxlab.models.template import Template as Template
 from sandboxlab.models.template_list import TemplateList as TemplateList
+from sandboxlab.models.usage import Usage as Usage
 from sandboxlab.models.write_file_request import WriteFileRequest as WriteFileRequest
 

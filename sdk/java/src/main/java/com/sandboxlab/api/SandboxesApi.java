@@ -28,6 +28,7 @@ import com.sandboxlab.model.ExecResult;
 import java.io.File;
 import com.sandboxlab.model.FileContent;
 import com.sandboxlab.model.FileInfo;
+import com.sandboxlab.model.GetSandboxEvents200Response;
 import com.sandboxlab.model.GetSandboxLogs200Response;
 import com.sandboxlab.model.Overview;
 import com.sandboxlab.model.RenewSandboxRequest;
@@ -35,6 +36,7 @@ import com.sandboxlab.model.Sandbox;
 import com.sandboxlab.model.SandboxList;
 import com.sandboxlab.model.Template;
 import com.sandboxlab.model.TemplateList;
+import com.sandboxlab.model.Usage;
 import com.sandboxlab.model.WriteFileRequest;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -1097,6 +1099,139 @@ public class SandboxesApi {
   }
 
   /**
+   * Recent cluster events about a sandbox
+   * The events that explain a state the pod list cannot — why a pod was never scheduled, why an image pull failed, why a probe killed the container. Warnings first, then newest first. They expire after about an hour, so this reads what is there now.
+   * @param id  (required)
+   * @param limit how many to return; 50 when omitted (optional)
+   * @return GetSandboxEvents200Response
+   * @throws ApiException if fails to make API call
+   */
+  public GetSandboxEvents200Response getSandboxEvents(@javax.annotation.Nonnull String id, @javax.annotation.Nullable Integer limit) throws ApiException {
+    return getSandboxEvents(id, limit, null);
+  }
+
+  /**
+   * Recent cluster events about a sandbox
+   * The events that explain a state the pod list cannot — why a pod was never scheduled, why an image pull failed, why a probe killed the container. Warnings first, then newest first. They expire after about an hour, so this reads what is there now.
+   * @param id  (required)
+   * @param limit how many to return; 50 when omitted (optional)
+   * @param headers Optional headers to include in the request
+   * @return GetSandboxEvents200Response
+   * @throws ApiException if fails to make API call
+   */
+  public GetSandboxEvents200Response getSandboxEvents(@javax.annotation.Nonnull String id, @javax.annotation.Nullable Integer limit, Map<String, String> headers) throws ApiException {
+    ApiResponse<GetSandboxEvents200Response> localVarResponse = getSandboxEventsWithHttpInfo(id, limit, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * Recent cluster events about a sandbox
+   * The events that explain a state the pod list cannot — why a pod was never scheduled, why an image pull failed, why a probe killed the container. Warnings first, then newest first. They expire after about an hour, so this reads what is there now.
+   * @param id  (required)
+   * @param limit how many to return; 50 when omitted (optional)
+   * @return ApiResponse&lt;GetSandboxEvents200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<GetSandboxEvents200Response> getSandboxEventsWithHttpInfo(@javax.annotation.Nonnull String id, @javax.annotation.Nullable Integer limit) throws ApiException {
+    return getSandboxEventsWithHttpInfo(id, limit, null);
+  }
+
+  /**
+   * Recent cluster events about a sandbox
+   * The events that explain a state the pod list cannot — why a pod was never scheduled, why an image pull failed, why a probe killed the container. Warnings first, then newest first. They expire after about an hour, so this reads what is there now.
+   * @param id  (required)
+   * @param limit how many to return; 50 when omitted (optional)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;GetSandboxEvents200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<GetSandboxEvents200Response> getSandboxEventsWithHttpInfo(@javax.annotation.Nonnull String id, @javax.annotation.Nullable Integer limit, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = getSandboxEventsRequestBuilder(id, limit, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("getSandboxEvents", localVarResponse);
+        }
+        if (localVarResponse.body() == null) {
+          return new ApiResponse<GetSandboxEvents200Response>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+        
+        
+        String responseBody = new String(localVarResponse.body().readAllBytes());
+        GetSandboxEvents200Response responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<GetSandboxEvents200Response>() {});
+        
+        localVarResponse.body().close();
+
+        return new ApiResponse<GetSandboxEvents200Response>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder getSandboxEventsRequestBuilder(@javax.annotation.Nonnull String id, @javax.annotation.Nullable Integer limit, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'id' is set
+    if (id == null) {
+      throw new ApiException(400, "Missing the required parameter 'id' when calling getSandboxEvents");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/sandboxes/{id}/events"
+        .replace("{id}", ApiClient.urlEncode(id.toString()));
+
+    List<Pair> localVarQueryParams = new ArrayList<>();
+    StringJoiner localVarQueryStringJoiner = new StringJoiner("&");
+    String localVarQueryParameterBaseName;
+    localVarQueryParameterBaseName = "limit";
+    localVarQueryParams.addAll(ApiClient.parameterToPairs("limit", limit));
+
+    if (!localVarQueryParams.isEmpty() || localVarQueryStringJoiner.length() != 0) {
+      StringJoiner queryJoiner = new StringJoiner("&");
+      localVarQueryParams.forEach(p -> queryJoiner.add(p.getName() + '=' + p.getValue()));
+      if (localVarQueryStringJoiner.length() != 0) {
+        queryJoiner.add(localVarQueryStringJoiner.toString());
+      }
+      localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath + '?' + queryJoiner.toString()));
+    } else {
+      localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+    }
+
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    localVarRequestBuilder.method("GET", HttpRequest.BodyPublishers.noBody());
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
    * The tail of a sandbox&#39;s output
    * A sandbox whose container is still being created answers 409: there is nothing to read yet, which is the ordinary state moments after a create rather than a failure.
    * @param id  (required)
@@ -1214,6 +1349,120 @@ public class SandboxesApi {
     } else {
       localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
     }
+
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    localVarRequestBuilder.method("GET", HttpRequest.BodyPublishers.noBody());
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
+   * What a sandbox is using right now
+   * CPU and memory, read from the resource metrics API. A cluster without metrics-server answers with available:false rather than an error — that is a legitimate way to run a cluster, and a caller shows \&quot;unavailable\&quot; rather than a zero that reads as an idle sandbox.
+   * @param id  (required)
+   * @return Usage
+   * @throws ApiException if fails to make API call
+   */
+  public Usage getSandboxUsage(@javax.annotation.Nonnull String id) throws ApiException {
+    return getSandboxUsage(id, null);
+  }
+
+  /**
+   * What a sandbox is using right now
+   * CPU and memory, read from the resource metrics API. A cluster without metrics-server answers with available:false rather than an error — that is a legitimate way to run a cluster, and a caller shows \&quot;unavailable\&quot; rather than a zero that reads as an idle sandbox.
+   * @param id  (required)
+   * @param headers Optional headers to include in the request
+   * @return Usage
+   * @throws ApiException if fails to make API call
+   */
+  public Usage getSandboxUsage(@javax.annotation.Nonnull String id, Map<String, String> headers) throws ApiException {
+    ApiResponse<Usage> localVarResponse = getSandboxUsageWithHttpInfo(id, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * What a sandbox is using right now
+   * CPU and memory, read from the resource metrics API. A cluster without metrics-server answers with available:false rather than an error — that is a legitimate way to run a cluster, and a caller shows \&quot;unavailable\&quot; rather than a zero that reads as an idle sandbox.
+   * @param id  (required)
+   * @return ApiResponse&lt;Usage&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<Usage> getSandboxUsageWithHttpInfo(@javax.annotation.Nonnull String id) throws ApiException {
+    return getSandboxUsageWithHttpInfo(id, null);
+  }
+
+  /**
+   * What a sandbox is using right now
+   * CPU and memory, read from the resource metrics API. A cluster without metrics-server answers with available:false rather than an error — that is a legitimate way to run a cluster, and a caller shows \&quot;unavailable\&quot; rather than a zero that reads as an idle sandbox.
+   * @param id  (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;Usage&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<Usage> getSandboxUsageWithHttpInfo(@javax.annotation.Nonnull String id, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = getSandboxUsageRequestBuilder(id, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("getSandboxUsage", localVarResponse);
+        }
+        if (localVarResponse.body() == null) {
+          return new ApiResponse<Usage>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+        
+        
+        String responseBody = new String(localVarResponse.body().readAllBytes());
+        Usage responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<Usage>() {});
+        
+        localVarResponse.body().close();
+
+        return new ApiResponse<Usage>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder getSandboxUsageRequestBuilder(@javax.annotation.Nonnull String id, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'id' is set
+    if (id == null) {
+      throw new ApiException(400, "Missing the required parameter 'id' when calling getSandboxUsage");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/sandboxes/{id}/usage"
+        .replace("{id}", ApiClient.urlEncode(id.toString()));
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
 
     localVarRequestBuilder.header("Accept", "application/json");
 

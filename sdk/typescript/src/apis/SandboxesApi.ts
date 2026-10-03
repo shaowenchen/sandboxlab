@@ -23,6 +23,7 @@ import type {
   ExecResult,
   FileContent,
   FileInfo,
+  GetSandboxEvents200Response,
   GetSandboxLogs200Response,
   Overview,
   RenewSandboxRequest,
@@ -30,6 +31,7 @@ import type {
   SandboxList,
   Template,
   TemplateList,
+  Usage,
   WriteFileRequest,
 } from '../models/index';
 import {
@@ -49,6 +51,8 @@ import {
     FileContentToJSON,
     FileInfoFromJSON,
     FileInfoToJSON,
+    GetSandboxEvents200ResponseFromJSON,
+    GetSandboxEvents200ResponseToJSON,
     GetSandboxLogs200ResponseFromJSON,
     GetSandboxLogs200ResponseToJSON,
     OverviewFromJSON,
@@ -63,6 +67,8 @@ import {
     TemplateToJSON,
     TemplateListFromJSON,
     TemplateListToJSON,
+    UsageFromJSON,
+    UsageToJSON,
     WriteFileRequestFromJSON,
     WriteFileRequestToJSON,
 } from '../models/index';
@@ -96,9 +102,18 @@ export interface SandboxesApiGetSandboxRequest {
     id: string;
 }
 
+export interface SandboxesApiGetSandboxEventsRequest {
+    id: string;
+    limit?: number;
+}
+
 export interface SandboxesApiGetSandboxLogsRequest {
     id: string;
     tail?: number;
+}
+
+export interface SandboxesApiGetSandboxUsageRequest {
+    id: string;
 }
 
 export interface SandboxesApiProxyToSandboxRequest {
@@ -255,6 +270,23 @@ export interface SandboxesApiInterface {
     getSandbox(requestParameters: SandboxesApiGetSandboxRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Sandbox>;
 
     /**
+     * The events that explain a state the pod list cannot — why a pod was never scheduled, why an image pull failed, why a probe killed the container. Warnings first, then newest first. They expire after about an hour, so this reads what is there now.
+     * @summary Recent cluster events about a sandbox
+     * @param {string} id 
+     * @param {number} [limit] how many to return; 50 when omitted
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SandboxesApiInterface
+     */
+    getSandboxEventsRaw(requestParameters: SandboxesApiGetSandboxEventsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<GetSandboxEvents200Response>>;
+
+    /**
+     * The events that explain a state the pod list cannot — why a pod was never scheduled, why an image pull failed, why a probe killed the container. Warnings first, then newest first. They expire after about an hour, so this reads what is there now.
+     * Recent cluster events about a sandbox
+     */
+    getSandboxEvents(requestParameters: SandboxesApiGetSandboxEventsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<GetSandboxEvents200Response>;
+
+    /**
      * A sandbox whose container is still being created answers 409: there is nothing to read yet, which is the ordinary state moments after a create rather than a failure.
      * @summary The tail of a sandbox\'s output
      * @param {string} id 
@@ -270,6 +302,22 @@ export interface SandboxesApiInterface {
      * The tail of a sandbox\'s output
      */
     getSandboxLogs(requestParameters: SandboxesApiGetSandboxLogsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<GetSandboxLogs200Response>;
+
+    /**
+     * CPU and memory, read from the resource metrics API. A cluster without metrics-server answers with available:false rather than an error — that is a legitimate way to run a cluster, and a caller shows \"unavailable\" rather than a zero that reads as an idle sandbox.
+     * @summary What a sandbox is using right now
+     * @param {string} id 
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SandboxesApiInterface
+     */
+    getSandboxUsageRaw(requestParameters: SandboxesApiGetSandboxUsageRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Usage>>;
+
+    /**
+     * CPU and memory, read from the resource metrics API. A cluster without metrics-server answers with available:false rather than an error — that is a legitimate way to run a cluster, and a caller shows \"unavailable\" rather than a zero that reads as an idle sandbox.
+     * What a sandbox is using right now
+     */
+    getSandboxUsage(requestParameters: SandboxesApiGetSandboxUsageRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Usage>;
 
     /**
      * 
@@ -784,6 +832,61 @@ export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterfa
     }
 
     /**
+     * The events that explain a state the pod list cannot — why a pod was never scheduled, why an image pull failed, why a probe killed the container. Warnings first, then newest first. They expire after about an hour, so this reads what is there now.
+     * Recent cluster events about a sandbox
+     */
+    async getSandboxEventsRaw(requestParameters: SandboxesApiGetSandboxEventsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<GetSandboxEvents200Response>> {
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling getSandboxEvents().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        if (requestParameters['limit'] != null) {
+            queryParameters['limit'] = requestParameters['limit'];
+        }
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (this.configuration && this.configuration.apiKey) {
+            headerParameters["X-Sandbox-Key"] = await this.configuration.apiKey("X-Sandbox-Key"); // ApiKey authentication
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("BearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/v1/sandboxes/{id}/events`;
+        urlPath = urlPath.replace(`{${"id"}}`, encodeURIComponent(String(requestParameters['id'])));
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => GetSandboxEvents200ResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * The events that explain a state the pod list cannot — why a pod was never scheduled, why an image pull failed, why a probe killed the container. Warnings first, then newest first. They expire after about an hour, so this reads what is there now.
+     * Recent cluster events about a sandbox
+     */
+    async getSandboxEvents(requestParameters: SandboxesApiGetSandboxEventsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<GetSandboxEvents200Response> {
+        const response = await this.getSandboxEventsRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
      * A sandbox whose container is still being created answers 409: there is nothing to read yet, which is the ordinary state moments after a create rather than a failure.
      * The tail of a sandbox\'s output
      */
@@ -835,6 +938,57 @@ export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterfa
      */
     async getSandboxLogs(requestParameters: SandboxesApiGetSandboxLogsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<GetSandboxLogs200Response> {
         const response = await this.getSandboxLogsRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * CPU and memory, read from the resource metrics API. A cluster without metrics-server answers with available:false rather than an error — that is a legitimate way to run a cluster, and a caller shows \"unavailable\" rather than a zero that reads as an idle sandbox.
+     * What a sandbox is using right now
+     */
+    async getSandboxUsageRaw(requestParameters: SandboxesApiGetSandboxUsageRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Usage>> {
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling getSandboxUsage().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (this.configuration && this.configuration.apiKey) {
+            headerParameters["X-Sandbox-Key"] = await this.configuration.apiKey("X-Sandbox-Key"); // ApiKey authentication
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("BearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/v1/sandboxes/{id}/usage`;
+        urlPath = urlPath.replace(`{${"id"}}`, encodeURIComponent(String(requestParameters['id'])));
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => UsageFromJSON(jsonValue));
+    }
+
+    /**
+     * CPU and memory, read from the resource metrics API. A cluster without metrics-server answers with available:false rather than an error — that is a legitimate way to run a cluster, and a caller shows \"unavailable\" rather than a zero that reads as an idle sandbox.
+     * What a sandbox is using right now
+     */
+    async getSandboxUsage(requestParameters: SandboxesApiGetSandboxUsageRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Usage> {
+        const response = await this.getSandboxUsageRaw(requestParameters, initOverrides);
         return await response.value();
     }
 

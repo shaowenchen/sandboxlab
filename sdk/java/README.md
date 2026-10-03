@@ -130,8 +130,12 @@ Class | Method | HTTP request | Description
 *SandboxesApi* | [**getOverviewWithHttpInfo**](docs/SandboxesApi.md#getOverviewWithHttpInfo) | **GET** /api/v1/overview | Counts of sandboxes by state and template
 *SandboxesApi* | [**getSandbox**](docs/SandboxesApi.md#getSandbox) | **GET** /api/v1/sandboxes/{id} | One sandbox
 *SandboxesApi* | [**getSandboxWithHttpInfo**](docs/SandboxesApi.md#getSandboxWithHttpInfo) | **GET** /api/v1/sandboxes/{id} | One sandbox
+*SandboxesApi* | [**getSandboxEvents**](docs/SandboxesApi.md#getSandboxEvents) | **GET** /api/v1/sandboxes/{id}/events | Recent cluster events about a sandbox
+*SandboxesApi* | [**getSandboxEventsWithHttpInfo**](docs/SandboxesApi.md#getSandboxEventsWithHttpInfo) | **GET** /api/v1/sandboxes/{id}/events | Recent cluster events about a sandbox
 *SandboxesApi* | [**getSandboxLogs**](docs/SandboxesApi.md#getSandboxLogs) | **GET** /api/v1/sandboxes/{id}/logs | The tail of a sandbox&#39;s output
 *SandboxesApi* | [**getSandboxLogsWithHttpInfo**](docs/SandboxesApi.md#getSandboxLogsWithHttpInfo) | **GET** /api/v1/sandboxes/{id}/logs | The tail of a sandbox&#39;s output
+*SandboxesApi* | [**getSandboxUsage**](docs/SandboxesApi.md#getSandboxUsage) | **GET** /api/v1/sandboxes/{id}/usage | What a sandbox is using right now
+*SandboxesApi* | [**getSandboxUsageWithHttpInfo**](docs/SandboxesApi.md#getSandboxUsageWithHttpInfo) | **GET** /api/v1/sandboxes/{id}/usage | What a sandbox is using right now
 *SandboxesApi* | [**listCatalog**](docs/SandboxesApi.md#listCatalog) | **GET** /api/v1/catalog | The templates a sandbox can be created from
 *SandboxesApi* | [**listCatalogWithHttpInfo**](docs/SandboxesApi.md#listCatalogWithHttpInfo) | **GET** /api/v1/catalog | The templates a sandbox can be created from
 *SandboxesApi* | [**listSandboxes**](docs/SandboxesApi.md#listSandboxes) | **GET** /api/v1/sandboxes | Every sandbox in the deployment
@@ -158,10 +162,12 @@ Class | Method | HTTP request | Description
  - [Endpoint](docs/Endpoint.md)
  - [EndpointDescription](docs/EndpointDescription.md)
  - [Error](docs/Error.md)
+ - [Event](docs/Event.md)
  - [ExecRequest](docs/ExecRequest.md)
  - [ExecResult](docs/ExecResult.md)
  - [FileContent](docs/FileContent.md)
  - [FileInfo](docs/FileInfo.md)
+ - [GetSandboxEvents200Response](docs/GetSandboxEvents200Response.md)
  - [GetSandboxLogs200Response](docs/GetSandboxLogs200Response.md)
  - [Overview](docs/Overview.md)
  - [Port](docs/Port.md)
@@ -173,6 +179,7 @@ Class | Method | HTTP request | Description
  - [Status](docs/Status.md)
  - [Template](docs/Template.md)
  - [TemplateList](docs/TemplateList.md)
+ - [Usage](docs/Usage.md)
  - [WriteFileRequest](docs/WriteFileRequest.md)
 
 
