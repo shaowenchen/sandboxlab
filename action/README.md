@@ -77,6 +77,19 @@ Only `api_key` and `cloudflare_token` are worth passing from a secret: the key i
 generated when left empty, so it needs no configuration unless you want a
 particular one, and the token is a credential and never a plain input.
 
+### A fixed key for the debugger
+
+`gh workflow run debugger.yml` generates a fresh key every run and prints it in
+the Summary. To reuse one instead — so a `SANDBOX_KEY` in a shell, or a saved
+console session, keeps working across runs — set the repository secret
+**`SANDBOXLAB_API_KEY`**. The debugger workflow passes it as the action's
+`api_key`; left unset, it is empty and the environment generates one exactly as
+before.
+
+It is a **secret** and not a workflow input on purpose: an input is plain text
+that anyone who can read the run can see, and this is the credential that guards
+every sandbox the environment serves.
+
 ## The domain, and the named tunnel it needs
 
 `domain` defaults to `sandboxlab-1.chenshaowen.com`, and it is used as given: it

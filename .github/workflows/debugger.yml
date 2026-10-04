@@ -92,6 +92,12 @@ jobs:
           # run can see, and these are credentials.
           cloudflare_token: ${{ secrets.CLOUDFLARE_TOKEN }}
           ngrok_token: ${{ secrets.NGROK_TOKEN }}
+          # The deployment's API key, so a debugger run can reuse a key that is
+          # already configured somewhere (a `SANDBOX_KEY` in a shell, a saved
+          # console session) instead of a fresh one per run. Set the repository
+          # secret SANDBOXLAB_API_KEY to pin it; left unset, the environment
+          # generates one and prints it in the Summary exactly as before.
+          api_key: ${{ secrets.SANDBOXLAB_API_KEY }}
           # An input, not a secret: a domain is not sensitive, and it is the
           # thing a person has to look up before running a named tunnel.
           domain: ${{ inputs.domain }}
