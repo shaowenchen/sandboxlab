@@ -51,6 +51,20 @@ on:
         options:
           - 'sandboxlab-1.chenshaowen.com'
           - 'sandboxlab-2.chenshaowen.com'
+      api_key:
+        description: 'API key (empty = the SANDBOXLAB_API_KEY secret, then a random one)'
+        type: string
+        # An override, not the usual way in. Left empty — the normal case for a
+        # run started by hand — the run takes the SANDBOXLAB_API_KEY secret if
+        # the repository has one, and generates a key if it does not.
+        #
+        # It is here so an automated caller (labs) can choose the key and hand
+        # it over at dispatch, the way applab's workflow already works, instead
+        # of the two sides having to be configured with the same value out of
+        # band. Plain text rather than a secret, deliberately: whoever starts
+        # the run is choosing a key for it, and can read it back from the run's
+        # Summary anyway.
+        default: ''
 
 permissions:
   contents: read
@@ -94,10 +108,12 @@ jobs:
           ngrok_token: ${{ secrets.NGROK_TOKEN }}
           # The deployment's API key, so a debugger run can reuse a key that is
           # already configured somewhere (a `SANDBOX_KEY` in a shell, a saved
-          # console session) instead of a fresh one per run. Set the repository
-          # secret SANDBOXLAB_API_KEY to pin it; left unset, the environment
-          # generates one and prints it in the Summary exactly as before.
-          api_key: ${{ secrets.SANDBOXLAB_API_KEY }}
+          # console session) instead of a fresh one per run. The dispatch input
+          # wins when a caller set one — that is how labs hands over the key it
+          # will call the environment with — and otherwise the repository secret
+          # SANDBOXLAB_API_KEY pins it; left unset, the environment generates one
+          # and prints it in the Summary exactly as before.
+          api_key: ${{ inputs.api_key || secrets.SANDBOXLAB_API_KEY }}
           # An input, not a secret: a domain is not sensitive, and it is the
           # thing a person has to look up before running a named tunnel.
           domain: ${{ inputs.domain }}
