@@ -41,7 +41,7 @@ example().catch(console.error);
 
 ### API Endpoints
 
-All URIs are relative to *https://sandboxlab.example.com/sandbox*
+All URIs are relative to *https://sandboxlab.example.com/sandboxlab*
 
 | Class | Method | HTTP request | Description
 | ----- | ------ | ------------ | -------------

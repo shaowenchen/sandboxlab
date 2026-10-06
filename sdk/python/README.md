@@ -55,10 +55,10 @@ import sandboxlab
 from sandboxlab.rest import ApiException
 from pprint import pprint
 
-# Defining the host is optional and defaults to https://sandboxlab.example.com/sandbox
+# Defining the host is optional and defaults to https://sandboxlab.example.com/sandboxlab
 # See configuration.py for a list of all supported configuration parameters.
 configuration = sandboxlab.Configuration(
-    host = "https://sandboxlab.example.com/sandbox"
+    host = "https://sandboxlab.example.com/sandboxlab"
 )
 
 
@@ -80,7 +80,7 @@ with sandboxlab.ApiClient(configuration) as api_client:
 
 ## Documentation for API Endpoints
 
-All URIs are relative to *https://sandboxlab.example.com/sandbox*
+All URIs are relative to *https://sandboxlab.example.com/sandboxlab*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------

@@ -166,7 +166,7 @@ public class ApiClient {
   public ApiClient() {
     this.builder = createDefaultHttpClientBuilder();
     this.mapper = createDefaultObjectMapper();
-    updateBaseUri("https://sandboxlab.example.com/sandbox");
+    updateBaseUri("https://sandboxlab.example.com/sandboxlab");
     interceptor = null;
     readTimeout = null;
     connectTimeout = null;
@@ -184,7 +184,7 @@ public class ApiClient {
   public ApiClient(HttpClient.Builder builder, ObjectMapper mapper, String baseUri) {
     this.builder = builder;
     this.mapper = mapper;
-    updateBaseUri(baseUri != null ? baseUri : "https://sandboxlab.example.com/sandbox");
+    updateBaseUri(baseUri != null ? baseUri : "https://sandboxlab.example.com/sandboxlab");
     interceptor = null;
     readTimeout = null;
     connectTimeout = null;

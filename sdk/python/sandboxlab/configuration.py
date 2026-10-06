@@ -215,7 +215,7 @@ conf = sandboxlab.Configuration(
     ) -> None:
         """Constructor
         """
-        self._base_path = "https://sandboxlab.example.com/sandbox" if host is None else host
+        self._base_path = "https://sandboxlab.example.com/sandboxlab" if host is None else host
         """Default Base url
         """
         self.server_index = 0 if server_index is None and host is None else server_index
@@ -563,7 +563,7 @@ conf = sandboxlab.Configuration(
         """
         return [
             {
-                'url': "https://sandboxlab.example.com/sandbox",
+                'url': "https://sandboxlab.example.com/sandboxlab",
                 'description': "A deployment behind a gateway. The base path is the deployment's own and is part of the address, not something a client appends.",
             }
         ]

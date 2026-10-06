@@ -102,7 +102,7 @@ public class MetaApiExample {
 
 ## Documentation for API Endpoints
 
-All URIs are relative to *https://sandboxlab.example.com/sandbox*
+All URIs are relative to *https://sandboxlab.example.com/sandboxlab*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------

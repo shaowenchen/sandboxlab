@@ -13,7 +13,7 @@
  */
 
 
-export const BASE_PATH = "https://sandboxlab.example.com/sandbox".replace(/\/+$/, "");
+export const BASE_PATH = "https://sandboxlab.example.com/sandboxlab".replace(/\/+$/, "");
 
 export interface ConfigurationParameters {
     basePath?: string; // override base path
