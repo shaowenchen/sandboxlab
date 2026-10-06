@@ -216,6 +216,34 @@
   dialog .scroll { max-height: 60vh; overflow: auto; }
   dialog #metricsBody, dialog #eventsBody { font-size: 13px; }
 
+  /* The sandbox's name is the row's control: it opens the detail, which is
+     where the actions live. This is applab's app-id cell, and it carries the
+     three things a <td> needs to be operable rather than merely clickable —
+     focusable, announced as a button, and answering the two keys a real button
+     answers. Without them the only way into a sandbox would be unreachable by
+     keyboard, which is what the bare click handler left it as. */
+  td.sandbox-id { font-weight: 600; cursor: pointer; }
+  td.sandbox-id:hover { color: var(--accent); }
+
+  /* The detail dialog's actions: a left-aligned wrapping row rather than the
+     dialogs' usual right-aligned pair, because there are several and they are
+     what the panel is for — the way out is Close below them. */
+  dialog .action-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  /* The facts table. The label column is a header cell, so it takes the muted
+     small-caps the tables use for headings; it is sized to its content so the
+     values line up. */
+  dialog table.facts { border: none; background: none; }
+  dialog table.facts th {
+    width: 1%; padding: 6px 14px 6px 0; white-space: nowrap;
+    border: none; background: none; vertical-align: top;
+  }
+  dialog table.facts td { padding: 6px 0; border: none; vertical-align: top; }
+  dialog table.facts a { display: block; }
+  /* A key is one unbroken 43-character token, so it has to be allowed to break
+     mid-string or it sets the panel's width. Same as every other long value on
+     the page (.card .meta and friends). */
+  dialog table.facts .key { word-break: break-all; }
+
   .check { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 13px; }
   .check input { width: auto; }
   .check code { font-family: var(--mono); font-size: 12px; }
@@ -508,6 +536,21 @@
   </form>
 </dialog>
 
+<dialog id="sandboxDialog">
+  <form method="dialog">
+    <h3 id="sandboxTitle">Sandbox</h3>
+    <!-- What the row cannot hold: the image, every address (not only the first),
+         and the sandbox's own key. The actions follow, because they are what the
+         panel is opened for. -->
+    <div id="sandboxBody"></div>
+    <!-- The table method=dialog closes on any button, so these carry
+         type="button" to act on the sandbox without also dismissing the panel —
+         closing on Logs would mean reopening it to do the next thing. -->
+    <div class="action-row" id="sandboxActions"></div>
+    <div class="actions"><button value="close">Close</button></div>
+  </form>
+</dialog>
+
 <dialog id="logsDialog">
   <form method="dialog">
     <h3 id="logsTitle">Logs</h3>
@@ -754,7 +797,8 @@
     var tbody = text("tbody");
     state.sandboxes.forEach(function (sb) {
       var tr = text("tr");
-      tr.appendChild(text("td", "mono", sb.id));
+      tr.appendChild(sandboxIDCell(sb.id));
+
       tr.appendChild(text("td", null, sb.template));
 
       var stateTd = text("td");
@@ -766,10 +810,14 @@
       tr.appendChild(text("td", "muted", ttlText(sb)));
 
       var actions = text("td");
-      var row = text("div", "row");
-      // Open is first and only when there is somewhere to go: the addresses
-      // column is gone, so this is the one link into a sandbox. A portless
-      // workspace has no URL and gets no button rather than a dead one.
+      // Open is the one action left on the row. It is the row's primary action —
+      // where the sandbox is reached — and it is the place the actions column
+      // went when the addresses column was dropped. Everything else lives in the
+      // detail panel the name opens, which is what keeps eight controls from
+      // wrapping a row onto three lines and making the table look broken.
+      //
+      // Only when there is somewhere to go: a portless workspace gets no button
+      // rather than a dead one.
       var ep = (sb.endpoints || []).filter(function (e) { return e.url; });
       if (ep.length) {
         var open = text("a", "btn small primary", "Open");
@@ -781,32 +829,8 @@
         open.target = "_blank";
         open.rel = "noopener";
         if (ep.length > 1) open.title = "Also: " + ep.slice(1).map(function (e) { return e.name; }).join(", ");
-        row.appendChild(open);
+        actions.appendChild(open);
       }
-      var svc = text("button", "small", "Metrics");
-      svc.onclick = function () { showMetrics(sb.id); };
-      var ev = text("button", "small", "Events");
-      ev.onclick = function () { showEvents(sb.id); };
-      var copy = text("button", "small", "Copy usage");
-      copy.title = "Copy commands for this sandbox, to paste to an agent";
-      copy.onclick = function () { copyUsage(sb); };
-      var keyBtn = text("button", "small", "Copy key");
-      keyBtn.title = "Copy this sandbox's own key — it reaches this sandbox and no other";
-      keyBtn.onclick = function () { copySandboxKey(sb); };
-      var logs = text("button", "small", "Logs");
-      logs.onclick = function () { showLogs(sb.id); };
-      var renew = text("button", "small", "Renew");
-      renew.onclick = function () { renewSandbox(sb.id); };
-      var rm = text("button", "small danger", "Delete");
-      rm.onclick = function () { removeSandbox(sb.id); };
-      row.appendChild(svc);
-      row.appendChild(ev);
-      row.appendChild(copy);
-      row.appendChild(keyBtn);
-      row.appendChild(logs);
-      row.appendChild(renew);
-      row.appendChild(rm);
-      actions.appendChild(row);
       tr.appendChild(actions);
 
       tbody.appendChild(tr);
@@ -936,6 +960,140 @@
       }
       return false;
     });
+  }
+
+  // sandboxIDCell is the cell that opens a sandbox, in the list.
+  //
+  // A cell with a click handler rather than a button, because the name is the
+  // row's subject and styling it as a button would make every row read as an
+  // action — but a click handler alone leaves the cell, which is the only way
+  // into a sandbox, unreachable by keyboard. There is no other affordance on the
+  // row to tab to.
+  //
+  // So it carries the three things a <td> needs to be a control: focusable
+  // (tabindex), announced as one (role), and operable by the key a button
+  // answers to. Space needs the preventDefault — on a div the browser scrolls
+  // the page with it, so without that the list would jump before the panel
+  // opened. This is applab's app-id cell, for the same reasons.
+  function sandboxIDCell(id) {
+    var cell = text("td", "sandbox-id mono", id);
+    cell.setAttribute("tabindex", "0");
+    cell.setAttribute("role", "button");
+    cell.onclick = function () { openSandbox(id); };
+    cell.onkeydown = function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openSandbox(id);
+      }
+    };
+    return cell;
+  }
+
+  // openSandbox opens the detail panel for one sandbox.
+  //
+  // Looked up from state rather than re-fetched: the list is refreshed every
+  // thirty seconds and the panel is opened from a row that is already on screen,
+  // so a round trip here would answer with something the row did not say. The
+  // actions inside refresh the list when they change anything.
+  function openSandbox(id) {
+    var sb = null;
+    state.sandboxes.forEach(function (s) { if (s.id === id) sb = s; });
+    if (!sb) return;
+
+    $("sandboxTitle").textContent = sb.id;
+    $("sandboxBody").replaceChildren(sandboxFacts(sb));
+    var box = $("sandboxActions");
+    box.replaceChildren();
+    sandboxActionButtons(sb).forEach(function (b) { box.appendChild(b); });
+    $("sandboxDialog").showModal();
+  }
+
+  // sandboxFacts is what the panel says about a sandbox: what the row had no
+  // room for, plus the row's own columns, so the panel reads on its own rather
+  // than as a thing that must be read beside the list.
+  function sandboxFacts(sb) {
+    var table = text("table", "facts");
+    var facts = function (label, value) {
+      var tr = text("tr");
+      var th = text("th", null, label);
+      var td = text("td");
+      if (typeof value === "string") td.textContent = value;
+      else td.appendChild(value);
+      tr.appendChild(th);
+      tr.appendChild(td);
+      table.appendChild(tr);
+    };
+
+    // Every address, not only the first: the row's Open is a shortcut to one of
+    // them, and the panel is where the rest are — a template may serve a browser
+    // and an API and there is no way to tell from the row which is which. Each
+    // carries the key in the URL for the same reason the row's Open does.
+    var eps = (sb.endpoints || []).filter(function (e) { return e.url; });
+    if (eps.length) {
+      var list = document.createDocumentFragment();
+      eps.forEach(function (e) {
+        var a = text("a", null, e.name + " — " + e.url + "?key=" + keyFor(sb));
+        a.href = e.url + "?key=" + encodeURIComponent(keyFor(sb));
+        a.target = "_blank";
+        a.rel = "noopener";
+        list.appendChild(a);
+      });
+      facts("address", list);
+    } else {
+      facts("address", "—");
+    }
+
+    facts("template", sb.template);
+    facts("state", sb.state + (sb.message ? " — " + sb.message : ""));
+    facts("lifetime", ttlText(sb));
+    if (sb.image) facts("image", sb.image);
+    if (sb.namespace) facts("namespace", sb.namespace);
+
+    // The sandbox's own key, shown rather than only offered to the clipboard:
+    // this is the panel someone opens to find out what to hand on, and a value
+    // they have to copy blindly to read is one they cannot check against the one
+    // they already have.
+    var key = keyFor(sb);
+    if (key) facts("key", text("span", "mono key", key));
+
+    return table;
+  }
+
+  // sandboxActionButtons is the actions the detail panel carries.
+  //
+  // These are the buttons the row used to hold. They are the same functions, so
+  // nothing about what a sandbox can be operated as changed — only where the
+  // controls are.
+  function sandboxActionButtons(sb) {
+    // Closed first, so the sandbox a timed-out request was about is not acted on
+    // after the panel has moved to another one.
+    var closing = function (fn) {
+      return function () {
+        $("sandboxDialog").close();
+        fn();
+      };
+    };
+    var buttons = [];
+    var add = function (label, fn, cls) {
+      var b = text("button", cls || null, label);
+      // The table method=dialog dismisses on any button without a value, so
+      // these say what they are.
+      b.type = "button";
+      b.onclick = fn;
+      buttons.push(b);
+    };
+
+    add("Metrics", function () { showMetrics(sb.id); });
+    add("Events", function () { showEvents(sb.id); });
+    add("Logs", function () { showLogs(sb.id); });
+    add("Copy usage", function () { copyUsage(sb); });
+    add("Copy key", function () { copySandboxKey(sb); });
+    // Renew and Delete change or end the sandbox, so the panel gets out of the
+    // way: both ask in their own dialog or prompt, and leaving this one open
+    // behind that would be two panels about the same sandbox.
+    add("Renew", closing(function () { renewSandbox(sb.id); }));
+    add("Delete", closing(function () { removeSandbox(sb.id); }), "small danger");
+    return buttons;
   }
 
   // refresh draws everything from the key the page is holding.
