@@ -209,8 +209,10 @@ share an address without a second hostname.</p>
 <ul>
 <li><code>namespaces</code>: get, list, watch, create, update, patch, delete</li>
 <li><code>deployments</code>, <code>services</code>, <code>resourcequotas</code>, <code>limitranges</code>, <code>pods</code>,
-<code>configmaps</code>, <code>persistentvolumeclaims</code>, <code>pods/log</code>, <code>networkpolicies</code>: the
-full set, inside the namespaces it creates</li>
+<code>configmaps</code>, <code>persistentvolumeclaims</code>, <code>networkpolicies</code>: the full set,
+inside the namespaces it creates</li>
+<li><code>pods/log</code>: <strong>get only</strong>, for <code>sandbox logs</code>. A subresource, so it is not
+covered by the <code>pods</code> grant above.</li>
 <li><code>secrets</code>: <strong>get only</strong>. Nothing in the process writes a Secret — the key is
 created at install and read from the environment — so the grant stopped at
 read rather than being widened to the set above out of habit.</li>
@@ -218,6 +220,15 @@ read rather than being widened to the set above out of habit.</li>
 file endpoints run anything inside a sandbox, so it is worth knowing it is
 there: whoever holds the deployment's key can execute in any sandbox this
 ServiceAccount can reach.</li>
+<li><code>metrics.k8s.io/pods</code>: get, list — the console's Metrics panel. Resource
+usage lives in its own API group, and its <code>pods</code> is a different resource from
+core <code>pods</code>, so the grant above does not cover it. Without this, reading usage
+is a 403; a cluster with no metrics-server answers 404 for the group, which the
+control plane reports as usage being unavailable.</li>
+<li><code>events</code>: get, list, watch — read-only. This is what explains a sandbox that
+is not working: an image pull that failed, a probe that killed the container,
+a pod that was never scheduled. The control plane reports events, it never
+creates one.</li>
 </ul>
 <p><code>delete</code> on namespaces is the one worth reviewing: deleting a namespace
 reclaims everything in it. That is the design — one operation, nothing to miss —
