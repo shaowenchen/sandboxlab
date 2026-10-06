@@ -111,9 +111,11 @@ const (
 // Sandbox is one created environment.
 //
 // Everything here is derived: the control plane keeps no record of a sandbox,
-// it reads the cluster. The fields that are not in the cluster (Template,
-// ExpiresAt) live in annotations on the objects themselves, which is what makes
-// a control-plane restart a non-event.
+// it reads the cluster. What the cluster does not hold on its own — the
+// template it came from, the image, when it was created and when it is due to
+// expire — is carried on the namespace as labels and annotations, which is what
+// makes a control-plane restart a non-event: nothing was ever kept anywhere
+// else.
 type Sandbox struct {
 	// ID is both the name and the identity. It is cluster-safe (lowercase
 	// alphanumeric and '-') because it is a namespace name.
