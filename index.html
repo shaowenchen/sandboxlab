@@ -196,9 +196,9 @@ reports relative addresses:</p>
 <pre><code class="language-bash">kubectl -n ops-system port-forward svc/sandbox 8080:80
 </code></pre>
 <h3 id="the-base-path">The base path</h3>
-<p><code>basePath</code> is a path prefix the whole deployment is served under: <code>/sandbox</code>
-means the console is at <code>https://host/sandbox</code> and a sandbox at
-<code>https://host/sandbox/sandbox/&lt;id&gt;/&lt;port&gt;/</code>. Leave it empty to serve at the
+<p><code>basePath</code> is a path prefix the whole deployment is served under: <code>/sandboxlab</code>
+means the console is at <code>https://host/sandboxlab</code> and a sandbox at
+<code>https://host/sandboxlab/sandbox/&lt;id&gt;/&lt;port&gt;/</code>. Leave it empty to serve at the
 root.</p>
 <p>It is not cosmetic. The environment the sandboxlab action builds publishes
 everything on one hostname, and the path is what tells the console's own routes
