@@ -213,9 +213,13 @@ share an address without a second hostname.</p>
 inside the namespaces it creates</li>
 <li><code>pods/log</code>: <strong>get only</strong>, for <code>sandbox logs</code>. A subresource, so it is not
 covered by the <code>pods</code> grant above.</li>
-<li><code>secrets</code>: <strong>get only</strong>. Nothing in the process writes a Secret — the key is
-created at install and read from the environment — so the grant stopped at
-read rather than being widened to the set above out of habit.</li>
+<li><code>secrets</code>: get, list, create, update. <code>get</code> reads the deployment's own key
+Secret; <code>list</code>, <code>create</code> and <code>update</code> are the per-sandbox keys — each sandbox
+has one, it lives in the sandbox's namespace, and resolving a presented key is
+a cluster-wide listing of them. There is no <code>delete</code>: a sandbox's key goes when
+its namespace does. What this reaches is worth saying plainly — the control
+plane can read every sandbox's key, which is the same reach <code>pods/exec</code> below
+already gives it.</li>
 <li><code>pods/exec</code>: get, create. This is the one that lets <code>sandbox exec</code> and the
 file endpoints run anything inside a sandbox, so it is worth knowing it is
 there: whoever holds the deployment's key can execute in any sandbox this
