@@ -374,9 +374,12 @@ that starts a real environment, and it is where the cluster behaviour is proved.
 
 The Helm chart and the documentation are published together to a `gh-pages`
 branch by [.github/workflows/pages.yml](.github/workflows/pages.yml), on every
-push to the default branch and on every tag. They share a branch, so they share
-a workflow: the packaged chart is `helm repo add`-able from that branch, and the
-page you land on from it is the chart's README, rendered.
+push to any branch — the workflow is triggered on `**` — and on every tag. A
+pull request does not publish: the job's own `if:` excludes it, so a package
+built from code nobody has agreed to yet is never the one `helm repo add`
+serves. They share a branch, so they share a workflow: the packaged chart is
+`helm repo add`-able from that branch, and the page you land on from it is the
+chart's README, rendered.
 
 ```bash
 make chart-package PAGES=./pages   # helm package + helm repo index

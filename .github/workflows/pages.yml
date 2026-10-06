@@ -20,9 +20,9 @@ jobs:
   pages:
     name: pages
     runs-on: ubuntu-latest
-    # Every push to the default branch publishes, as does a tag. A pull request
-    # does not: it would publish a package built from code nobody has agreed to
-    # yet, and a fork's PR has no access to the token regardless.
+    # Every push publishes, on any branch, as does a tag — the trigger is `**`.
+    # A pull request does not: it would publish a package built from code nobody
+    # has agreed to yet, and a fork's PR has no access to the token regardless.
     if: github.event_name == 'push' || startsWith(github.ref, 'refs/tags/v')
     permissions:
       # The packaged chart and the rendered pages go to a gh-pages branch, which
