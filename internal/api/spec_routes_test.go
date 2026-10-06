@@ -281,4 +281,19 @@ func TestDescribeListsTheRoutesThatExist(t *testing.T) {
 			t.Errorf("the route %s is not in describe, so a client reading describe cannot find it", pattern)
 		}
 	}
+
+	// A method+path pair appears once. Two entries for one route is a document
+	// that contradicts itself — the description a client reads depends on which
+	// entry it happens to pick — and the map above would not notice, because a
+	// duplicate collapses into the same key. `DELETE /api/v1/catalog/{id}` was
+	// listed twice, once saying a built-in cannot be removed and once saying it
+	// comes back on restart.
+	seen := map[string]bool{}
+	for _, ep := range body.Endpoints {
+		key := ep.Method + " " + normPath(ep.Path)
+		if seen[key] {
+			t.Errorf("describe lists %s twice; a client cannot tell which description holds", key)
+		}
+		seen[key] = true
+	}
 }
