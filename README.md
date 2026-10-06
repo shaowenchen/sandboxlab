@@ -69,7 +69,7 @@ beyond the key itself.
 The only ceiling is the deployment's own: `SANDBOX_MAX_SANDBOXES` caps how many
 sandboxes may exist at once.
 
-## The four interfaces
+## The interfaces
 
 Everything the API can do is reachable through a REST interface with three
 clients in front of it — the CLI, the console and the SDK — so a change lands in
