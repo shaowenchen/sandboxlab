@@ -222,10 +222,11 @@ func (s *Server) routes(d Deps) {
 	// The console is the fallback, so a client-side route inside it resolves on
 	// a reload rather than 404ing.
 	//
-	// Served without a key, deliberately, and it is the only route that is. The
-	// document is a static page carrying nothing: everything it shows comes from
-	// /api/v1, and every one of those calls is authenticated as before. A caller
-	// with no key gets an empty console and a sign-in form.
+	// Served without a key, deliberately, like /healthz, /readyz, /describe and
+	// /config — the routes that say what the deployment is, or carry nothing.
+	// The document is a static page carrying nothing: everything it shows comes
+	// from /api/v1, and every one of those calls is authenticated as before. A
+	// caller with no key gets an empty console and a sign-in form.
 	//
 	// It has to be this way round for the sign-in form to exist at all. Serving
 	// the page only to an already-authenticated caller means the browser — which

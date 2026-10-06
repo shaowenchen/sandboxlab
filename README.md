@@ -131,6 +131,8 @@ curl -s https://<the link>/sandbox/api/v1/describe | jq
 
 | Method | Path | |
 |---|---|---|
+| `GET` | `/api/v1/describe` | this document, and the routes below. No key |
+| `GET` | `/api/v1/config` | the interface version and the deployment's shape. No key |
 | `GET` | `/api/v1/catalog` | the templates a sandbox can be created from |
 | `POST` | `/api/v1/catalog` | add one: `{document}` as YAML. 409 if the id exists unless `{overwrite: true}`. Not persisted |
 | `GET` | `/api/v1/catalog/{id}` | one template |
@@ -149,9 +151,12 @@ curl -s https://<the link>/sandbox/api/v1/describe | jq
 | `GET` | `/api/v1/overview` | counts by state and template |
 | `GET` | `/sandbox/{id}/{port}/` | proxy to a sandbox's own port |
 
-Every route takes the key in `Authorization: Bearer <key>` or `X-Sandbox-Key`.
-The `/sandbox/` routes also take `?key=`, because a browser navigation cannot set
-a header — which is what makes the addresses the console and the CLI print
+Every route below takes the key in `Authorization: Bearer <key>` or
+`X-Sandbox-Key`, except the two marked *No key* above — `describe` and `config`
+say what the deployment is, which is what a client needs before it has a key.
+`/healthz` and `/readyz` are unauthenticated for the same reason. The
+`/sandbox/` routes also take `?key=`, because a browser navigation cannot set a
+header — which is what makes the addresses the console and the CLI print
 clickable.
 
 
