@@ -2,10 +2,10 @@ apiVersion: v1
 entries:
   sandbox:
   - apiVersion: v2
-    appVersion: eae9d07
-    created: "2026-10-06T01:01:44.153145886Z"
+    appVersion: 64cd084
+    created: "2026-10-06T01:03:05.240401472Z"
     description: Create disposable sandbox environments in Kubernetes, on demand
-    digest: 253755c0456e249bfade8c446a3e3881486403a09809f1a0be89fea934514270
+    digest: e5f0b2359d58e02ff6c55a21782fd3582399c4d009c88d027faed0c5eb8562e9
     icon: https://www.chenshaowen.com/logo.png
     keywords:
     - sandbox
@@ -23,4 +23,4 @@ entries:
     urls:
     - https://www.chenshaowen.com/sandboxlab/sandbox-0.1.0-dev.tgz
     version: 0.1.0-dev
-generated: "2026-10-06T01:01:44.152326722Z"
+generated: "2026-10-06T01:03:05.239585737Z"
