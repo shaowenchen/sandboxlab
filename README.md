@@ -285,7 +285,7 @@ GitHub runner
 │   ├── ops-system/            the control plane
 │   └── sbx-<id>/              one namespace per sandbox
 │       ├── Deployment         the sandbox's image
-│       ├── Service
+│       ├── Service            only when the template serves a port
 │       ├── ResourceQuota      what it may use
 │       └── NetworkPolicy      who may reach it
 └── cloudflared / ngrok
@@ -298,8 +298,8 @@ GitHub runner
 **A sandbox is a namespace.** That one decision shapes everything else. The
 quota and the network policy that bound it are namespace objects; listing the
 sandboxes is a label query on the namespaces; and deleting is one call that
-reclaims the container, the service, the volume and anything else created inside
-it, with no list to keep in step and nothing to miss.
+reclaims the container, the service and anything else created inside it, with no
+list to keep in step and nothing to miss.
 
 It also means an id is a namespace name, which is why ids are lowercase,
 dash-separated and at most 40 characters — an unusual rule that is exactly the
