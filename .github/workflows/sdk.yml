@@ -77,8 +77,9 @@ jobs:
       # Generated code that does not compile is worse than no SDK, and each
       # language needs its own compiler to find out. These are the cheapest
       # check per language, not a test suite: that a client speaks this API
-      # correctly is what the Go SDK's own tests cover, against a real server,
-      # and the four are generated from one document.
+      # correctly is what the Go SDK's own tests cover, against an httptest
+      # server that plays the API back, and the four are generated from one
+      # document.
       - name: The Go SDK builds
         run: go build ./sdk/...
 

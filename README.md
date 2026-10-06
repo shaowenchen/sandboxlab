@@ -386,9 +386,14 @@ make chart-package PAGES=./pages   # helm package + helm repo index
 make docs PAGES=./pages            # render the markdown into the site
 ```
 
-`make docs` reads the repository's own markdown rather than a second copy kept
-in step by hand, and fails on a link that would be dead on the site — so the
-site cannot disagree with the repository.
+`make docs` renders the site from the repository's own markdown rather than from
+a second copy kept in step by hand. One page is published — the chart's README,
+as the site's root — because that is the document someone arriving from
+`helm repo add` needs; this README describes building sandboxlab itself and
+stays where its audience is. Links on the published page are resolved rather
+than left as paths the site does not serve, and a link that resolves to nothing
+fails the build (`make check` runs that test), so the page cannot point at a
+404.
 
 Most of the tests are over the seams rather than inside the packages — the API
 against a stub, the proxy through the real router, and an integration test that

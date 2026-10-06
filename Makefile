@@ -125,8 +125,12 @@ sdk-check-go:
 # sdk-check is the whole thing: every language regenerated and compared, so a
 # spec edited without regenerating is a red build rather than a lie. It needs a
 # JRE for the Python, TypeScript and Java generators, which is why the Go half
-# above is separate — .github/workflows/sdk.yml runs this one, where the JDK and
-# the generator jar are already set up.
+# above is separate.
+#
+# sdk.yml does not call this. It runs generate-sdks.sh itself and then compiles
+# each language — a stale SDK there is reported on a pull request and committed
+# on main, so the check that fails a build is the Go one above. This target is
+# for running the same comparison by hand, where a JDK is available.
 .PHONY: sdk-check
 sdk-check: sdk-check-go
 	@command -v java >/dev/null 2>&1 || { \
