@@ -37,6 +37,7 @@ src/main/java/com/sandboxlab/model/Port.java
 src/main/java/com/sandboxlab/model/RenewSandboxRequest.java
 src/main/java/com/sandboxlab/model/Resources.java
 src/main/java/com/sandboxlab/model/Sandbox.java
+src/main/java/com/sandboxlab/model/SandboxKey.java
 src/main/java/com/sandboxlab/model/SandboxList.java
 src/main/java/com/sandboxlab/model/SandboxState.java
 src/main/java/com/sandboxlab/model/Status.java

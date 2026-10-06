@@ -50,7 +50,8 @@ import com.sandboxlab.client.ApiClient;
   Sandbox.JSON_PROPERTY_EXPIRES_AT,
   Sandbox.JSON_PROPERTY_ENDPOINTS,
   Sandbox.JSON_PROPERTY_ENV,
-  Sandbox.JSON_PROPERTY_NAMESPACE
+  Sandbox.JSON_PROPERTY_NAMESPACE,
+  Sandbox.JSON_PROPERTY_KEY
 })
 @javax.annotation.Generated(value = "org.openapitools.codegen.languages.JavaClientCodegen", comments = "Generator version: 7.17.0")
 public class Sandbox {
@@ -93,6 +94,10 @@ public class Sandbox {
   public static final String JSON_PROPERTY_NAMESPACE = "namespace";
   @javax.annotation.Nullable
   private String namespace;
+
+  public static final String JSON_PROPERTY_KEY = "key";
+  @javax.annotation.Nullable
+  private String key;
 
   public Sandbox() { 
   }
@@ -353,6 +358,30 @@ public class Sandbox {
   }
 
 
+  public Sandbox key(@javax.annotation.Nullable String key) {
+    this.key = key;
+    return this;
+  }
+
+  /**
+   * the sandbox&#39;s own API key, which reaches this sandbox and nothing else. Reported only where a caller is entitled to it — the create response, where it is handed over, and GET .../key. Absent everywhere else, including from a sandbox key looking at another sandbox, so its absence means \&quot;not reported here\&quot; rather than \&quot;this sandbox has no key\&quot;.
+   * @return key
+   */
+  @javax.annotation.Nullable
+  @JsonProperty(value = JSON_PROPERTY_KEY, required = false)
+  @JsonInclude(value = JsonInclude.Include.USE_DEFAULTS)
+  public String getKey() {
+    return key;
+  }
+
+
+  @JsonProperty(value = JSON_PROPERTY_KEY, required = false)
+  @JsonInclude(value = JsonInclude.Include.USE_DEFAULTS)
+  public void setKey(@javax.annotation.Nullable String key) {
+    this.key = key;
+  }
+
+
   /**
    * Return true if this Sandbox object is equal to o.
    */
@@ -374,12 +403,13 @@ public class Sandbox {
         Objects.equals(this.expiresAt, sandbox.expiresAt) &&
         Objects.equals(this.endpoints, sandbox.endpoints) &&
         Objects.equals(this.env, sandbox.env) &&
-        Objects.equals(this.namespace, sandbox.namespace);
+        Objects.equals(this.namespace, sandbox.namespace) &&
+        Objects.equals(this.key, sandbox.key);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(id, template, image, state, message, createdAt, expiresAt, endpoints, env, namespace);
+    return Objects.hash(id, template, image, state, message, createdAt, expiresAt, endpoints, env, namespace, key);
   }
 
   @Override
@@ -396,6 +426,7 @@ public class Sandbox {
     sb.append("    endpoints: ").append(toIndentedString(endpoints)).append("\n");
     sb.append("    env: ").append(toIndentedString(env)).append("\n");
     sb.append("    namespace: ").append(toIndentedString(namespace)).append("\n");
+    sb.append("    key: ").append(toIndentedString(key)).append("\n");
     sb.append("}");
     return sb.toString();
   }
@@ -500,6 +531,11 @@ public class Sandbox {
     // add `namespace` to the URL query string
     if (getNamespace() != null) {
       joiner.add(String.format(Locale.ROOT, "%snamespace%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getNamespace()))));
+    }
+
+    // add `key` to the URL query string
+    if (getKey() != null) {
+      joiner.add(String.format(Locale.ROOT, "%skey%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getKey()))));
     }
 
     return joiner.toString();

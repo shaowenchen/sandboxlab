@@ -58,6 +58,7 @@ All URIs are relative to *https://sandboxlab.example.com/sandboxlab*
 *SandboxesApi* | [**getOverview**](docs/SandboxesApi.md#getoverview) | **GET** /api/v1/overview | Counts of sandboxes by state and template
 *SandboxesApi* | [**getSandbox**](docs/SandboxesApi.md#getsandbox) | **GET** /api/v1/sandboxes/{id} | One sandbox
 *SandboxesApi* | [**getSandboxEvents**](docs/SandboxesApi.md#getsandboxevents) | **GET** /api/v1/sandboxes/{id}/events | Recent cluster events about a sandbox
+*SandboxesApi* | [**getSandboxKey**](docs/SandboxesApi.md#getsandboxkey) | **GET** /api/v1/sandboxes/{id}/key | A sandbox\&#39;s own API key
 *SandboxesApi* | [**getSandboxLogs**](docs/SandboxesApi.md#getsandboxlogs) | **GET** /api/v1/sandboxes/{id}/logs | The tail of a sandbox\&#39;s output
 *SandboxesApi* | [**getSandboxUsage**](docs/SandboxesApi.md#getsandboxusage) | **GET** /api/v1/sandboxes/{id}/usage | What a sandbox is using right now
 *SandboxesApi* | [**listCatalog**](docs/SandboxesApi.md#listcatalog) | **GET** /api/v1/catalog | The templates a sandbox can be created from
@@ -65,6 +66,7 @@ All URIs are relative to *https://sandboxlab.example.com/sandboxlab*
 *SandboxesApi* | [**proxyToSandbox**](docs/SandboxesApi.md#proxytosandbox) | **GET** /sandbox/{id}/{port}/ | Proxy to a sandbox\&#39;s own port
 *SandboxesApi* | [**readSandboxFile**](docs/SandboxesApi.md#readsandboxfile) | **GET** /api/v1/sandboxes/{id}/files | Read a file out of a sandbox
 *SandboxesApi* | [**renewSandbox**](docs/SandboxesApi.md#renewsandboxoperation) | **POST** /api/v1/sandboxes/{id}/renew | Reset a sandbox\&#39;s lifetime, measured from now
+*SandboxesApi* | [**rotateSandboxKey**](docs/SandboxesApi.md#rotatesandboxkey) | **POST** /api/v1/sandboxes/{id}/key/rotate | Replace a sandbox\&#39;s key
 *SandboxesApi* | [**writeSandboxFile**](docs/SandboxesApi.md#writesandboxfile) | **PUT** /api/v1/sandboxes/{id}/files | Write a file into a sandbox
 
 
@@ -92,6 +94,7 @@ All URIs are relative to *https://sandboxlab.example.com/sandboxlab*
 - [RenewSandboxRequest](docs/RenewSandboxRequest.md)
 - [Resources](docs/Resources.md)
 - [Sandbox](docs/Sandbox.md)
+- [SandboxKey](docs/SandboxKey.md)
 - [SandboxList](docs/SandboxList.md)
 - [SandboxState](docs/SandboxState.md)
 - [Status](docs/Status.md)

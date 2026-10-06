@@ -33,6 +33,7 @@ import com.sandboxlab.model.GetSandboxLogs200Response;
 import com.sandboxlab.model.Overview;
 import com.sandboxlab.model.RenewSandboxRequest;
 import com.sandboxlab.model.Sandbox;
+import com.sandboxlab.model.SandboxKey;
 import com.sandboxlab.model.SandboxList;
 import com.sandboxlab.model.Template;
 import com.sandboxlab.model.TemplateList;
@@ -1232,6 +1233,120 @@ public class SandboxesApi {
   }
 
   /**
+   * A sandbox&#39;s own API key
+   * Every sandbox has its own key, and holding it reaches that sandbox and nothing else: it can read the sandbox, its logs, usage, events and files, renew and delete it, run commands in it, and open its ports — but it cannot list sandboxes, create one, reach another sandbox, or manage the catalog. That is what to hand to whoever or whatever works in one sandbox, in place of the deployment&#39;s own key, which reaches everything. The value is stored reversibly so it can be read back: a key nobody can recover is one that has to be rotated the moment it is mislaid. Reading and rotating are admin-only — a sandbox key that could rotate itself could lock out whoever is holding it.
+   * @param id  (required)
+   * @return SandboxKey
+   * @throws ApiException if fails to make API call
+   */
+  public SandboxKey getSandboxKey(@javax.annotation.Nonnull String id) throws ApiException {
+    return getSandboxKey(id, null);
+  }
+
+  /**
+   * A sandbox&#39;s own API key
+   * Every sandbox has its own key, and holding it reaches that sandbox and nothing else: it can read the sandbox, its logs, usage, events and files, renew and delete it, run commands in it, and open its ports — but it cannot list sandboxes, create one, reach another sandbox, or manage the catalog. That is what to hand to whoever or whatever works in one sandbox, in place of the deployment&#39;s own key, which reaches everything. The value is stored reversibly so it can be read back: a key nobody can recover is one that has to be rotated the moment it is mislaid. Reading and rotating are admin-only — a sandbox key that could rotate itself could lock out whoever is holding it.
+   * @param id  (required)
+   * @param headers Optional headers to include in the request
+   * @return SandboxKey
+   * @throws ApiException if fails to make API call
+   */
+  public SandboxKey getSandboxKey(@javax.annotation.Nonnull String id, Map<String, String> headers) throws ApiException {
+    ApiResponse<SandboxKey> localVarResponse = getSandboxKeyWithHttpInfo(id, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * A sandbox&#39;s own API key
+   * Every sandbox has its own key, and holding it reaches that sandbox and nothing else: it can read the sandbox, its logs, usage, events and files, renew and delete it, run commands in it, and open its ports — but it cannot list sandboxes, create one, reach another sandbox, or manage the catalog. That is what to hand to whoever or whatever works in one sandbox, in place of the deployment&#39;s own key, which reaches everything. The value is stored reversibly so it can be read back: a key nobody can recover is one that has to be rotated the moment it is mislaid. Reading and rotating are admin-only — a sandbox key that could rotate itself could lock out whoever is holding it.
+   * @param id  (required)
+   * @return ApiResponse&lt;SandboxKey&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<SandboxKey> getSandboxKeyWithHttpInfo(@javax.annotation.Nonnull String id) throws ApiException {
+    return getSandboxKeyWithHttpInfo(id, null);
+  }
+
+  /**
+   * A sandbox&#39;s own API key
+   * Every sandbox has its own key, and holding it reaches that sandbox and nothing else: it can read the sandbox, its logs, usage, events and files, renew and delete it, run commands in it, and open its ports — but it cannot list sandboxes, create one, reach another sandbox, or manage the catalog. That is what to hand to whoever or whatever works in one sandbox, in place of the deployment&#39;s own key, which reaches everything. The value is stored reversibly so it can be read back: a key nobody can recover is one that has to be rotated the moment it is mislaid. Reading and rotating are admin-only — a sandbox key that could rotate itself could lock out whoever is holding it.
+   * @param id  (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;SandboxKey&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<SandboxKey> getSandboxKeyWithHttpInfo(@javax.annotation.Nonnull String id, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = getSandboxKeyRequestBuilder(id, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("getSandboxKey", localVarResponse);
+        }
+        if (localVarResponse.body() == null) {
+          return new ApiResponse<SandboxKey>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+        
+        
+        String responseBody = new String(localVarResponse.body().readAllBytes());
+        SandboxKey responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<SandboxKey>() {});
+        
+        localVarResponse.body().close();
+
+        return new ApiResponse<SandboxKey>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder getSandboxKeyRequestBuilder(@javax.annotation.Nonnull String id, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'id' is set
+    if (id == null) {
+      throw new ApiException(400, "Missing the required parameter 'id' when calling getSandboxKey");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/sandboxes/{id}/key"
+        .replace("{id}", ApiClient.urlEncode(id.toString()));
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    localVarRequestBuilder.method("GET", HttpRequest.BodyPublishers.noBody());
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
    * The tail of a sandbox&#39;s output
    * A sandbox whose container is still being created answers 409: there is nothing to read yet, which is the ordinary state moments after a create rather than a failure.
    * @param id  (required)
@@ -2064,6 +2179,120 @@ public class SandboxesApi {
     } catch (IOException e) {
       throw new ApiException(e);
     }
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
+   * Replace a sandbox&#39;s key
+   * The previous key stops working immediately — there is no grace period, because a rotation is usually performed because a key leaked, and a key that still works after being rotated away from has not been rotated. Anything using the old key must be updated. The sandbox&#39;s own key is unaffected by a rotate of another sandbox, and a sandbox cannot rotate its own: that would let it lock out whoever is using it.
+   * @param id  (required)
+   * @return SandboxKey
+   * @throws ApiException if fails to make API call
+   */
+  public SandboxKey rotateSandboxKey(@javax.annotation.Nonnull String id) throws ApiException {
+    return rotateSandboxKey(id, null);
+  }
+
+  /**
+   * Replace a sandbox&#39;s key
+   * The previous key stops working immediately — there is no grace period, because a rotation is usually performed because a key leaked, and a key that still works after being rotated away from has not been rotated. Anything using the old key must be updated. The sandbox&#39;s own key is unaffected by a rotate of another sandbox, and a sandbox cannot rotate its own: that would let it lock out whoever is using it.
+   * @param id  (required)
+   * @param headers Optional headers to include in the request
+   * @return SandboxKey
+   * @throws ApiException if fails to make API call
+   */
+  public SandboxKey rotateSandboxKey(@javax.annotation.Nonnull String id, Map<String, String> headers) throws ApiException {
+    ApiResponse<SandboxKey> localVarResponse = rotateSandboxKeyWithHttpInfo(id, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * Replace a sandbox&#39;s key
+   * The previous key stops working immediately — there is no grace period, because a rotation is usually performed because a key leaked, and a key that still works after being rotated away from has not been rotated. Anything using the old key must be updated. The sandbox&#39;s own key is unaffected by a rotate of another sandbox, and a sandbox cannot rotate its own: that would let it lock out whoever is using it.
+   * @param id  (required)
+   * @return ApiResponse&lt;SandboxKey&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<SandboxKey> rotateSandboxKeyWithHttpInfo(@javax.annotation.Nonnull String id) throws ApiException {
+    return rotateSandboxKeyWithHttpInfo(id, null);
+  }
+
+  /**
+   * Replace a sandbox&#39;s key
+   * The previous key stops working immediately — there is no grace period, because a rotation is usually performed because a key leaked, and a key that still works after being rotated away from has not been rotated. Anything using the old key must be updated. The sandbox&#39;s own key is unaffected by a rotate of another sandbox, and a sandbox cannot rotate its own: that would let it lock out whoever is using it.
+   * @param id  (required)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;SandboxKey&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<SandboxKey> rotateSandboxKeyWithHttpInfo(@javax.annotation.Nonnull String id, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = rotateSandboxKeyRequestBuilder(id, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("rotateSandboxKey", localVarResponse);
+        }
+        if (localVarResponse.body() == null) {
+          return new ApiResponse<SandboxKey>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+        
+        
+        String responseBody = new String(localVarResponse.body().readAllBytes());
+        SandboxKey responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<SandboxKey>() {});
+        
+        localVarResponse.body().close();
+
+        return new ApiResponse<SandboxKey>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder rotateSandboxKeyRequestBuilder(@javax.annotation.Nonnull String id, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'id' is set
+    if (id == null) {
+      throw new ApiException(400, "Missing the required parameter 'id' when calling rotateSandboxKey");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/sandboxes/{id}/key/rotate"
+        .replace("{id}", ApiClient.urlEncode(id.toString()));
+
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    localVarRequestBuilder.method("POST", HttpRequest.BodyPublishers.noBody());
     if (memberVarReadTimeout != null) {
       localVarRequestBuilder.timeout(memberVarReadTimeout);
     }

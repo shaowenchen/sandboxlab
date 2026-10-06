@@ -28,6 +28,7 @@ src/models/Port.ts
 src/models/RenewSandboxRequest.ts
 src/models/Resources.ts
 src/models/Sandbox.ts
+src/models/SandboxKey.ts
 src/models/SandboxList.ts
 src/models/SandboxState.ts
 src/models/Status.ts

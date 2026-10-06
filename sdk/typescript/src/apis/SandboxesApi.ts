@@ -28,6 +28,7 @@ import type {
   Overview,
   RenewSandboxRequest,
   Sandbox,
+  SandboxKey,
   SandboxList,
   Template,
   TemplateList,
@@ -61,6 +62,8 @@ import {
     RenewSandboxRequestToJSON,
     SandboxFromJSON,
     SandboxToJSON,
+    SandboxKeyFromJSON,
+    SandboxKeyToJSON,
     SandboxListFromJSON,
     SandboxListToJSON,
     TemplateFromJSON,
@@ -107,6 +110,10 @@ export interface SandboxesApiGetSandboxEventsRequest {
     limit?: number;
 }
 
+export interface SandboxesApiGetSandboxKeyRequest {
+    id: string;
+}
+
 export interface SandboxesApiGetSandboxLogsRequest {
     id: string;
     tail?: number;
@@ -129,6 +136,10 @@ export interface SandboxesApiReadSandboxFileRequest {
 export interface SandboxesApiRenewSandboxOperationRequest {
     id: string;
     renewSandboxRequest: RenewSandboxRequest;
+}
+
+export interface SandboxesApiRotateSandboxKeyRequest {
+    id: string;
 }
 
 export interface SandboxesApiWriteSandboxFileRequest {
@@ -287,6 +298,22 @@ export interface SandboxesApiInterface {
     getSandboxEvents(requestParameters: SandboxesApiGetSandboxEventsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<GetSandboxEvents200Response>;
 
     /**
+     * Every sandbox has its own key, and holding it reaches that sandbox and nothing else: it can read the sandbox, its logs, usage, events and files, renew and delete it, run commands in it, and open its ports — but it cannot list sandboxes, create one, reach another sandbox, or manage the catalog. That is what to hand to whoever or whatever works in one sandbox, in place of the deployment\'s own key, which reaches everything. The value is stored reversibly so it can be read back: a key nobody can recover is one that has to be rotated the moment it is mislaid. Reading and rotating are admin-only — a sandbox key that could rotate itself could lock out whoever is holding it.
+     * @summary A sandbox\'s own API key
+     * @param {string} id 
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SandboxesApiInterface
+     */
+    getSandboxKeyRaw(requestParameters: SandboxesApiGetSandboxKeyRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<SandboxKey>>;
+
+    /**
+     * Every sandbox has its own key, and holding it reaches that sandbox and nothing else: it can read the sandbox, its logs, usage, events and files, renew and delete it, run commands in it, and open its ports — but it cannot list sandboxes, create one, reach another sandbox, or manage the catalog. That is what to hand to whoever or whatever works in one sandbox, in place of the deployment\'s own key, which reaches everything. The value is stored reversibly so it can be read back: a key nobody can recover is one that has to be rotated the moment it is mislaid. Reading and rotating are admin-only — a sandbox key that could rotate itself could lock out whoever is holding it.
+     * A sandbox\'s own API key
+     */
+    getSandboxKey(requestParameters: SandboxesApiGetSandboxKeyRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<SandboxKey>;
+
+    /**
      * A sandbox whose container is still being created answers 409: there is nothing to read yet, which is the ordinary state moments after a create rather than a failure.
      * @summary The tail of a sandbox\'s output
      * @param {string} id 
@@ -397,6 +424,22 @@ export interface SandboxesApiInterface {
      * Reset a sandbox\'s lifetime, measured from now
      */
     renewSandbox(requestParameters: SandboxesApiRenewSandboxOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Sandbox>;
+
+    /**
+     * The previous key stops working immediately — there is no grace period, because a rotation is usually performed because a key leaked, and a key that still works after being rotated away from has not been rotated. Anything using the old key must be updated. The sandbox\'s own key is unaffected by a rotate of another sandbox, and a sandbox cannot rotate its own: that would let it lock out whoever is using it.
+     * @summary Replace a sandbox\'s key
+     * @param {string} id 
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SandboxesApiInterface
+     */
+    rotateSandboxKeyRaw(requestParameters: SandboxesApiRotateSandboxKeyRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<SandboxKey>>;
+
+    /**
+     * The previous key stops working immediately — there is no grace period, because a rotation is usually performed because a key leaked, and a key that still works after being rotated away from has not been rotated. Anything using the old key must be updated. The sandbox\'s own key is unaffected by a rotate of another sandbox, and a sandbox cannot rotate its own: that would let it lock out whoever is using it.
+     * Replace a sandbox\'s key
+     */
+    rotateSandboxKey(requestParameters: SandboxesApiRotateSandboxKeyRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<SandboxKey>;
 
     /**
      * It creates the file if it is absent and replaces it if it is. Parent directories are not created unless createParents is set: a silently created directory turns a mistyped path into a file nobody will find, where a refusal names the directory that is missing.
@@ -887,6 +930,57 @@ export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterfa
     }
 
     /**
+     * Every sandbox has its own key, and holding it reaches that sandbox and nothing else: it can read the sandbox, its logs, usage, events and files, renew and delete it, run commands in it, and open its ports — but it cannot list sandboxes, create one, reach another sandbox, or manage the catalog. That is what to hand to whoever or whatever works in one sandbox, in place of the deployment\'s own key, which reaches everything. The value is stored reversibly so it can be read back: a key nobody can recover is one that has to be rotated the moment it is mislaid. Reading and rotating are admin-only — a sandbox key that could rotate itself could lock out whoever is holding it.
+     * A sandbox\'s own API key
+     */
+    async getSandboxKeyRaw(requestParameters: SandboxesApiGetSandboxKeyRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<SandboxKey>> {
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling getSandboxKey().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (this.configuration && this.configuration.apiKey) {
+            headerParameters["X-Sandbox-Key"] = await this.configuration.apiKey("X-Sandbox-Key"); // ApiKey authentication
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("BearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/v1/sandboxes/{id}/key`;
+        urlPath = urlPath.replace(`{${"id"}}`, encodeURIComponent(String(requestParameters['id'])));
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => SandboxKeyFromJSON(jsonValue));
+    }
+
+    /**
+     * Every sandbox has its own key, and holding it reaches that sandbox and nothing else: it can read the sandbox, its logs, usage, events and files, renew and delete it, run commands in it, and open its ports — but it cannot list sandboxes, create one, reach another sandbox, or manage the catalog. That is what to hand to whoever or whatever works in one sandbox, in place of the deployment\'s own key, which reaches everything. The value is stored reversibly so it can be read back: a key nobody can recover is one that has to be rotated the moment it is mislaid. Reading and rotating are admin-only — a sandbox key that could rotate itself could lock out whoever is holding it.
+     * A sandbox\'s own API key
+     */
+    async getSandboxKey(requestParameters: SandboxesApiGetSandboxKeyRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<SandboxKey> {
+        const response = await this.getSandboxKeyRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
      * A sandbox whose container is still being created answers 409: there is nothing to read yet, which is the ordinary state moments after a create rather than a failure.
      * The tail of a sandbox\'s output
      */
@@ -1257,6 +1351,57 @@ export class SandboxesApi extends runtime.BaseAPI implements SandboxesApiInterfa
      */
     async renewSandbox(requestParameters: SandboxesApiRenewSandboxOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Sandbox> {
         const response = await this.renewSandboxRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * The previous key stops working immediately — there is no grace period, because a rotation is usually performed because a key leaked, and a key that still works after being rotated away from has not been rotated. Anything using the old key must be updated. The sandbox\'s own key is unaffected by a rotate of another sandbox, and a sandbox cannot rotate its own: that would let it lock out whoever is using it.
+     * Replace a sandbox\'s key
+     */
+    async rotateSandboxKeyRaw(requestParameters: SandboxesApiRotateSandboxKeyRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<SandboxKey>> {
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling rotateSandboxKey().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (this.configuration && this.configuration.apiKey) {
+            headerParameters["X-Sandbox-Key"] = await this.configuration.apiKey("X-Sandbox-Key"); // ApiKey authentication
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("BearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/v1/sandboxes/{id}/key/rotate`;
+        urlPath = urlPath.replace(`{${"id"}}`, encodeURIComponent(String(requestParameters['id'])));
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'POST',
+            headers: headerParameters,
+            query: queryParameters,
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => SandboxKeyFromJSON(jsonValue));
+    }
+
+    /**
+     * The previous key stops working immediately — there is no grace period, because a rotation is usually performed because a key leaked, and a key that still works after being rotated away from has not been rotated. Anything using the old key must be updated. The sandbox\'s own key is unaffected by a rotate of another sandbox, and a sandbox cannot rotate its own: that would let it lock out whoever is using it.
+     * Replace a sandbox\'s key
+     */
+    async rotateSandboxKey(requestParameters: SandboxesApiRotateSandboxKeyRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<SandboxKey> {
+        const response = await this.rotateSandboxKeyRaw(requestParameters, initOverrides);
         return await response.value();
     }
 

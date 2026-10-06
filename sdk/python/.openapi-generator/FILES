@@ -33,6 +33,7 @@ sandboxlab/models/port.py
 sandboxlab/models/renew_sandbox_request.py
 sandboxlab/models/resources.py
 sandboxlab/models/sandbox.py
+sandboxlab/models/sandbox_key.py
 sandboxlab/models/sandbox_list.py
 sandboxlab/models/sandbox_state.py
 sandboxlab/models/status.py

@@ -132,6 +132,8 @@ Class | Method | HTTP request | Description
 *SandboxesApi* | [**getSandboxWithHttpInfo**](docs/SandboxesApi.md#getSandboxWithHttpInfo) | **GET** /api/v1/sandboxes/{id} | One sandbox
 *SandboxesApi* | [**getSandboxEvents**](docs/SandboxesApi.md#getSandboxEvents) | **GET** /api/v1/sandboxes/{id}/events | Recent cluster events about a sandbox
 *SandboxesApi* | [**getSandboxEventsWithHttpInfo**](docs/SandboxesApi.md#getSandboxEventsWithHttpInfo) | **GET** /api/v1/sandboxes/{id}/events | Recent cluster events about a sandbox
+*SandboxesApi* | [**getSandboxKey**](docs/SandboxesApi.md#getSandboxKey) | **GET** /api/v1/sandboxes/{id}/key | A sandbox&#39;s own API key
+*SandboxesApi* | [**getSandboxKeyWithHttpInfo**](docs/SandboxesApi.md#getSandboxKeyWithHttpInfo) | **GET** /api/v1/sandboxes/{id}/key | A sandbox&#39;s own API key
 *SandboxesApi* | [**getSandboxLogs**](docs/SandboxesApi.md#getSandboxLogs) | **GET** /api/v1/sandboxes/{id}/logs | The tail of a sandbox&#39;s output
 *SandboxesApi* | [**getSandboxLogsWithHttpInfo**](docs/SandboxesApi.md#getSandboxLogsWithHttpInfo) | **GET** /api/v1/sandboxes/{id}/logs | The tail of a sandbox&#39;s output
 *SandboxesApi* | [**getSandboxUsage**](docs/SandboxesApi.md#getSandboxUsage) | **GET** /api/v1/sandboxes/{id}/usage | What a sandbox is using right now
@@ -146,6 +148,8 @@ Class | Method | HTTP request | Description
 *SandboxesApi* | [**readSandboxFileWithHttpInfo**](docs/SandboxesApi.md#readSandboxFileWithHttpInfo) | **GET** /api/v1/sandboxes/{id}/files | Read a file out of a sandbox
 *SandboxesApi* | [**renewSandbox**](docs/SandboxesApi.md#renewSandbox) | **POST** /api/v1/sandboxes/{id}/renew | Reset a sandbox&#39;s lifetime, measured from now
 *SandboxesApi* | [**renewSandboxWithHttpInfo**](docs/SandboxesApi.md#renewSandboxWithHttpInfo) | **POST** /api/v1/sandboxes/{id}/renew | Reset a sandbox&#39;s lifetime, measured from now
+*SandboxesApi* | [**rotateSandboxKey**](docs/SandboxesApi.md#rotateSandboxKey) | **POST** /api/v1/sandboxes/{id}/key/rotate | Replace a sandbox&#39;s key
+*SandboxesApi* | [**rotateSandboxKeyWithHttpInfo**](docs/SandboxesApi.md#rotateSandboxKeyWithHttpInfo) | **POST** /api/v1/sandboxes/{id}/key/rotate | Replace a sandbox&#39;s key
 *SandboxesApi* | [**writeSandboxFile**](docs/SandboxesApi.md#writeSandboxFile) | **PUT** /api/v1/sandboxes/{id}/files | Write a file into a sandbox
 *SandboxesApi* | [**writeSandboxFileWithHttpInfo**](docs/SandboxesApi.md#writeSandboxFileWithHttpInfo) | **PUT** /api/v1/sandboxes/{id}/files | Write a file into a sandbox
 
@@ -174,6 +178,7 @@ Class | Method | HTTP request | Description
  - [RenewSandboxRequest](docs/RenewSandboxRequest.md)
  - [Resources](docs/Resources.md)
  - [Sandbox](docs/Sandbox.md)
+ - [SandboxKey](docs/SandboxKey.md)
  - [SandboxList](docs/SandboxList.md)
  - [SandboxState](docs/SandboxState.md)
  - [Status](docs/Status.md)

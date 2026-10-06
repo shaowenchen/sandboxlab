@@ -22,6 +22,7 @@ export * from './Port';
 export * from './RenewSandboxRequest';
 export * from './Resources';
 export * from './Sandbox';
+export * from './SandboxKey';
 export * from './SandboxList';
 export * from './SandboxState';
 export * from './Status';

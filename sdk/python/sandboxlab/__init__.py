@@ -51,6 +51,7 @@ __all__ = [
     "RenewSandboxRequest",
     "Resources",
     "Sandbox",
+    "SandboxKey",
     "SandboxList",
     "SandboxState",
     "Status",
@@ -98,6 +99,7 @@ from sandboxlab.models.port import Port as Port
 from sandboxlab.models.renew_sandbox_request import RenewSandboxRequest as RenewSandboxRequest
 from sandboxlab.models.resources import Resources as Resources
 from sandboxlab.models.sandbox import Sandbox as Sandbox
+from sandboxlab.models.sandbox_key import SandboxKey as SandboxKey
 from sandboxlab.models.sandbox_list import SandboxList as SandboxList
 from sandboxlab.models.sandbox_state import SandboxState as SandboxState
 from sandboxlab.models.status import Status as Status

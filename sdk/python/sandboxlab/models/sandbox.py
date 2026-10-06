@@ -39,7 +39,8 @@ class Sandbox(BaseModel):
     endpoints: Optional[List[Endpoint]] = None
     env: Optional[Dict[str, StrictStr]] = Field(default=None, description="the non-secret environment the sandbox was created with")
     namespace: Optional[StrictStr] = Field(default=None, description="the namespace the sandbox owns")
-    __properties: ClassVar[List[str]] = ["id", "template", "image", "state", "message", "createdAt", "expiresAt", "endpoints", "env", "namespace"]
+    key: Optional[StrictStr] = Field(default=None, description="the sandbox's own API key, which reaches this sandbox and nothing else. Reported only where a caller is entitled to it — the create response, where it is handed over, and GET .../key. Absent everywhere else, including from a sandbox key looking at another sandbox, so its absence means \"not reported here\" rather than \"this sandbox has no key\".")
+    __properties: ClassVar[List[str]] = ["id", "template", "image", "state", "message", "createdAt", "expiresAt", "endpoints", "env", "namespace", "key"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -108,7 +109,8 @@ class Sandbox(BaseModel):
             "expiresAt": obj.get("expiresAt"),
             "endpoints": [Endpoint.from_dict(_item) for _item in obj["endpoints"]] if obj.get("endpoints") is not None else None,
             "env": obj.get("env"),
-            "namespace": obj.get("namespace")
+            "namespace": obj.get("namespace"),
+            "key": obj.get("key")
         })
         return _obj
 

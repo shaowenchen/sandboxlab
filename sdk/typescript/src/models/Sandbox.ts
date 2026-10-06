@@ -94,6 +94,12 @@ export interface Sandbox {
      * @memberof Sandbox
      */
     namespace?: string;
+    /**
+     * the sandbox's own API key, which reaches this sandbox and nothing else. Reported only where a caller is entitled to it — the create response, where it is handed over, and GET .../key. Absent everywhere else, including from a sandbox key looking at another sandbox, so its absence means "not reported here" rather than "this sandbox has no key".
+     * @type {string}
+     * @memberof Sandbox
+     */
+    key?: string;
 }
 
 
@@ -130,6 +136,7 @@ export function SandboxFromJSONTyped(json: any, ignoreDiscriminator: boolean): S
         'endpoints': json['endpoints'] == null ? undefined : ((json['endpoints'] as Array<any>).map(EndpointFromJSON)),
         'env': json['env'] == null ? undefined : json['env'],
         'namespace': json['namespace'] == null ? undefined : json['namespace'],
+        'key': json['key'] == null ? undefined : json['key'],
     };
 }
 
@@ -154,6 +161,7 @@ export function SandboxToJSONTyped(value?: Sandbox | null, ignoreDiscriminator: 
         'endpoints': value['endpoints'] == null ? undefined : ((value['endpoints'] as Array<any>).map(EndpointToJSON)),
         'env': value['env'],
         'namespace': value['namespace'],
+        'key': value['key'],
     };
 }
 

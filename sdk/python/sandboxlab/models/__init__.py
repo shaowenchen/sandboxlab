@@ -35,6 +35,7 @@ from sandboxlab.models.port import Port
 from sandboxlab.models.renew_sandbox_request import RenewSandboxRequest
 from sandboxlab.models.resources import Resources
 from sandboxlab.models.sandbox import Sandbox
+from sandboxlab.models.sandbox_key import SandboxKey
 from sandboxlab.models.sandbox_list import SandboxList
 from sandboxlab.models.sandbox_state import SandboxState
 from sandboxlab.models.status import Status
