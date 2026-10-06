@@ -85,8 +85,10 @@ The control plane's ClusterRole grants, cluster-wide:
 
 - `namespaces`: get, list, watch, create, update, patch, delete
 - `deployments`, `services`, `resourcequotas`, `limitranges`, `pods`,
-  `configmaps`, `persistentvolumeclaims`, `pods/log`, `networkpolicies`: the
-  full set, inside the namespaces it creates
+  `configmaps`, `persistentvolumeclaims`, `networkpolicies`: the full set,
+  inside the namespaces it creates
+- `pods/log`: **get only**, for `sandbox logs`. A subresource, so it is not
+  covered by the `pods` grant above.
 - `secrets`: **get only**. Nothing in the process writes a Secret — the key is
   created at install and read from the environment — so the grant stopped at
   read rather than being widened to the set above out of habit.
@@ -94,6 +96,15 @@ The control plane's ClusterRole grants, cluster-wide:
   file endpoints run anything inside a sandbox, so it is worth knowing it is
   there: whoever holds the deployment's key can execute in any sandbox this
   ServiceAccount can reach.
+- `metrics.k8s.io/pods`: get, list — the console's Metrics panel. Resource
+  usage lives in its own API group, and its `pods` is a different resource from
+  core `pods`, so the grant above does not cover it. Without this, reading usage
+  is a 403; a cluster with no metrics-server answers 404 for the group, which the
+  control plane reports as usage being unavailable.
+- `events`: get, list, watch — read-only. This is what explains a sandbox that
+  is not working: an image pull that failed, a probe that killed the container,
+  a pod that was never scheduled. The control plane reports events, it never
+  creates one.
 
 `delete` on namespaces is the one worth reviewing: deleting a namespace
 reclaims everything in it. That is the design — one operation, nothing to miss —
