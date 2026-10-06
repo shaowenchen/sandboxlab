@@ -372,6 +372,9 @@ type Sandbox struct {
 	ID    string `json:"id"`
 	Image string `json:"image"`
 
+	// Key the sandbox's own API key, which reaches this sandbox and nothing else. Reported only where a caller is entitled to it — the create response, where it is handed over, and GET .../key. Absent everywhere else, including from a sandbox key looking at another sandbox, so its absence means "not reported here" rather than "this sandbox has no key".
+	Key string `json:"key,omitempty"`
+
 	// Message why the state is not Running, when the cluster says
 	Message string `json:"message,omitempty"`
 
@@ -381,6 +384,15 @@ type Sandbox struct {
 
 	// Template the catalog id this was created from
 	Template string `json:"template"`
+}
+
+// SandboxKey defines model for SandboxKey.
+type SandboxKey struct {
+	// Key the credential. Send it as "X-Sandbox-Key: <key>" or "Authorization: Bearer <key>"; on a /sandbox/... address it may also travel as ?key=<key>, for a browser that cannot set a header.
+	Key string `json:"key"`
+
+	// Sandbox the id the key belongs to
+	Sandbox string `json:"sandbox"`
 }
 
 // SandboxList Every sandbox in the deployment, and how many that is.
@@ -470,6 +482,9 @@ type BadRequest = Error
 
 // Conflict defines model for Conflict.
 type Conflict = Error
+
+// Forbidden defines model for Forbidden.
+type Forbidden = Error
 
 // LimitReached defines model for LimitReached.
 type LimitReached = Error
@@ -739,6 +754,22 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /api/v1/sandboxes/{id}/files (the `WriteSandboxFile` operationId).
 	WriteSandboxFile(ctx context.Context, id string, params *WriteSandboxFileParams, body WriteSandboxFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetSandboxKey A sandbox's own API key
+	//
+	// Every sandbox has its own key, and holding it reaches that sandbox and nothing else: it can read the sandbox, its logs, usage, events and files, renew and delete it, run commands in it, and open its ports — but it cannot list sandboxes, create one, reach another sandbox, or manage the catalog. That is what to hand to whoever or whatever works in one sandbox, in place of the deployment's own key, which reaches everything.
+	// The value is stored reversibly so it can be read back: a key nobody can recover is one that has to be rotated the moment it is mislaid. Reading and rotating are admin-only — a sandbox key that could rotate itself could lock out whoever is holding it.
+	//
+	// Corresponds with GET /api/v1/sandboxes/{id}/key (the `GetSandboxKey` operationId).
+	GetSandboxKey(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RotateSandboxKey Replace a sandbox's key
+	//
+	// The previous key stops working immediately — there is no grace period, because a rotation is usually performed because a key leaked, and a key that still works after being rotated away from has not been rotated.
+	// Anything using the old key must be updated. The sandbox's own key is unaffected by a rotate of another sandbox, and a sandbox cannot rotate its own: that would let it lock out whoever is using it.
+	//
+	// Corresponds with POST /api/v1/sandboxes/{id}/key/rotate (the `RotateSandboxKey` operationId).
+	RotateSandboxKey(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetSandboxLogs The tail of a sandbox's output
 	//
@@ -1115,6 +1146,42 @@ func (c *Client) WriteSandboxFileWithBody(ctx context.Context, id string, params
 // Corresponds with PUT /api/v1/sandboxes/{id}/files (the `WriteSandboxFile` operationId).
 func (c *Client) WriteSandboxFile(ctx context.Context, id string, params *WriteSandboxFileParams, body WriteSandboxFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWriteSandboxFileRequest(c.Server, id, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetSandboxKey A sandbox's own API key
+//
+// Every sandbox has its own key, and holding it reaches that sandbox and nothing else: it can read the sandbox, its logs, usage, events and files, renew and delete it, run commands in it, and open its ports — but it cannot list sandboxes, create one, reach another sandbox, or manage the catalog. That is what to hand to whoever or whatever works in one sandbox, in place of the deployment's own key, which reaches everything.
+// The value is stored reversibly so it can be read back: a key nobody can recover is one that has to be rotated the moment it is mislaid. Reading and rotating are admin-only — a sandbox key that could rotate itself could lock out whoever is holding it.
+//
+// Corresponds with GET /api/v1/sandboxes/{id}/key (the `GetSandboxKey` operationId).
+func (c *Client) GetSandboxKey(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSandboxKeyRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RotateSandboxKey Replace a sandbox's key
+//
+// The previous key stops working immediately — there is no grace period, because a rotation is usually performed because a key leaked, and a key that still works after being rotated away from has not been rotated.
+// Anything using the old key must be updated. The sandbox's own key is unaffected by a rotate of another sandbox, and a sandbox cannot rotate its own: that would let it lock out whoever is using it.
+//
+// Corresponds with POST /api/v1/sandboxes/{id}/key/rotate (the `RotateSandboxKey` operationId).
+func (c *Client) RotateSandboxKey(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRotateSandboxKeyRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1830,6 +1897,74 @@ func NewWriteSandboxFileRequestWithBody(server string, id string, params *WriteS
 	return req, nil
 }
 
+// NewGetSandboxKeyRequest constructs an http.Request for the GetSandboxKey method
+func NewGetSandboxKeyRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/sandboxes/%s/key", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRotateSandboxKeyRequest constructs an http.Request for the RotateSandboxKey method
+func NewRotateSandboxKeyRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/sandboxes/%s/key/rotate", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetSandboxLogsRequest constructs an http.Request for the GetSandboxLogs method
 func NewGetSandboxLogsRequest(server string, id string, params *GetSandboxLogsParams) (*http.Request, error) {
 	var err error
@@ -2269,6 +2404,26 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /api/v1/sandboxes/{id}/files (the `WriteSandboxFile` operationId).
 	WriteSandboxFileWithResponse(ctx context.Context, id string, params *WriteSandboxFileParams, body WriteSandboxFileJSONRequestBody, reqEditors ...RequestEditorFn) (*WriteSandboxFileResponse, error)
+
+	// GetSandboxKeyWithResponse A sandbox's own API key
+	//
+	// Every sandbox has its own key, and holding it reaches that sandbox and nothing else: it can read the sandbox, its logs, usage, events and files, renew and delete it, run commands in it, and open its ports — but it cannot list sandboxes, create one, reach another sandbox, or manage the catalog. That is what to hand to whoever or whatever works in one sandbox, in place of the deployment's own key, which reaches everything.
+	// The value is stored reversibly so it can be read back: a key nobody can recover is one that has to be rotated the moment it is mislaid. Reading and rotating are admin-only — a sandbox key that could rotate itself could lock out whoever is holding it.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/sandboxes/{id}/key (the `GetSandboxKey` operationId).
+	GetSandboxKeyWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetSandboxKeyResponse, error)
+
+	// RotateSandboxKeyWithResponse Replace a sandbox's key
+	//
+	// The previous key stops working immediately — there is no grace period, because a rotation is usually performed because a key leaked, and a key that still works after being rotated away from has not been rotated.
+	// Anything using the old key must be updated. The sandbox's own key is unaffected by a rotate of another sandbox, and a sandbox cannot rotate its own: that would let it lock out whoever is using it.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/sandboxes/{id}/key/rotate (the `RotateSandboxKey` operationId).
+	RotateSandboxKeyWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*RotateSandboxKeyResponse, error)
 
 	// GetSandboxLogsWithResponse The tail of a sandbox's output
 	//
@@ -3204,6 +3359,130 @@ func (r WriteSandboxFileResponse) ContentType() string {
 	return ""
 }
 
+type GetSandboxKeyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *SandboxKey
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetSandboxKeyResponse) GetJSON200() *SandboxKey {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetSandboxKeyResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetSandboxKeyResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetSandboxKeyResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r GetSandboxKeyResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSandboxKeyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSandboxKeyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetSandboxKeyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RotateSandboxKeyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *SandboxKey
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r RotateSandboxKeyResponse) GetJSON200() *SandboxKey {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r RotateSandboxKeyResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r RotateSandboxKeyResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r RotateSandboxKeyResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r RotateSandboxKeyResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RotateSandboxKeyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RotateSandboxKeyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RotateSandboxKeyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetSandboxLogsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3792,6 +4071,38 @@ func (c *ClientWithResponses) WriteSandboxFileWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseWriteSandboxFileResponse(rsp)
+}
+
+// GetSandboxKeyWithResponse A sandbox's own API key
+//
+// Every sandbox has its own key, and holding it reaches that sandbox and nothing else: it can read the sandbox, its logs, usage, events and files, renew and delete it, run commands in it, and open its ports — but it cannot list sandboxes, create one, reach another sandbox, or manage the catalog. That is what to hand to whoever or whatever works in one sandbox, in place of the deployment's own key, which reaches everything.
+// The value is stored reversibly so it can be read back: a key nobody can recover is one that has to be rotated the moment it is mislaid. Reading and rotating are admin-only — a sandbox key that could rotate itself could lock out whoever is holding it.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/sandboxes/{id}/key (the `GetSandboxKey` operationId).
+func (c *ClientWithResponses) GetSandboxKeyWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetSandboxKeyResponse, error) {
+	rsp, err := c.GetSandboxKey(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSandboxKeyResponse(rsp)
+}
+
+// RotateSandboxKeyWithResponse Replace a sandbox's key
+//
+// The previous key stops working immediately — there is no grace period, because a rotation is usually performed because a key leaked, and a key that still works after being rotated away from has not been rotated.
+// Anything using the old key must be updated. The sandbox's own key is unaffected by a rotate of another sandbox, and a sandbox cannot rotate its own: that would let it lock out whoever is using it.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/sandboxes/{id}/key/rotate (the `RotateSandboxKey` operationId).
+func (c *ClientWithResponses) RotateSandboxKeyWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*RotateSandboxKeyResponse, error) {
+	rsp, err := c.RotateSandboxKey(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRotateSandboxKeyResponse(rsp)
 }
 
 // GetSandboxLogsWithResponse The tail of a sandbox's output
@@ -4533,6 +4844,100 @@ func ParseWriteSandboxFileResponse(rsp *http.Response) (*WriteSandboxFileRespons
 			return nil, err
 		}
 		response.JSON413 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetSandboxKeyResponse parses an HTTP response from a GetSandboxKeyWithResponse call
+func ParseGetSandboxKeyResponse(rsp *http.Response) (*GetSandboxKeyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSandboxKeyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SandboxKey
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRotateSandboxKeyResponse parses an HTTP response from a RotateSandboxKeyWithResponse call
+func ParseRotateSandboxKeyResponse(rsp *http.Response) (*RotateSandboxKeyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RotateSandboxKeyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SandboxKey
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

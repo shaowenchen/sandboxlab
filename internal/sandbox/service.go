@@ -229,6 +229,54 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	return s.client.Delete(ctx, sb.ID)
 }
 
+// Key returns a sandbox's own API key.
+//
+// The sandbox is looked up first, so an id that is not a sandbox is a 404
+// rather than an empty string — "no key" and "no such sandbox" are different
+// answers and the console shows them differently.
+func (s *Service) Key(ctx context.Context, id string) (string, error) {
+	sb, err := s.lookup(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return s.client.Key(ctx, sb.ID)
+}
+
+// RotateKey replaces a sandbox's key, invalidating the previous one.
+func (s *Service) RotateKey(ctx context.Context, id string) (string, error) {
+	sb, err := s.lookup(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return s.client.RotateKey(ctx, sb.ID)
+}
+
+// ResolveSandboxKey finds the sandbox a presented key belongs to.
+//
+// It is here rather than called on the client directly because the API layer
+// holds a Service and not a cluster client: this is what lets the auth
+// middleware resolve a sandbox key without importing the Kubernetes package.
+func (s *Service) ResolveSandboxKey(ctx context.Context, presented string) (string, bool, error) {
+	return s.client.ResolveSandboxKey(ctx, presented)
+}
+
+// Keys reads several sandboxes' keys at once, for filling in a response.
+//
+// It is the plural of Key without the per-id existence check: the ids come from
+// a listing, so they are known to be sandboxes, and re-reading each one would
+// turn a list of N into several cluster reads per row for a value that decorates
+// the response. A key that cannot be read is left out rather than failing the
+// call — the same reasoning, that this is not the point of the request.
+func (s *Service) Keys(ctx context.Context, ids []string) map[string]string {
+	out := make(map[string]string, len(ids))
+	for _, id := range ids {
+		if key, err := s.client.Key(ctx, id); err == nil {
+			out[id] = key
+		}
+	}
+	return out
+}
+
 // RenewInput extends, or removes, a sandbox's TTL.
 type RenewInput struct {
 	// TTL is the new lifetime from now. Zero means "no expiry" — a sandbox

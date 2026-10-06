@@ -89,6 +89,29 @@ for pair in "pods/log:reading a sandbox's output" \
   fi
 done
 
+# The secrets grant's *verbs*, not just its presence.
+#
+# The loop above only asks whether the resource is named, so a rule narrowed back
+# to `get` — which is what it was before sandboxes had keys of their own —
+# would pass it. `list` is the resolver's cluster-wide listing and `create` is a
+# sandbox's key being minted, and a control plane without either fails at
+# request time with a 403 on a deployment that otherwise looks fine.
+secrets_verbs=$(awk '
+  /^ *resources: \["secrets"\]/ { found = 1 }
+  found && /^ *verbs:/ { print; exit }
+' <<<"$default")
+if [ -z "$secrets_verbs" ]; then
+  bad "the ClusterRole has no secrets rule, so sandbox keys cannot be resolved or minted"
+else
+  for verb in get list create update; do
+    if grep -q "\"$verb\"" <<<"$secrets_verbs"; then
+      ok "the secrets grant carries $verb"
+    else
+      bad "the secrets grant is missing $verb ($secrets_verbs)"
+    fi
+  done
+fi
+
 # ── the base path ───────────────────────────────────────────────────────────
 
 section "with a base path"

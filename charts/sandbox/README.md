@@ -89,9 +89,13 @@ The control plane's ClusterRole grants, cluster-wide:
   inside the namespaces it creates
 - `pods/log`: **get only**, for `sandbox logs`. A subresource, so it is not
   covered by the `pods` grant above.
-- `secrets`: **get only**. Nothing in the process writes a Secret — the key is
-  created at install and read from the environment — so the grant stopped at
-  read rather than being widened to the set above out of habit.
+- `secrets`: get, list, create, update. `get` reads the deployment's own key
+  Secret; `list`, `create` and `update` are the per-sandbox keys — each sandbox
+  has one, it lives in the sandbox's namespace, and resolving a presented key is
+  a cluster-wide listing of them. There is no `delete`: a sandbox's key goes when
+  its namespace does. What this reaches is worth saying plainly — the control
+  plane can read every sandbox's key, which is the same reach `pods/exec` below
+  already gives it.
 - `pods/exec`: get, create. This is the one that lets `sandbox exec` and the
   file endpoints run anything inside a sandbox, so it is worth knowing it is
   there: whoever holds the deployment's key can execute in any sandbox this

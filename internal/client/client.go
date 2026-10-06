@@ -146,6 +146,33 @@ func (c *Client) Delete(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/api/v1/sandboxes/"+url.PathEscape(id), nil, nil, true)
 }
 
+// SandboxKey is a sandbox's own API key.
+//
+// Sandbox is the id it belongs to, returned alongside so a caller that fetched a
+// key by id has the pairing in one value rather than two.
+type SandboxKey struct {
+	Sandbox string `json:"sandbox"`
+	Key     string `json:"key"`
+}
+
+// GetKey returns a sandbox's own key.
+//
+// It is GetKey rather than Key because Key is already the deployment's own
+// credential, which this client authenticates with — two different keys, and
+// naming them the same thing is how they get mixed up.
+func (c *Client) GetKey(ctx context.Context, id string) (SandboxKey, error) {
+	var out SandboxKey
+	err := c.do(ctx, http.MethodGet, "/api/v1/sandboxes/"+url.PathEscape(id)+"/key", nil, &out, true)
+	return out, err
+}
+
+// RotateKey replaces a sandbox's key, invalidating the previous one at once.
+func (c *Client) RotateKey(ctx context.Context, id string) (SandboxKey, error) {
+	var out SandboxKey
+	err := c.do(ctx, http.MethodPost, "/api/v1/sandboxes/"+url.PathEscape(id)+"/key/rotate", nil, &out, true)
+	return out, err
+}
+
 // Renew resets a sandbox's expiry. An empty ttl removes it.
 func (c *Client) Renew(ctx context.Context, id, ttl string) (model.Sandbox, error) {
 	var out model.Sandbox

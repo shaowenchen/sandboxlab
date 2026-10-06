@@ -206,6 +206,13 @@ func (c *Client) Create(ctx context.Context, req CreateRequest) (model.Sandbox, 
 	if err := c.createNetworkPolicy(ctx, ns); err != nil {
 		return cleanup(err)
 	}
+	// The sandbox's own key, minted before the Deployment so that a sandbox is
+	// never reachable but keyless. It is a Secret in this namespace, so the
+	// cleanup above — which deletes the namespace — reclaims it with everything
+	// else, and a create that fails partway leaves no key behind.
+	if _, err := c.mintKey(ctx, ns, req.ID); err != nil {
+		return cleanup(err)
+	}
 	if err := c.createDeployment(ctx, ns, req); err != nil {
 		return cleanup(err)
 	}
@@ -223,7 +230,20 @@ func (c *Client) Create(ctx context.Context, req CreateRequest) (model.Sandbox, 
 		}
 	}
 
-	return c.Get(ctx, req.ID)
+	// Read back through the same path a caller would, so the sandbox a create
+	// returns is exactly the one a get would — and then the key, which describe
+	// deliberately does not carry: it is a credential, and only the routes that
+	// are about it should hand it out.
+	sb, err := c.Get(ctx, req.ID)
+	if err != nil {
+		return model.Sandbox{}, err
+	}
+	key, err := c.Key(ctx, req.ID)
+	if err != nil {
+		return model.Sandbox{}, err
+	}
+	sb.Key = key
+	return sb, nil
 }
 
 // hasPorts reports whether a template publishes anything to reach over HTTP.

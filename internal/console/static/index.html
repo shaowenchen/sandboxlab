@@ -425,6 +425,16 @@
 
     <h2>The API</h2>
     <p>
+      Every sandbox has its own key, and the deployment has one of its own. A
+      sandbox's key reaches that sandbox and nothing else: it can read the
+      sandbox, its logs, usage, events and files, renew and delete it, run
+      commands in it, and open its ports — but it cannot list sandboxes, create
+      one, reach another sandbox, or rotate its own key. That is what to hand to
+      whoever, or whatever, works in one sandbox. The deployment's key reaches
+      everything, which is why the console signs in with that one. Copy a
+      sandbox's own key from its row.
+    </p>
+    <p>
       The console is a client of the same HTTP API the CLI uses. It is described
       at <a id="docs-describe" href="#">/api/v1/describe</a>, and every call
       carries the key in <code>Authorization: Bearer &lt;key&gt;</code> or
@@ -763,7 +773,11 @@
       var ep = (sb.endpoints || []).filter(function (e) { return e.url; });
       if (ep.length) {
         var open = text("a", "btn small primary", "Open");
-        open.href = ep[0].url + "?key=" + encodeURIComponent(state.key);
+        // The sandbox's own key where the list carries one, rather than the
+        // session's: it reaches this sandbox and nothing else, so a link handed
+        // on — which is what these addresses are for — does not hand on the
+        // deployment's key with it.
+        open.href = ep[0].url + "?key=" + encodeURIComponent(keyFor(sb));
         open.target = "_blank";
         open.rel = "noopener";
         if (ep.length > 1) open.title = "Also: " + ep.slice(1).map(function (e) { return e.name; }).join(", ");
@@ -776,6 +790,9 @@
       var copy = text("button", "small", "Copy usage");
       copy.title = "Copy commands for this sandbox, to paste to an agent";
       copy.onclick = function () { copyUsage(sb); };
+      var keyBtn = text("button", "small", "Copy key");
+      keyBtn.title = "Copy this sandbox's own key — it reaches this sandbox and no other";
+      keyBtn.onclick = function () { copySandboxKey(sb); };
       var logs = text("button", "small", "Logs");
       logs.onclick = function () { showLogs(sb.id); };
       var renew = text("button", "small", "Renew");
@@ -785,6 +802,7 @@
       row.appendChild(svc);
       row.appendChild(ev);
       row.appendChild(copy);
+      row.appendChild(keyBtn);
       row.appendChild(logs);
       row.appendChild(renew);
       row.appendChild(rm);
@@ -904,7 +922,14 @@
       state.key = "";
       showSignedIn(false);
       $("signin-key").value = key;
-      if (err.status === 401 || err.status === 403) {
+      if (err.status === 400) {
+        // 400 is the one case that names no credential: a sandbox key is not
+        // wrong, it is the wrong *kind* here. The console lists every sandbox
+        // and offers the templates to create one, and a sandbox key may do
+        // neither — so signing in with one asks for the deployment's key
+        // instead of accusing the key that was typed.
+        setSigninError("The console needs the deployment's key — it lists every sandbox. A sandbox's own key reaches that sandbox only; use it with the CLI, the API, or the sandbox's address.");
+      } else if (err.status === 401 || err.status === 403) {
         setSigninError("That key was not accepted. Check it and try again.");
       } else {
         setSigninError(err.message);
@@ -1081,25 +1106,27 @@
       .catch(function (err) { body.replaceChildren(text("p", "muted", "could not read events: " + err.message)); });
   }
 
-  // copyUsage copies a ready-to-paste brief for this sandbox: its address, the
+  // usageText copies a ready-to-paste brief for this sandbox: its address, the
   // key, and the commands an agent would run against it. The console does not
   // run commands itself — the point is to hand the sandbox, configured and
   // working, to something that will.
   function usageText(sb) {
     var base = location.origin + API.replace(/\/api\/v1$/, "");
+    var key = keyFor(sb);
     var urls = (sb.endpoints || []).filter(function (e) { return e.url; })
-      .map(function (e) { return e.name + ": " + e.url + "?key=" + encodeURIComponent(state.key); });
+      .map(function (e) { return e.name + ": " + e.url + "?key=" + encodeURIComponent(key); });
     var lines = [
       "Sandbox \"" + sb.id + "\" is running in Kubernetes, reachable through the sandboxlab API.",
       "URL: " + base,
-      "Key: " + state.key + "   (send as header X-Sandbox-Key on every call)",
+      "Key: " + key + "   (send as header X-Sandbox-Key on every call)",
+      "This key reaches " + sb.id + " and no other sandbox, and cannot list or create one.",
       ""
     ];
     if (urls.length) lines = lines.concat(["Open in a browser:", urls.join("\n")], [""]);
     lines = lines.concat([
       "Run a command in it and wait (argv; its exit status is the result):",
       "  curl -s -X POST \"" + base + "/api/v1/sandboxes/" + sb.id + "/exec\" \\",
-      "    -H \"X-Sandbox-Key: " + state.key + "\" -H 'Content-Type: application/json' \\",
+      "    -H \"X-Sandbox-Key: " + key + "\" -H 'Content-Type: application/json' \\",
       "    -d '{\"command\": [\"sh\",\"-c\",\"echo hi\"]}'",
       "",
       "Read a file:   GET  " + base + "/api/v1/sandboxes/" + sb.id + "/files?path=/workspace/x",
@@ -1108,6 +1135,33 @@
       "The full interface is described at " + base + "/api/v1/describe."
     ]);
     return lines.join("\n");
+  }
+
+  // keyFor is the key to use for one sandbox: the sandbox's own when the API
+  // reported it, and the session's otherwise.
+  //
+  // The sandbox's own is preferred because it reaches only that sandbox, which
+  // is what makes a copied brief or an Open link safe to hand on — the whole
+  // reason the second tier exists. The list carries it for whoever is entitled
+  // to read it, which is the admin this console signs in as; the fallback covers
+  // a response that did not carry one rather than a caller who may not see it.
+  function keyFor(sb) {
+    return sb.key || state.key;
+  }
+
+  function copySandboxKey(sb) {
+    if (sb.key) {
+      copyText(sb.key, "Copied the key for " + sb.id);
+      return;
+    }
+    // No key on the row. Fetching it is the honest answer, and the API refuses
+    // it for a key that is not entitled — a message worth reading, rather than a
+    // button that silently copies the wrong credential.
+    api("/sandboxes/" + sb.id + "/key").then(function (k) {
+      copyText(k.key, "Copied the key for " + sb.id);
+    }).catch(function (err) {
+      toast("Could not read the key for " + sb.id + ": " + err.message, true);
+    });
   }
 
   // copyText puts a string on the clipboard, answering with a toast. The
@@ -1150,6 +1204,7 @@
     ].join("\n");
 
     $("docs-exec-cmd").textContent = [
+      "sandbox key scratch        # hand this to whoever works in that one sandbox",
       "sandbox exec scratch -- python3 -c 'print(\"hi\")'",
       "sandbox cp ./setup.sh scratch:/workspace/setup.sh",
       "sandbox cp scratch:/workspace/report.csv ."

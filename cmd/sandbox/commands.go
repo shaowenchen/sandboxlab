@@ -327,6 +327,99 @@ func urlCmd() *cobra.Command {
 	return cmd
 }
 
+// keyCmd groups the per-sandbox key operations.
+//
+// It is a parent command rather than two verbs at the top level because "key"
+// is the noun a person reaches for: `sandbox key scratch` reads as asking a
+// question, and `sandbox key rotate scratch` as giving an instruction.
+func keyCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "key <name>",
+		Short: "Print a sandbox's own API key",
+		Long: "Print a sandbox's own API key.\n\n" +
+			"Every sandbox has its own key, which reaches that sandbox and nothing\n" +
+			"else: it can read the sandbox, its logs, usage, events and files, renew\n" +
+			"and delete it, run commands in it, and open its ports — but it cannot\n" +
+			"list, create or reach another sandbox. That is what to hand to whoever,\n" +
+			"or whatever, works in one sandbox, in place of the deployment's key.\n\n" +
+			"The same key works everywhere — the API, the CLI, the console and a\n" +
+			"sandbox's own address — so one credential covers all of them.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := newClient(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), requestTimeout)
+			defer cancel()
+
+			key, err := c.GetKey(ctx, args[0])
+			if err != nil {
+				return err
+			}
+			if jsonOut(cmd) {
+				return printJSON(cmd, key)
+			}
+
+			// The key alone on stdout, so it can be captured by a shell without
+			// being picked out of a sentence:
+			//
+			//   export SANDBOX_KEY="$(sandbox key scratch)"
+			fmt.Fprintln(cmd.OutOrStdout(), key.Key)
+
+			// And what it is good for, on stderr so the capture above still
+			// works. A key with no note about its reach invites being used as
+			// though it were the deployment's.
+			fmt.Fprintf(cmd.ErrOrStderr(), "\nthis key reaches %s and nothing else\n", key.Sandbox)
+			return nil
+		},
+	}
+
+	cmd.AddCommand(keyRotateCmd())
+	return cmd
+}
+
+// keyRotateCmd replaces a sandbox's key.
+func keyRotateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "rotate <name>",
+		Short: "Replace a sandbox's key, invalidating the old one",
+		Long: "Replace a sandbox's key.\n\n" +
+			"The previous key stops working immediately — there is no grace period,\n" +
+			"because a rotation is usually performed because a key leaked, and a key\n" +
+			"that still works after being rotated away from has not been rotated.\n\n" +
+			"Anything using the old key must be updated: a CI job holding it, an agent\n" +
+			"working in the sandbox, and any developer who copied it into a shell\n" +
+			"profile.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := newClient(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), requestTimeout)
+			defer cancel()
+
+			key, err := c.RotateKey(ctx, args[0])
+			if err != nil {
+				return err
+			}
+			if jsonOut(cmd) {
+				return printJSON(cmd, key)
+			}
+
+			// The warning goes to stderr and the key to stdout, so a shell can
+			// capture the key while a person still sees what just happened to
+			// the old one:
+			//
+			//   export SANDBOX_KEY="$(sandbox key rotate scratch)"
+			fmt.Fprintf(cmd.ErrOrStderr(), "the previous key for %s no longer works; anything using it must be updated\n", args[0])
+			fmt.Fprintln(cmd.OutOrStdout(), key.Key)
+			return nil
+		},
+	}
+}
+
 func logsCmd() *cobra.Command {
 	var tail int
 	cmd := &cobra.Command{
@@ -592,11 +685,24 @@ func printSandboxCard(cmd *cobra.Command, c *client.Client, sb model.Sandbox) {
 	if len(sb.Endpoints) == 0 {
 		fmt.Fprintf(out, "  address    (this template serves no port; use the API or `sandbox logs`)\n")
 	}
+	// The sandbox's own key, which reaches this sandbox and nothing else, in
+	// preference to the deployment's. These addresses are reachable directly in
+	// a browser, which cannot set a header, and a link that carries the sandbox's
+	// key is one that will still work when handed to someone who should not have
+	// the deployment's — which is the whole point of having it.
+	//
+	// A key is present on the create response and on `sandbox get` only for a
+	// caller entitled to it, so the deployment's key is the fallback rather than
+	// the default.
+	linkKey := sb.Key
+	if linkKey == "" {
+		linkKey = c.Key()
+	}
 	for _, ep := range sb.Endpoints {
-		// The key is appended because these addresses are reachable directly in
-		// a browser, which cannot set a header. It is what makes the printed
-		// URL something you can click rather than something you have to finish.
-		fmt.Fprintf(out, "  %-10s %s?key=%s\n", ep.Name, ep.URL, c.Key())
+		fmt.Fprintf(out, "  %-10s %s?key=%s\n", ep.Name, ep.URL, linkKey)
+	}
+	if sb.Key != "" {
+		fmt.Fprintf(out, "  key        %s\n", sb.Key)
 	}
 }
 

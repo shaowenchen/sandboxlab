@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -51,6 +52,17 @@ type SandboxService interface {
 	List(ctx context.Context) ([]model.Sandbox, error)
 	Delete(ctx context.Context, id string) error
 	Renew(ctx context.Context, id string, in sandbox.RenewInput) (model.Sandbox, error)
+	// Key and RotateKey are a sandbox's own credential, and ResolveSandboxKey is
+	// what turns a presented one back into the sandbox it belongs to. The last
+	// is here so the auth middleware can resolve a sandbox key without this
+	// package importing the Kubernetes client — see auth.KeyResolver.
+	Key(ctx context.Context, id string) (string, error)
+	RotateKey(ctx context.Context, id string) (string, error)
+	ResolveSandboxKey(ctx context.Context, presented string) (string, bool, error)
+	// Keys reads several at once, which is what the listing uses: it is the one
+	// route that reports more than one sandbox, and a key per row is a value to
+	// decorate the response with rather than the subject of it.
+	Keys(ctx context.Context, ids []string) map[string]string
 	Logs(ctx context.Context, id string, tail int64) (string, error)
 	// Usage and Events describe what a sandbox is doing, read from the cluster:
 	// resource use from the metrics API, and the events that explain a state the
@@ -198,6 +210,19 @@ func (s *Server) routes(d Deps) {
 	})
 	s.handle("/api/v1/sandboxes/{id}/renew", "POST", map[string]http.HandlerFunc{"POST": s.authenticated(s.renewSandbox)})
 	s.handle("/api/v1/sandboxes/{id}/logs", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.sandboxLogs)})
+	// The sandbox's own key: what a caller hands to whoever — or whatever —
+	// works in just that one sandbox. Reading it back is the point, so the value
+	// is stored reversibly; rotating is a separate call because a rotation
+	// invalidates the old value at once and that should not be a side effect of
+	// asking for the current one.
+	//
+	// Reading one's own key is allowed — see scopedSandboxRoutes — because the
+	// key is the sandbox's identity and whoever holds it is already acting as
+	// that sandbox. Rotating is admin-only: a sandbox that could rotate its own
+	// would let it lock out whoever is holding it, which is a denial of service
+	// with no upside.
+	s.handle("/api/v1/sandboxes/{id}/key", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.sandboxKey)})
+	s.handle("/api/v1/sandboxes/{id}/key/rotate", "POST", map[string]http.HandlerFunc{"POST": s.authenticated(s.rotateSandboxKey)})
 	// What the sandbox is doing: resource use from the metrics API, and the
 	// cluster events that explain a state the pod list does not.
 	s.handle("/api/v1/sandboxes/{id}/usage", "GET", map[string]http.HandlerFunc{"GET": s.authenticated(s.sandboxUsage)})
@@ -291,7 +316,8 @@ func (s *Server) Routes() []Route {
 	return out
 }
 
-// ServeHTTP strips the deployment's base path and dispatches.
+// ServeHTTP strips the deployment's base path, establishes who the caller is,
+// and dispatches.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(context.WithValue(r.Context(), logKey{}, s.log))
 	if base := s.cfg.BasePath; base != "" {
@@ -303,7 +329,52 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r = r.Clone(r.Context())
 		r.URL.Path = trimmed
 	}
+	// Identity is established once, here, and never refused here. Resolving is a
+	// cluster read for a sandbox key, so doing it per handler would repeat it;
+	// and whether a given route *may* be reached by this caller is a question
+	// only the route's own gate can answer, which is where it stays. The base
+	// path is already stripped, so the data plane's prefix test below is over
+	// the same path the mount was registered under.
+	r = s.identify(r)
 	s.mux.ServeHTTP(w, r)
+}
+
+// requestAuth is the resolved identity, as it travels in the request context.
+//
+// The error is carried rather than turned into a response here, because
+// "unresolvable" and "refused" are different: an admin-only route answered for
+// an anonymous caller is a 401 with the usual challenge, while a resolver that
+// could not be reached is a 503, and only the route knows which it is answering.
+type requestAuth struct {
+	identity auth.Identity
+	err      error
+}
+
+type authKey struct{}
+
+// identify resolves the caller and puts the result in the request context.
+//
+// A key in the query string is accepted only for the data-plane routes. Those
+// are the ones a browser opens by navigating to them, where no header can be
+// set — and the trade is that the key lands in a URL, which is why it is
+// confined to the family that cannot do without it. The JSON API refuses it, so
+// a key cannot end up in a URL that gets logged by accident.
+func (s *Server) identify(r *http.Request) *http.Request {
+	presented := auth.PresentedKey(r)
+	if strings.HasPrefix(r.URL.Path, dataPlanePrefix) {
+		presented = auth.PresentedKeyURL(r)
+	}
+	identity, err := s.auth.Resolve(r.Context(), presented, s.svc)
+	return r.WithContext(context.WithValue(r.Context(), authKey{}, requestAuth{identity: identity, err: err}))
+}
+
+// authOf returns the identity resolved for this request. A request that never
+// went through ServeHTTP — a handler called directly in a test — is nobody.
+func authOf(r *http.Request) requestAuth {
+	if a, ok := r.Context().Value(authKey{}).(requestAuth); ok {
+		return a
+	}
+	return requestAuth{identity: auth.Identity{Anonymous: true}, err: auth.ErrUnauthenticated}
 }
 
 // trimBasePath removes base from path, reporting whether path was under it.
@@ -372,6 +443,8 @@ func (s *Server) describe(w http.ResponseWriter, r *http.Request) {
 		{"method": "GET", "path": "/api/v1/sandboxes/{id}", "description": "one sandbox"},
 		{"method": "DELETE", "path": "/api/v1/sandboxes/{id}", "description": "delete one"},
 		{"method": "POST", "path": "/api/v1/sandboxes/{id}/renew", "description": "reset its expiry; body {ttl}"},
+		{"method": "GET", "path": "/api/v1/sandboxes/{id}/key", "description": "its own API key, which reaches this sandbox and nothing else"},
+		{"method": "POST", "path": "/api/v1/sandboxes/{id}/key/rotate", "description": "replace its key; the previous one stops working at once"},
 		{"method": "GET", "path": "/api/v1/sandboxes/{id}/logs", "description": "the tail of its output; ?tail=<lines>"},
 		{"method": "GET", "path": "/api/v1/sandboxes/{id}/usage", "description": "its CPU and memory now, from the metrics API"},
 		{"method": "GET", "path": "/api/v1/sandboxes/{id}/events", "description": "recent cluster events about it; ?limit=<n>"},
@@ -391,7 +464,7 @@ func (s *Server) describe(w http.ResponseWriter, r *http.Request) {
 				auth.AuthorizationHeader + ": Bearer <key>",
 				auth.APIKeyHeader + ": <key>",
 			},
-			"note": "the data-plane routes under /sandbox/ also accept ?" + auth.QueryParam + "=<key>, for a browser that cannot set a header",
+			"note": "there are two tiers. The deployment's own key may do everything. Each sandbox also has its own key, which reaches that sandbox and nothing else — it cannot list, create or reach another sandbox, and it cannot rotate its own key. The data-plane routes under /sandbox/ also accept ?" + auth.QueryParam + "=<key>, for a browser that cannot set a header",
 		},
 		"endpoints": endpoints,
 	})
@@ -561,6 +634,7 @@ func (s *Server) sandboxes(w http.ResponseWriter, r *http.Request) {
 			writeError(w, logger(r), err)
 			return
 		}
+		all = s.withKeys(r, all)
 		writeJSON(w, http.StatusOK, map[string]any{"sandboxes": all, "count": len(all)})
 	case http.MethodPost:
 		var body createRequest
@@ -600,7 +674,7 @@ func (s *Server) sandboxByID(w http.ResponseWriter, r *http.Request) {
 			writeError(w, logger(r), err)
 			return
 		}
-		writeJSON(w, http.StatusOK, sb)
+		writeJSON(w, http.StatusOK, s.withKeys(r, []model.Sandbox{sb})[0])
 	case http.MethodDelete:
 		if err := s.svc.Delete(r.Context(), id); err != nil {
 			writeError(w, logger(r), err)
@@ -643,6 +717,86 @@ func (s *Server) renewSandbox(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, sb)
 }
 
+// sandboxKeyResponse is what the key endpoints return.
+//
+// The key is returned in full and unredacted, which is the deployment's stated
+// choice: it can be read back at any time rather than shown once, because a key
+// nobody can recover is one that has to be rotated the moment it is mislaid.
+type sandboxKeyResponse struct {
+	// Sandbox is the id the key belongs to, so a caller that fetched a key by id
+	// has the pairing in one document rather than two.
+	Sandbox string `json:"sandbox"`
+	Key     string `json:"key"`
+}
+
+// sandboxKey returns a sandbox's own API key.
+func (s *Server) sandboxKey(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	key, err := s.svc.Key(r.Context(), id)
+	if err != nil {
+		writeError(w, logger(r), err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sandboxKeyResponse{Sandbox: id, Key: key})
+}
+
+// rotateSandboxKey replaces a sandbox's key, invalidating the previous one.
+//
+// It is also how a sandbox whose key was lost is brought back — the store treats
+// "create" and "replace" the same way — rather than an error telling the caller
+// to create one first.
+func (s *Server) rotateSandboxKey(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	key, err := s.svc.RotateKey(r.Context(), id)
+	if err != nil {
+		writeError(w, logger(r), err)
+		return
+	}
+	// Logged without the value: the rotation is an event worth seeing, the key
+	// is not something a log should carry.
+	logger(r).Info("rotated a sandbox key", "sandbox", id)
+	writeJSON(w, http.StatusOK, sandboxKeyResponse{Sandbox: id, Key: key})
+}
+
+// maySeeKey reports whether this caller is entitled to a sandbox's own key: the
+// admin, who may read any, or the sandbox itself.
+func maySeeKey(a requestAuth, id string) bool {
+	return a.identity.Admin() || a.identity.Sandbox == id
+}
+
+// withKeys fills in the keys this caller is entitled to see, and blanks the rest.
+//
+// It is here rather than in the cluster client's describe — which is where every
+// other field comes from — because a key must not ride along on every read of a
+// sandbox. describe is called inside the control plane's own write paths, and a
+// credential is not something to carry around by default; the routes that are
+// about a sandbox ask for it, and this is that ask.
+//
+// Only the ids the caller may see are read, so a sandbox key does not make the
+// control plane read every other sandbox's Secret and then throw the values
+// away. A sandbox key never sees another's either way: the scope gate answers a
+// foreign id as a missing sandbox before this runs, and this is the second half
+// of that — it makes the answer true of a listing as well.
+func (s *Server) withKeys(r *http.Request, boxes []model.Sandbox) []model.Sandbox {
+	a := authOf(r)
+	ids := make([]string, 0, len(boxes))
+	for _, sb := range boxes {
+		if maySeeKey(a, sb.ID) {
+			ids = append(ids, sb.ID)
+		}
+	}
+	keys := s.svc.Keys(r.Context(), ids)
+	for i := range boxes {
+		if !maySeeKey(a, boxes[i].ID) {
+			boxes[i].Key = ""
+			continue
+		}
+		boxes[i].Key = keys[boxes[i].ID]
+	}
+	return boxes
+}
+
+// sandboxLogs prints the tail of a sandbox's output.
 func (s *Server) sandboxLogs(w http.ResponseWriter, r *http.Request) {
 	tail := int64(200)
 	if v := r.URL.Query().Get("tail"); v != "" {
@@ -699,18 +853,84 @@ func (s *Server) placeholder() http.HandlerFunc {
 
 // ── auth middleware ─────────────────────────────────────────────────────────
 
-// authenticated serves the request only if it carries the deployment's key.
+// scopedSandboxRoutes names the routes a sandbox key may reach — and, by its
+// absence from this list, every route it may not.
+//
+// It is written out rather than derived, so a route added later is out of a
+// sandbox key's reach until someone deliberately puts it in. That is the safe
+// direction for the mistake: the failure is a route a sandbox key should have
+// been able to use answering 403, not a route it should not have been able to
+// use being reachable.
+//
+// Every entry names a route by path *pattern*, the way the mux registered it, so
+// the {id} in it is matched against the caller's sandbox below. Rotation is
+// deliberately absent: a sandbox key that could rotate itself could lock out
+// whoever is holding it, which is a denial of service with no upside.
+var scopedSandboxRoutes = map[string]bool{
+	"/api/v1/sandboxes/{id}":        true,
+	"/api/v1/sandboxes/{id}/renew":  true,
+	"/api/v1/sandboxes/{id}/logs":   true,
+	"/api/v1/sandboxes/{id}/usage":  true,
+	"/api/v1/sandboxes/{id}/events": true,
+	"/api/v1/sandboxes/{id}/exec":   true,
+	"/api/v1/sandboxes/{id}/files":  true,
+	"/api/v1/sandboxes/{id}/key":    true,
+}
+
+// authenticated serves the request only if it is one this route may be reached
+// with, and confines a sandbox key to its own sandbox.
 //
 // It is the only place a request is authorised: everything behind it has already
 // been checked, so a route registered without this wrapper is the only way to
 // get it wrong — and it is one line away rather than a check inside each handler.
+//
+// The scope half is one rule with one implementation, which is why it lives here
+// rather than in the handlers: a sandbox key may only reach its own sandbox, and
+// the sandbox a request is about is the {id} in the path. Handlers never see an
+// identity they would have to remember to check.
 func (s *Server) authenticated(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !s.auth.OK(r) {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="sandboxlab"`)
-			writeJSON(w, http.StatusUnauthorized, errorBody{Error: "a valid API key is required"})
+		a := authOf(r)
+
+		// A key that could not be checked is not a key that failed to check out.
+		// Reported as 503 rather than 401, so a cluster outage does not tell an
+		// operator their credential is wrong.
+		if a.err != nil && !errors.Is(a.err, auth.ErrUnauthenticated) {
+			writeJSON(w, http.StatusServiceUnavailable, errorBody{Error: "the sandbox keys could not be checked: " + a.err.Error()})
+			return
+		}
+		if !a.identity.Authenticated() {
+			s.unauthorized(w)
+			return
+		}
+		if a.identity.Admin() {
+			next(w, r)
+			return
+		}
+
+		// A sandbox key from here on.
+		//
+		// A whole route class it may not use is a 403, which is a statement
+		// about the key. Asking about an id that is not its own is a 404, the
+		// same answer as for a sandbox that does not exist — so the API does not
+		// become a directory of other people's sandboxes, and whether a given id
+		// exists is not something one sandbox key can learn with the other.
+		if !scopedSandboxRoutes[r.Pattern] {
+			writeJSON(w, http.StatusForbidden, errorBody{Error: "a sandbox key reaches only its own sandbox"})
+			return
+		}
+		if a.identity.Sandbox != r.PathValue("id") {
+			writeJSON(w, http.StatusNotFound, errorBody{Error: "no sandbox named " + r.PathValue("id")})
 			return
 		}
 		next(w, r)
 	}
+}
+
+// unauthorized is the 401 every gated route answers with.
+func (s *Server) unauthorized(w http.ResponseWriter) {
+	// The challenge is what tells a client the scheme to use; without it a 401
+	// is unactionable for anything but a human reading prose.
+	w.Header().Set("WWW-Authenticate", `Bearer realm="sandboxlab"`)
+	writeJSON(w, http.StatusUnauthorized, errorBody{Error: "a valid API key is required"})
 }

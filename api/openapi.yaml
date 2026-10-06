@@ -321,6 +321,66 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "404": {$ref: "#/components/responses/NotFound"}
 
+  /api/v1/sandboxes/{id}/key:
+    get:
+      tags: [sandboxes]
+      operationId: getSandboxKey
+      summary: A sandbox's own API key
+      description: >-
+        Every sandbox has its own key, and holding it reaches that sandbox and
+        nothing else: it can read the sandbox, its logs, usage, events and
+        files, renew and delete it, run commands in it, and open its ports — but
+        it cannot list sandboxes, create one, reach another sandbox, or manage
+        the catalog. That is what to hand to whoever or whatever works in one
+        sandbox, in place of the deployment's own key, which reaches everything.
+
+        The value is stored reversibly so it can be read back: a key nobody can
+        recover is one that has to be rotated the moment it is mislaid. Reading
+        and rotating are admin-only — a sandbox key that could rotate itself
+        could lock out whoever is holding it.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: the key
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SandboxKey"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /api/v1/sandboxes/{id}/key/rotate:
+    post:
+      tags: [sandboxes]
+      operationId: rotateSandboxKey
+      summary: Replace a sandbox's key
+      description: >-
+        The previous key stops working immediately — there is no grace period,
+        because a rotation is usually performed because a key leaked, and a key
+        that still works after being rotated away from has not been rotated.
+
+        Anything using the old key must be updated. The sandbox's own key is
+        unaffected by a rotate of another sandbox, and a sandbox cannot rotate
+        its own: that would let it lock out whoever is using it.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: the sandbox and its new key
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SandboxKey"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
   /api/v1/sandboxes/{id}/logs:
     get:
       tags: [sandboxes]
@@ -837,6 +897,29 @@ components:
           additionalProperties: {type: string}
           description: the non-secret environment the sandbox was created with
         namespace: {type: string, description: "the namespace the sandbox owns"}
+        key:
+          type: string
+          description: >-
+            the sandbox's own API key, which reaches this sandbox and nothing
+            else. Reported only where a caller is entitled to it — the create
+            response, where it is handed over, and GET .../key. Absent
+            everywhere else, including from a sandbox key looking at another
+            sandbox, so its absence means "not reported here" rather than "this
+            sandbox has no key".
+
+    SandboxKey:
+      type: object
+      required: [sandbox, key]
+      properties:
+        sandbox:
+          type: string
+          description: the id the key belongs to
+        key:
+          type: string
+          description: >-
+            the credential. Send it as "X-Sandbox-Key: <key>" or
+            "Authorization: Bearer <key>"; on a /sandbox/... address it may also
+            travel as ?key=<key>, for a browser that cannot set a header.
 
     Endpoint:
       type: object

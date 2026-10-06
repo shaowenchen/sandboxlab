@@ -129,6 +129,19 @@ type Sandbox struct {
 	// Message explains a state that is not Running, when the cluster says why.
 	Message string `json:"message,omitempty"`
 
+	// Key is this sandbox's own API key — a credential that reaches this
+	// sandbox and nothing else.
+	//
+	// It is never carried by default. The cluster client leaves it empty on
+	// every read — a credential is not something to have ride along on whatever
+	// else a caller asked for — and the API layer fills it in only where a
+	// caller is entitled to it: the create response, which hands it over; the
+	// endpoint whose whole subject is the key; and a read of the sandbox itself
+	// or a listing, where it is a field of the thing being described. Everywhere
+	// else it is blank, and it is blanked again for a caller who may not see it.
+	// Empty therefore means "not reported here", not "this sandbox has no key".
+	Key string `json:"key,omitempty"`
+
 	// CreatedAt and ExpiresAt bracket the sandbox's life. ExpiresAt is nil when
 	// the sandbox has no TTL — a pointer, not a zero time, because `omitempty`
 	// does not omit a struct and a zero time would go out as

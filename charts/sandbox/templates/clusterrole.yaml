@@ -41,11 +41,21 @@ rules:
     verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
   # Sandbox namespaces and the control plane's own are the same cluster, so the
   # grant is cluster-wide and includes the Secret holding the deployment's key.
-  # Nothing here writes one: the key is made by the chart's install and read by
-  # the process from its environment. The read is what makes it explicit.
+  #
+  # It also covers each sandbox's own key, which the control plane does write:
+  # `list` is how a presented key is resolved to its sandbox (a cluster-wide,
+  # label-scoped listing), and `create`/`update` are a sandbox's key being made
+  # with it and rotated. `delete` is deliberately absent — a sandbox's key lives
+  # in the sandbox's namespace, so deleting the sandbox reclaims it, and nothing
+  # ever deletes one on its own.
+  #
+  # Worth knowing: this widens what a compromised control plane reaches, since
+  # it can now read every sandbox's key as well as the deployment's. That is the
+  # price of the second tier, and it is the same reach `pods/exec` already
+  # gives — whoever holds the process can run code in any sandbox regardless.
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get"]
+    verbs: ["get", "list", "create", "update"]
   # Reading a sandbox's output. `pods/log` is a separate resource from `pods`
   # and is easy to leave out, which shows up as `sandbox logs` failing on an
   # otherwise working deployment.

@@ -57,14 +57,36 @@ every sandbox in it.
 
 ## The key
 
-There is one key, held by the deployment. It is generated at install and printed
-in the environment's summary, and it may do everything: create a sandbox, read
-any sandbox, reach any sandbox's ports.
+There are two kinds of key.
 
-Authorization is "is the key right" and nothing else. A deployment is a personal
-or small-team debugging environment rather than a multi-tenant one — there are no
-users to keep apart, so there is nothing for a request to be authorized against
-beyond the key itself.
+**The deployment's key** is generated at install and printed in the
+environment's summary. It may do everything: create a sandbox, list them all,
+read and delete any of them, run commands in any of them, and reach any
+sandbox's ports. It is what the console signs in with.
+
+**A sandbox's own key** is minted when the sandbox is created, stored in the
+sandbox's namespace, and reaches that sandbox and nothing else. It can read the
+sandbox, its logs, usage, events and files, renew and delete it, run commands in
+it, and open its ports — but it cannot list sandboxes, create one, reach another
+sandbox, or rotate its own key. That is what to hand to whoever or whatever
+works in one sandbox, so that a credential shared with one agent or one person
+does not also run code in every other sandbox in the deployment.
+
+```bash
+sandbox key scratch              # the key alone, to hand on
+sandbox key rotate scratch       # invalidate it and mint another
+```
+
+A sandbox's key appears in the create response, on its row in the console, and
+at `GET /api/v1/sandboxes/{id}/key`. Reading and rotating are the deployment's
+key only: a sandbox that could rotate its own could lock out whoever is holding
+it.
+
+Authorization is otherwise "is the key right" and nothing else. A deployment is
+a personal or small-team debugging environment rather than a multi-tenant one —
+there are no users to keep apart, so a sandbox key is a *scoped credential*
+rather than an identity with a name, and there is nothing for a request to be
+authorized against beyond the key itself.
 
 The only ceiling is the deployment's own: `SANDBOX_MAX_SANDBOXES` caps how many
 sandboxes may exist at once.
@@ -88,11 +110,13 @@ the old API. See [`sdk/`](sdk/) for the SDKs.
 
 ### The console
 
-One page served from inside the binary. It asks for the key, keeps it in
-`localStorage` so a reload does not ask again, and has three tabs: the
+One page served from inside the binary. It asks for the deployment's key, keeps
+it in `localStorage` so a reload does not ask again, and has three tabs: the
 **Sandboxes** list, with an Open button into each sandbox's first address plus
-its metrics, events, logs and lifetime; the **Templates** it can be created
-from; and this documentation.
+its metrics, events, logs, its own key and its lifetime; the **Templates** it
+can be created from; and this documentation. Signing in with a sandbox's own key
+is refused, with a message saying so: the console lists every sandbox, which a
+sandbox key may not do.
 
 ### The CLI
 
@@ -109,6 +133,7 @@ sandbox create -t agent-infra --name scratch  # create one
 sandbox list                             # what is running, and where
 sandbox url scratch                      # just the address, for a script
 sandbox logs scratch                     # what it has printed
+sandbox key scratch                      # its own key, to hand to an agent
 sandbox exec scratch -- ls -la /workspace # run something in it
 sandbox cp scratch:/workspace/out.txt .  # take a file out
 sandbox renew scratch --ttl 2h           # keep it longer
@@ -149,6 +174,8 @@ curl -s https://<the link>/sandboxlab/api/v1/describe | jq
 | `GET` | `/api/v1/sandboxes/{id}/files` | read a file: `?path=/abs/path` |
 | `PUT` | `/api/v1/sandboxes/{id}/files` | write a file: `?path=/abs/path`, `{content, encoding?, createParents?}` |
 | `GET` | `/api/v1/overview` | counts by state and template |
+| `GET` | `/api/v1/sandboxes/{id}/key` | that sandbox's own key, which reaches only it |
+| `POST` | `/api/v1/sandboxes/{id}/key/rotate` | replace it; the old one stops working at once |
 | `GET` | `/sandbox/{id}/{port}/` | proxy to a sandbox's own port |
 
 Every route below takes the key in `Authorization: Bearer <key>` or
@@ -158,6 +185,12 @@ say what the deployment is, which is what a client needs before it has a key.
 `/sandbox/` routes also take `?key=`, because a browser navigation cannot set a
 header — which is what makes the addresses the console and the CLI print
 clickable.
+
+Either kind of key authenticates these routes; which sandbox it reaches is the
+difference. A sandbox key is refused the routes that are about the deployment
+rather than about one sandbox — `GET`/`POST /api/v1/sandboxes`, the catalog, the
+overview, and `/key/rotate` — and is answered as though another sandbox did not
+exist when it names one that is not its own.
 
 
 ### The SDK

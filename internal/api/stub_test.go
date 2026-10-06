@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"sort"
 	"strings"
@@ -41,6 +42,16 @@ type stubService struct {
 	writeErr     error
 	fileContent  string
 	wrote        []stubWrite
+
+	// The per-sandbox keys, by sandbox id. The values are made up rather than
+	// random — a test that cares which key resolves to which sandbox is easier
+	// to read when the key says so.
+	keys map[string]string
+	// keySeq is what rotate counts up, so a rotated key differs from the first.
+	keySeq int
+	// resolveErr makes key resolution fail, which is the cluster-is-unreachable
+	// case: the API has to answer 503 rather than 401 for it.
+	resolveErr error
 }
 
 func newStubService(cfg config.Config, c *model.Catalog) *stubService {
@@ -58,6 +69,7 @@ func newStubService(cfg config.Config, c *model.Catalog) *stubService {
 		clusterUp: true,
 		logs:      "sandbox output\n",
 		now:       time.Now,
+		keys:      map[string]string{},
 	}
 }
 
@@ -124,7 +136,75 @@ func (s *stubService) Create(_ context.Context, in sandbox.CreateInput) (model.S
 	}
 	s.boxes[id] = sb
 	s.limits[id] = ttl
+	// The real create returns the sandbox with its own key on it — the key is
+	// minted with the sandbox and handed back so a caller does not have to ask
+	// again. The stub does the same, or a test asserting the create response
+	// would be asserting the wrong thing.
+	sb.Key = s.stubKey(id)
+	s.boxes[id] = sb
 	return sb, nil
+}
+
+// stubKey is a sandbox's key, made up on first use.
+func (s *stubService) stubKey(id string) string {
+	if s.keys == nil {
+		s.keys = map[string]string{}
+	}
+	if k, ok := s.keys[id]; ok {
+		return k
+	}
+	k := "key-for-" + id
+	s.keys[id] = k
+	return k
+}
+
+// Key returns a sandbox's key, or a 404 for one that is not there.
+func (s *stubService) Key(_ context.Context, id string) (string, error) {
+	id = model.NormalizeID(id)
+	if _, ok := s.boxes[id]; !ok {
+		return "", fmt.Errorf("%w: no sandbox named %q", sandbox.ErrNotFound, id)
+	}
+	return s.stubKey(id), nil
+}
+
+// RotateKey replaces a sandbox's key. The new one differs from the old, which
+// is the property a rotation is for.
+func (s *stubService) RotateKey(ctx context.Context, id string) (string, error) {
+	if _, err := s.Key(ctx, id); err != nil {
+		return "", err
+	}
+	id = model.NormalizeID(id)
+	s.keySeq++
+	k := fmt.Sprintf("rotated-%d-for-%s", s.keySeq, id)
+	s.keys[id] = k
+	return k, nil
+}
+
+// ResolveSandboxKey finds the sandbox a presented key belongs to, by looking for
+// the one sandbox whose key it is — the same question the real resolver asks,
+// answered from a map rather than the cluster.
+func (s *stubService) ResolveSandboxKey(_ context.Context, presented string) (string, bool, error) {
+	if s.resolveErr != nil {
+		return "", false, s.resolveErr
+	}
+	if strings.TrimSpace(presented) == "" {
+		return "", false, nil
+	}
+	for id, k := range s.keys {
+		if subtle.ConstantTimeCompare([]byte(k), []byte(presented)) == 1 {
+			return id, true, nil
+		}
+	}
+	return "", false, nil
+}
+
+// Keys reads several sandboxes' keys at once.
+func (s *stubService) Keys(_ context.Context, ids []string) map[string]string {
+	out := make(map[string]string, len(ids))
+	for _, id := range ids {
+		out[id] = s.stubKey(id)
+	}
+	return out
 }
 
 func (s *stubService) Get(_ context.Context, id string) (model.Sandbox, error) {
