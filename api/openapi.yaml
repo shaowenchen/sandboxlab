@@ -24,7 +24,7 @@ info:
     on demand, in Kubernetes.
 
 servers:
-  - url: https://sandboxlab.example.com/sandbox
+  - url: https://sandboxlab.example.com/sandboxlab
     description: >-
       A deployment behind a gateway. The base path is the deployment's own and
       is part of the address, not something a client appends.

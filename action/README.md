@@ -35,7 +35,7 @@ That is the whole workflow. Open the run's **Summary** for the console link and
 the API key, then create a sandbox:
 
 ```bash
-export SANDBOX_URL='https://<the link>/sandbox'
+export SANDBOX_URL='https://<the link>/sandboxlab'
 export SANDBOX_KEY='<the key>'
 
 sandbox catalog
@@ -56,8 +56,8 @@ directly usable, and `GET /api/v1/describe` is the contract — it needs no key.
 | **cloudflared** | A named tunnel, published at `domain`. Set `domain` to empty for a quick tunnel instead, or `tunnel: ngrok` to use ngrok. |
 
 Everything on one hostname, and the base path is what tells the console's own
-routes from a sandbox's: the console at `<domain>/sandbox`, a sandbox at
-`<domain>/sandbox/sandbox/<name>/<port>/`.
+routes from a sandbox's: the console at `<domain>/sandboxlab`, a sandbox at
+`<domain>/sandboxlab/sandbox/<name>/<port>/`.
 
 ## Inputs
 
@@ -69,7 +69,7 @@ routes from a sandbox's: the console at `<domain>/sandbox`, a sandbox at
 | `cloudflare_token` | — | Token of a named Cloudflare tunnel; empty starts a quick tunnel. |
 | `domain` | `sandboxlab-1.chenshaowen.com` | The domain the console is served under. Named by default, and explained below. |
 | `ngrok_token` | — | ngrok authtoken; required when `tunnel` is `ngrok`. |
-| `base_path` | `/sandbox` | The path the deployment is served under. |
+| `base_path` | `/sandboxlab` | The path the deployment is served under. |
 | `default_ttl` | `1h` | How long a sandbox lives when it asks for nothing else. |
 | `max_ttl` | `8h` | The longest a sandbox may live. |
 

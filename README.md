@@ -21,7 +21,7 @@ $ sandbox create -t agent-infra --name demo --wait
 demo  agent-infra  Running
   image      ghcr.io/agent-infra/sandbox:1.11.0
   lifetime   59m left (until 2026-10-01T13:41:12+08:00)
-  aio        https://sandbox.example.com/sandbox/sandbox/demo/aio/?key=...
+  aio        https://sandbox.example.com/sandboxlab/sandbox/demo/aio/?key=...
 
 $ sandbox rm demo
 deleted demo
@@ -101,7 +101,7 @@ go install github.com/shaowenchen/sandboxlab/cmd/sandbox@latest
 ```
 
 ```bash
-export SANDBOX_URL='https://<the link>/sandbox'
+export SANDBOX_URL='https://<the link>/sandboxlab'
 export SANDBOX_KEY='<the key>'
 
 sandbox catalog                          # what can be created
@@ -126,7 +126,7 @@ open "$(sandbox url demo --port aio)"
 `GET /api/v1/describe` is the contract and needs no key:
 
 ```bash
-curl -s https://<the link>/sandbox/api/v1/describe | jq
+curl -s https://<the link>/sandboxlab/api/v1/describe | jq
 ```
 
 | Method | Path | |
@@ -168,7 +168,7 @@ routes above come from.
 
 ```go
 client, err := sdk.New(sdk.Options{
-    BaseURL: "https://sandboxlab.example.com/sandbox",
+    BaseURL: "https://sandboxlab.example.com/sandboxlab",
     Key:     os.Getenv("SANDBOXLAB_KEY"),
 })
 if err != nil {

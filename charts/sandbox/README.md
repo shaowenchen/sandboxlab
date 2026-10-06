@@ -69,9 +69,9 @@ kubectl -n ops-system port-forward svc/sandbox 8080:80
 
 ### The base path
 
-`basePath` is a path prefix the whole deployment is served under: `/sandbox`
-means the console is at `https://host/sandbox` and a sandbox at
-`https://host/sandbox/sandbox/<id>/<port>/`. Leave it empty to serve at the
+`basePath` is a path prefix the whole deployment is served under: `/sandboxlab`
+means the console is at `https://host/sandboxlab` and a sandbox at
+`https://host/sandboxlab/sandbox/<id>/<port>/`. Leave it empty to serve at the
 root.
 
 It is not cosmetic. The environment the sandboxlab action builds publishes

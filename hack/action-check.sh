@@ -130,5 +130,28 @@ else
   bad "$worked_domain_default is the default but not one of the options"
 fi
 
+# ── the two places that name a base path agree ──────────────────────────────
+
+# Same shape of drift as the domain, with the same cause: the action declares a
+# default and the script declares one, and the script's wins in CI — but a run
+# from a workflow that passes nothing takes the action's. Let the two differ and
+# the path a deployment is served under depends on how it was started, which
+# shows up as a console at an address the summary then prints wrong.
+printf '\n\033[1mthe action and the script default to the same base path\033[0m\n'
+
+action_base_path=$(awk '
+  /^  base_path:/{f=1; next}
+  f && /^    default:/{ sub(/^ *default: */, ""); gsub(/'"'"'/, ""); print; exit }
+' "$ACTION")
+script_base_path=$(grep -oE 'SANDBOXLAB_BASE_PATH:=[^}]*' "$SCRIPT" | sed 's/.*:=//')
+
+if [ -z "$action_base_path" ] || [ -z "$script_base_path" ]; then
+  bad "could not read a base_path default from $ACTION or $SCRIPT"
+elif [ "$action_base_path" = "$script_base_path" ]; then
+  ok "both default to $action_base_path"
+else
+  bad "the action defaults to $action_base_path, the script to $script_base_path"
+fi
+
 printf '\n\033[1m%d check(s) failed\033[0m\n' "$fail"
 [ "$fail" -eq 0 ]

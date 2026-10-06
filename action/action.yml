@@ -64,7 +64,14 @@ inputs:
       it: the console at <domain><base_path>, and a sandbox at
       <domain><base_path>/sandbox/<name>/<port>/.
     required: false
-    default: '/sandbox'
+    # Named for the project, which is the one thing on this hostname whose name
+    # the deployment chooses. A sandbox's own path is fixed at
+    # <base_path>/sandbox/<name>/<port>/, so the console sits at /sandboxlab and
+    # the two read as one tree rather than two unrelated /sandbox paths.
+    #
+    # hack/environment.sh declares the same default and is what CI uses; the two
+    # are compared by hack/action-check.sh, so they cannot drift.
+    default: '/sandboxlab'
   default_ttl:
     description: 'How long a sandbox lives when it asks for nothing else, e.g. 1h.'
     required: false

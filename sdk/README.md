@@ -69,7 +69,7 @@ either presents it or it does not.
 
 ```go
 client, err := sdk.New(sdk.Options{
-    BaseURL: "https://sandboxlab.example.com/sandbox",
+    BaseURL: "https://sandboxlab.example.com/sandboxlab",
     Key:     os.Getenv("SANDBOXLAB_KEY"),
 })
 if err != nil {
@@ -97,7 +97,7 @@ from sandboxlab import ApiClient, Configuration
 from sandboxlab.api import SandboxesApi
 from sandboxlab.models import CreateSandboxRequest
 
-config = Configuration(host="https://sandboxlab.example.com/sandbox")
+config = Configuration(host="https://sandboxlab.example.com/sandboxlab")
 config.api_key["ApiKey"] = os.environ["SANDBOXLAB_KEY"]
 api = SandboxesApi(ApiClient(configuration=config))
 
@@ -119,7 +119,7 @@ const withKey = {
   },
 };
 const api = new SandboxesApi(new Configuration({
-  basePath: "https://sandboxlab.example.com/sandbox",
+  basePath: "https://sandboxlab.example.com/sandboxlab",
   middleware: [withKey],
 }));
 
@@ -172,7 +172,7 @@ a running deployment:
 
 ```sh
 export SANDBOXLAB_KEY=...
-go run ./cmd/sandbox --url https://sandboxlab.example.com/sandbox list
+go run ./cmd/sandbox --url https://sandboxlab.example.com/sandboxlab list
 ```
 
 and then assert what you actually care about. The four SDKs are generated from
