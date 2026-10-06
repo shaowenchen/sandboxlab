@@ -10,8 +10,12 @@ nothing to install first and nothing left behind.
 
 ```
 $ sandbox catalog
-agent-infra    AIO Sandbox (browser, shell, MCP) ghcr.io/agent-infra/sandbox:1.11.0
-agent-sandbox  Agent Sandbox runtime            sandbox-runtime:latest
+template       image                                          ttl           ports
+agent-infra    ghcr.io/agent-infra/sandbox:1.11.0             1h (max 8h)   aio:8080
+agent-sandbox  sandbox-runtime:latest                         30m (max 4h)  runtime:8888
+cubesandbox    ghcr.io/tencentcloud/cubesandbox-base:2026.16  30m (max 4h)  —
+e2b            e2bdev/code-interpreter:latest                 1h (max 8h)   —
+opensandbox    opensandbox/code-interpreter:v1.1.0            1h (max 8h)   —
 
 $ sandbox create -t agent-infra --name demo --wait
 demo  agent-infra  Running
@@ -25,7 +29,8 @@ deleted demo
 
 ## Using it
 
-Add this to any repository, from **Actions → Sandboxes → Run workflow**:
+Add this to any repository, then run it from **Actions → sandboxes → Run
+workflow** (the name comes from the `name:` at the top of the workflow you add):
 
 ```yaml
 name: sandboxes
@@ -66,27 +71,33 @@ sandboxes may exist at once.
 
 ## The four interfaces
 
-Everything the API can do is reachable four ways, and all four go through the
-same REST interface — so the CLI cannot drift from the console, neither can
-drift from the API, and the SDK cannot drift from any of them.
+Everything the API can do is reachable through a REST interface with three
+clients in front of it — the CLI, the console and the SDK — so a change lands in
+one place and every client sees it. The console is the exception to full parity:
+it lists, creates, opens, renews and deletes, and reads metrics, events and
+logs, but running a command in a sandbox is left to the CLI and the API, because
+that is what an agent does rather than what a button does.
 
 They are kept honest by one document. [`api/openapi.yaml`](api/openapi.yaml)
 describes this API, and the SDKs for Go, Python, TypeScript and Java are
-generated from it; a change to the spec that is not carried through is a build
-failure rather than a client that quietly describes the old API. See
-[`sdk/`](sdk/) for the SDKs.
+generated from it. A spec change that is not carried through to the Go SDK is a
+build failure (`make sdk-check-go`, run by CI); for the other three,
+[`.github/workflows/sdk.yml`](.github/workflows/sdk.yml) regenerates and commits
+them on every push to `main`, so the committed clients cannot quietly describe
+the old API. See [`sdk/`](sdk/) for the SDKs.
 
 ### The console
 
 One page served from inside the binary. It asks for the key, keeps it in
-`localStorage` so a reload does not ask again, and then draws the sandboxes, the
-templates they can be created from and how long each has left, with a link to
-each one's ports.
+`localStorage` so a reload does not ask again, and has three tabs: the
+**Sandboxes** list, with an Open button into each sandbox's first address plus
+its metrics, events, logs and lifetime; the **Templates** it can be created
+from; and this documentation.
 
 ### The CLI
 
 ```bash
-go install github.com/shaowenchen/sandboxlab/cmd/sandbox-cli@latest
+go install github.com/shaowenchen/sandboxlab/cmd/sandbox@latest
 ```
 
 ```bash
@@ -107,7 +118,7 @@ sandbox rm scratch                       # stop it now
 `sandbox url` prints one line and nothing else, so a shell can capture it:
 
 ```bash
-open "$(sandbox url demo --port vnc)"
+open "$(sandbox url demo --port aio)"
 ```
 
 ### The API
@@ -159,11 +170,19 @@ if err != nil {
     return err
 }
 created, err := client.CreateSandboxWithResponse(ctx, sdk.CreateSandboxRequest{
-    Template: "agent-infra", Name: "myshop", TTL: ptr("30m"),
+    Template: "agent-infra", Name: "myshop", TTL: "30m",
 })
+if err != nil {
+    return err
+}
+if err := sdk.Check(created.HTTPResponse, created.Body); err != nil {
+    return err
+}
+fmt.Println(created.JSON201.ID)
 ```
 
-The Go package has no dependencies; Python needs `urllib3` and `pydantic`,
+The Go package needs `github.com/oapi-codegen/runtime` (and, through it,
+`google/uuid`); Python needs `urllib3`, `python-dateutil` and `pydantic`;
 TypeScript needs nothing at all, and Java needs Jackson. The generated code is
 committed, so consuming it does not require a code generator — see
 [`sdk/README.md`](sdk/README.md) for a worked example in each language.
@@ -309,7 +328,7 @@ The control plane is an ordinary Go binary and a Helm chart. The action wires
 them together on a runner; the pieces are usable without it.
 
 ```bash
-make build          # bin/sandbox and bin/sandbox-cli
+make build          # bin/sandbox (the CLI) and bin/sandbox-control-plane
 
 helm install sandbox ./charts/sandbox \
   --namespace ops-system --create-namespace \

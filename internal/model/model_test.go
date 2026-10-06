@@ -1,6 +1,8 @@
 package model
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -275,7 +277,7 @@ func TestSandboxExpiry(t *testing.T) {
 	})
 
 	t.Run("before expiry", func(t *testing.T) {
-		sb := Sandbox{ExpiresAt: now.Add(30 * time.Minute)}
+		sb := Sandbox{ExpiresAt: TimePtr(now.Add(30 * time.Minute))}
 		if sb.Expired(now) {
 			t.Error("a sandbox with 30m left reported as expired")
 		}
@@ -285,7 +287,7 @@ func TestSandboxExpiry(t *testing.T) {
 	})
 
 	t.Run("after expiry", func(t *testing.T) {
-		sb := Sandbox{ExpiresAt: now.Add(-time.Minute)}
+		sb := Sandbox{ExpiresAt: TimePtr(now.Add(-time.Minute))}
 		if !sb.Expired(now) {
 			t.Error("a sandbox past its expiry did not report as expired")
 		}
@@ -297,9 +299,33 @@ func TestSandboxExpiry(t *testing.T) {
 	})
 
 	t.Run("exactly at expiry", func(t *testing.T) {
-		sb := Sandbox{ExpiresAt: now}
+		sb := Sandbox{ExpiresAt: TimePtr(now)}
 		if !sb.Expired(now) {
 			t.Error("a sandbox at its expiry instant did not report as expired")
 		}
 	})
+}
+
+// TestNoTTLIsTheAbsenceOfExpiresAt guards the wire contract the spec and every
+// generated SDK describe: a sandbox with no TTL omits expiresAt rather than
+// sending a zero time. Go's `omitempty` does not omit a struct, so this was
+// "0001-01-01T00:00:00Z" until ExpiresAt became a pointer — and a client that
+// keys "no expiry" off the field's absence read that as long expired.
+func TestNoTTLIsTheAbsenceOfExpiresAt(t *testing.T) {
+	without, err := json.Marshal(Sandbox{ID: "x", Template: "t", State: StateRunning})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(without), "expiresAt") {
+		t.Errorf("a sandbox with no TTL still carries expiresAt: %s", without)
+	}
+
+	at := time.Date(2026, 10, 1, 13, 41, 12, 0, time.UTC)
+	with, err := json.Marshal(Sandbox{ID: "x", Template: "t", State: StateRunning, ExpiresAt: TimePtr(at)})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(with), `"expiresAt":"2026-10-01T13:41:12Z"`) {
+		t.Errorf("a sandbox with a TTL did not carry it: %s", with)
+	}
 }

@@ -106,10 +106,12 @@ your own; the chart then expects a ServiceAccount named
 ## The catalog
 
 The templates a sandbox can be created from are compiled into the control plane:
-`agent-infra` (the AIO Sandbox), `agent-sandbox` (the reference runtime from
-kubernetes-sigs/agent-sandbox, whose image must be built and pushed first) and
-`opensandbox` (alibaba/OpenSandbox's code-interpreter image). Read them with
-`sandbox catalog` or `GET /api/v1/catalog`.
+`agent-infra` (the AIO Sandbox, the one that boots ready with a browser and a
+desktop), `agent-sandbox` (the reference runtime from
+kubernetes-sigs/agent-sandbox, whose image must be built and pushed first),
+`opensandbox` (alibaba/OpenSandbox's code-interpreter image), `e2b` (E2B's
+code-interpreter image) and `cubesandbox` (TencentCloud/CubeSandbox's base
+image). Read them with `sandbox catalog` or `GET /api/v1/catalog`.
 
 More can be added to a **running** deployment without a release, through the API
 or the console:

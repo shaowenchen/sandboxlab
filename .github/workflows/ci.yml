@@ -69,17 +69,28 @@ jobs:
       - name: Check the action's inputs reach the script
         run: hack/action-check.sh
 
+      # The spec is the source of truth for the CLI, the console and every SDK.
+      # Regenerating the Go SDK is a Go program, so this needs nothing this job
+      # does not already have — and without it, a spec edited without a
+      # regeneration is a green build whose committed client describes an API
+      # that no longer exists. The other three languages are checked in
+      # .github/workflows/sdk.yml, where the JDK and the generator jar live.
+      - name: Check the Go SDK matches the spec
+        run: make sdk-check-go
+
       - name: Build the binaries
         run: make build
 
       - name: Confirm the CLI and server start
         run: |
           set -euo pipefail
-          ./bin/sandbox catalog
-          ./bin/sandbox-cli --help >/dev/null
-          # The describe endpoint is the API's own contract, and it needs no
-          # cluster — so it is the one part of the server that can be started
-          # and asked something here.
+          # The server's own `catalog` prints what it would serve, straight from
+          # the compiled-in templates — the one command here that needs no
+          # cluster and no control plane to answer.
+          ./bin/sandbox-control-plane catalog
+          ./bin/sandbox-control-plane --help >/dev/null
+          # The CLI needs a server to talk to, so all it can be asked here is
+          # that it starts and describes itself.
           ./bin/sandbox --help >/dev/null
 
   image:

@@ -127,10 +127,14 @@ type Sandbox struct {
 	// Message explains a state that is not Running, when the cluster says why.
 	Message string `json:"message,omitempty"`
 
-	// CreatedAt and ExpiresAt bracket the sandbox's life. ExpiresAt is the zero
-	// time when the sandbox has no TTL.
-	CreatedAt time.Time `json:"createdAt"`
-	ExpiresAt time.Time `json:"expiresAt,omitempty"`
+	// CreatedAt and ExpiresAt bracket the sandbox's life. ExpiresAt is nil when
+	// the sandbox has no TTL — a pointer, not a zero time, because `omitempty`
+	// does not omit a struct and a zero time would go out as
+	// "0001-01-01T00:00:00Z". The spec and the generated SDKs promise the field
+	// is *absent* in that case, and a client that keys "no expiry" off its
+	// absence would read the zero time as long expired.
+	CreatedAt time.Time  `json:"createdAt"`
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 
 	// Endpoints are the URLs the sandbox is reached at, one per template port.
 	Endpoints []Endpoint `json:"endpoints,omitempty"`
@@ -153,9 +157,14 @@ type Endpoint struct {
 	URL string `json:"url,omitempty"`
 }
 
+// TimePtr returns a pointer to t. ExpiresAt is a pointer so that "no expiry" is
+// the absence of the field, and this is what builds one for a value that is
+// known to be set.
+func TimePtr(t time.Time) *time.Time { return &t }
+
 // TTLRemaining is how long the sandbox has left, or zero when it has no TTL.
 func (s Sandbox) TTLRemaining(now time.Time) time.Duration {
-	if s.ExpiresAt.IsZero() {
+	if s.ExpiresAt == nil {
 		return 0
 	}
 	d := s.ExpiresAt.Sub(now)
@@ -167,7 +176,7 @@ func (s Sandbox) TTLRemaining(now time.Time) time.Duration {
 
 // Expired reports whether the sandbox's TTL has passed.
 func (s Sandbox) Expired(now time.Time) bool {
-	return !s.ExpiresAt.IsZero() && !now.Before(s.ExpiresAt)
+	return s.ExpiresAt != nil && !now.Before(*s.ExpiresAt)
 }
 
 // Catalog is an ordered set of templates.

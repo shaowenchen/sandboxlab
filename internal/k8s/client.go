@@ -445,7 +445,8 @@ func (c *Client) describe(ctx context.Context, ns *corev1.Namespace) (model.Sand
 	}
 	if v := ns.Annotations[expiresAtAnnotation]; v != "" {
 		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			sb.ExpiresAt = t
+			// A pointer, so "no expiry" stays the absence of the field.
+			sb.ExpiresAt = &t
 		}
 	}
 
@@ -566,7 +567,7 @@ func (c *Client) Expired(ctx context.Context) ([]model.Sandbox, error) {
 	now := c.now()
 	var out []model.Sandbox
 	for _, sb := range all {
-		if sb.ExpiresAt.IsZero() || now.Before(sb.ExpiresAt) {
+		if sb.ExpiresAt == nil || now.Before(*sb.ExpiresAt) {
 			continue
 		}
 		out = append(out, sb)

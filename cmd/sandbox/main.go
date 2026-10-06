@@ -1,220 +1,124 @@
-// Command sandbox is the control plane: it serves the API, the console, and the
-// data-plane proxy that reaches into a sandbox.
+// Command sandbox drives a sandbox environment from a terminal.
 //
-// It has one real command, `serve`, because that is what the Deployment runs.
-// Everything about an environment comes from the environment the pod gives it
-// (see the internal/config package), so there are no flags to keep in step with
-// the chart's values.
+// The commands are shaped around what someone actually does, not around the
+// API:
+//
+//	sandbox create      start a sandbox from a template
+//	sandbox list        what is running, and where
+//	sandbox url         the address to open a sandbox at
+//	sandbox logs        what a sandbox has printed
+//	sandbox rm          stop one
+//
+// `create` and `url` are the pair that matters. Everything else exists so a
+// person can answer a question without opening a browser, and each command is a
+// thin layer over internal/client — the same code the console's fetch calls
+// reach the same endpoints — so the CLI cannot drift from the API.
 package main
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/shaowenchen/sandboxlab/internal/api"
-	"github.com/shaowenchen/sandboxlab/internal/auth"
 	"github.com/shaowenchen/sandboxlab/internal/buildinfo"
-	"github.com/shaowenchen/sandboxlab/internal/catalog"
-	"github.com/shaowenchen/sandboxlab/internal/config"
-	"github.com/shaowenchen/sandboxlab/internal/console"
-	"github.com/shaowenchen/sandboxlab/internal/k8s"
-	"github.com/shaowenchen/sandboxlab/internal/logging"
-	"github.com/shaowenchen/sandboxlab/internal/proxy"
-	"github.com/shaowenchen/sandboxlab/internal/reaper"
-	"github.com/shaowenchen/sandboxlab/internal/sandbox"
+	"github.com/shaowenchen/sandboxlab/internal/client"
 )
 
 func main() {
-	// A signal-cancelled context is what lets the reaper stop and the HTTP
-	// server drain instead of the process being killed mid-request.
+	// A signal-cancelled context is what lets a Ctrl-C stop a followed log or
+	// an in-flight request cleanly.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	root := &cobra.Command{
 		Use:           "sandbox",
-		Short:         "Serve a sandbox environment: the API, the console and the data-plane proxy",
+		Short:         "Manage sandboxes in a sandboxlab environment",
+		Long:          "sandbox talks to a sandboxlab control plane: it creates sandboxes,\nlists them, and tells you where to reach them.",
 		Version:       buildinfo.String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.AddCommand(serveCmd())
-	root.AddCommand(catalogCmd())
+	root.PersistentFlags().String("url", "", "the control plane's address; defaults to $SANDBOX_URL")
+	root.PersistentFlags().String("key", "", "the API key; defaults to $SANDBOX_KEY")
+	root.PersistentFlags().Bool("json", false, "print the server's JSON instead of a table")
+
+	root.AddCommand(
+		catalogCmd(),
+		createCmd(),
+		listCmd(),
+		getCmd(),
+		urlCmd(),
+		logsCmd(),
+		eventsCmd(),
+		execCmd(),
+		cpCmd(),
+		renewCmd(),
+		rmCmd(),
+		envCmd(),
+		describeCmd(),
+	)
 
 	if err := root.ExecuteContext(ctx); err != nil {
-		fmt.Fprintln(os.Stderr, "error: "+err.Error())
+		// `exec` ran a command and is reporting its status, which is not this
+		// program's failure and needs no message of its own.
+		var ec exitCodeError
+		if errors.As(err, &ec) {
+			os.Exit(ec.code)
+		}
+		// A command that has already explained itself — `rm` reporting which
+		// names it could not delete, one line each — returns this to set a
+		// non-zero status without a second, empty message under its own.
+		if !errors.Is(err, errExitQuiet) {
+			fmt.Fprintln(os.Stderr, "error: "+err.Error())
+		}
 		os.Exit(1)
 	}
 }
 
-func serveCmd() *cobra.Command {
-	var (
-		listen      string
-		printConfig bool
-	)
-	cmd := &cobra.Command{
-		Use:   "serve",
-		Short: "Start the control plane",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := config.Load()
-			if err != nil {
-				return err
-			}
-			if listen != "" {
-				cfg.Listen = listen
-			}
-			if printConfig {
-				// Printed before anything else, so a run that fails to reach a
-				// cluster still shows what it was configured with — which is
-				// the question being asked at that point.
-				printResolved(cfg)
-			}
-			return serve(cmd.Context(), cfg)
-		},
+// Environment variables the CLI reads, so a shell that has been set up once
+// needs no flags.
+const (
+	urlEnv = "SANDBOX_URL"
+	keyEnv = "SANDBOX_KEY"
+)
+
+// newClient builds a client from the flags and the environment.
+func newClient(cmd *cobra.Command) (*client.Client, error) {
+	baseURL, _ := cmd.Flags().GetString("url")
+	if baseURL == "" {
+		baseURL = os.Getenv(urlEnv)
 	}
-	cmd.Flags().StringVar(&listen, "listen", "", "address to bind, overriding SANDBOX_LISTEN")
-	cmd.Flags().BoolVar(&printConfig, "print-config", true, "log the resolved configuration at startup")
-	return cmd
+	if baseURL == "" {
+		return nil, fmt.Errorf("no control plane address: pass --url or set %s (it looks like https://<host>/sandbox)", urlEnv)
+	}
+	key, _ := cmd.Flags().GetString("key")
+	if key == "" {
+		key = os.Getenv(keyEnv)
+	}
+	return client.New(baseURL, key), nil
 }
 
-func serve(ctx context.Context, cfg config.Config) error {
-	log := logging.New(cfg.LogLevel, os.Stderr)
-	log.Info("starting sandboxlab", "build", buildinfo.String())
-
-	templates, err := catalog.Loader{}.Load()
-	if err != nil {
-		return err
-	}
-	log.Info("loaded the catalog", "templates", templates.Len())
-
-	client, err := k8s.New(cfg)
-	if err != nil {
-		return err
-	}
-
-	svc := sandbox.New(cfg, templates, client)
-
-	if cfg.GeneratedKey() {
-		// Loud, because it is a credential and the only place it appears. It is
-		// never masked: hiding it here would hide it from the summary that
-		// exists to show it.
-		log.Warn("no API key was configured; one was generated", "api_key", cfg.APIKey)
-	}
-
-	var dataPlane api.DataPlane
-	if cfg.DataPlane {
-		dataPlane = proxy.New(cfg, client, log)
-	}
-
-	consoleHandler, err := console.New()
-	if err != nil {
-		return err
-	}
-
-	server := api.New(api.Deps{
-		Config:    cfg,
-		Service:   svc,
-		Auth:      auth.New(cfg.APIKey),
-		Log:       log,
-		Console:   consoleHandler,
-		DataPlane: dataPlane,
-	})
-
-	httpServer := &http.Server{
-		Addr:              cfg.Listen,
-		Handler:           server,
-		ReadHeaderTimeout: 15 * time.Second,
-		// No WriteTimeout: the data-plane proxy streams a sandbox's output, and
-		// a fixed write deadline would cut a long-running command off mid-line.
-		IdleTimeout: 120 * time.Second,
-		BaseContext: func(net.Listener) context.Context { return ctx },
-	}
-
-	// The reaper runs for the life of the process. A control plane that
-	// restarts does not lose the schedule — the expiry is on the sandbox — so
-	// there is nothing to recover here.
-	go reaper.New(client, cfg.ReapInterval, log).Run(ctx)
-
-	errCh := make(chan error, 1)
-	go func() {
-		log.Info("serving", "listen", cfg.Listen, "base_path", cfg.BasePath, "public_url", cfg.PublicURL)
-		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
-		}
-	}()
-
-	select {
-	case err := <-errCh:
-		return err
-	case <-ctx.Done():
-		log.Info("shutting down")
-	}
-
-	// A bounded drain: the process should stop, but not so abruptly that a
-	// request in flight is cut off with no response at all.
-	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
-	defer cancel()
-	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		log.Warn("did not shut down cleanly", "error", err)
-	}
-	return nil
+// jsonOut reports whether the caller asked for raw JSON.
+func jsonOut(cmd *cobra.Command) bool {
+	v, _ := cmd.Flags().GetBool("json")
+	return v
 }
 
-// catalogCmd prints the catalog the current configuration would serve, without
-// starting anything. It is how a person answers "why is that template not
-// listed" without a cluster.
-func catalogCmd() *cobra.Command {
-	var asYAML bool
-	cmd := &cobra.Command{
-		Use:   "catalog",
-		Short: "Print the templates this configuration serves",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			templates, err := catalog.Loader{}.Load()
-			if err != nil {
-				return err
-			}
-			out := cmd.OutOrStdout()
-			for _, t := range templates.List() {
-				if asYAML {
-					b, err := catalog.Marshal(t)
-					if err != nil {
-						return err
-					}
-					fmt.Fprintf(out, "---\n%s", b)
-					continue
-				}
-				fmt.Fprintf(out, "%-14s %-22s %s\n", t.ID, t.Title, t.Image)
-			}
-			return nil
-		},
-	}
-	cmd.Flags().BoolVar(&asYAML, "yaml", false, "print the templates as YAML rather than a table")
-	return cmd
-}
+// isNotFound reports whether an error is the API's 404, so a command can turn
+// it into its own message rather than echoing a status.
+func isNotFound(err error) bool { return client.IsNotFound(err) }
 
-func printResolved(cfg config.Config) {
-	log := logging.New(cfg.LogLevel, os.Stderr)
-	log.Info("resolved configuration",
-		"listen", cfg.Listen,
-		"namespace", cfg.Namespace,
-		"namespace_prefix", cfg.SandboxNamespacePrefix,
-		"base_path", cfg.BasePath,
-		"public_url", cfg.PublicURL,
-		"default_ttl", cfg.DefaultTTL,
-		"max_ttl", cfg.MaxTTL,
-		"max_sandboxes", cfg.MaxSandboxes,
-		"reap_interval", cfg.ReapInterval,
-		"exec_timeout", cfg.ExecTimeout,
-		"max_exec_timeout", cfg.MaxExecTimeout,
-		"max_file_bytes", cfg.MaxFileBytes,
-		"data_plane", cfg.DataPlane,
-	)
-}
+// exitCodeError carries a child process's exit status up to main, so `sandbox
+// exec` becomes the command it ran rather than always reporting 1.
+type exitCodeError struct{ code int }
+
+func (e exitCodeError) Error() string { return fmt.Sprintf("exit status %d", e.code) }
+
+// errExitQuiet is returned when a command has already printed what went wrong,
+// line by line, and only needs to set a non-zero status.
+var errExitQuiet = errors.New("")

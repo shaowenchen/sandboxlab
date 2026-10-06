@@ -293,7 +293,7 @@ func urlCmd() *cobra.Command {
 		Short: "Print the address to open a sandbox at",
 		Long: "Print a sandbox's address, one line and nothing else, so a shell can\n" +
 			"capture it:\n\n" +
-			"  open \"$(sandbox url myshop --port vnc)\"",
+			"  open \"$(sandbox url myshop --port aio)\"",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := newClient(cmd)
@@ -601,10 +601,10 @@ func printSandboxCard(cmd *cobra.Command, c *client.Client, sb model.Sandbox) {
 }
 
 func expiryText(sb model.Sandbox) string {
-	if sb.ExpiresAt.IsZero() {
+	if sb.ExpiresAt == nil {
 		return "no expiry"
 	}
-	left := time.Until(sb.ExpiresAt)
+	left := time.Until(*sb.ExpiresAt)
 	if left <= 0 {
 		return "expired"
 	}
@@ -612,7 +612,7 @@ func expiryText(sb model.Sandbox) string {
 }
 
 func ttlRemaining(sb model.Sandbox, now time.Time) string {
-	if sb.ExpiresAt.IsZero() {
+	if sb.ExpiresAt == nil {
 		return "—"
 	}
 	left := sb.ExpiresAt.Sub(now)

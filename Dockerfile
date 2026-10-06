@@ -38,12 +38,12 @@ RUN go build -trimpath \
       -ldflags "-s -w \
         -X github.com/shaowenchen/sandboxlab/internal/buildinfo.Version=${VERSION} \
         -X github.com/shaowenchen/sandboxlab/internal/buildinfo.Commit=${COMMIT}" \
-      -o /out/sandbox ./cmd/sandbox \
+      -o /out/sandbox-control-plane ./cmd/sandbox-control-plane \
  && go build -trimpath \
       -ldflags "-s -w \
         -X github.com/shaowenchen/sandboxlab/internal/buildinfo.Version=${VERSION} \
         -X github.com/shaowenchen/sandboxlab/internal/buildinfo.Commit=${COMMIT}" \
-      -o /out/sandbox-cli ./cmd/sandbox-cli
+      -o /out/sandbox ./cmd/sandbox
 
 # ---------------------------------------------------------------------------
 # Runtime
@@ -58,8 +58,8 @@ RUN go build -trimpath \
 # 65532, so the pod runs unprivileged without the chart having to arrange it.
 FROM gcr.io/distroless/static-debian12:nonroot
 
+COPY --from=builder /out/sandbox-control-plane /usr/local/bin/sandbox-control-plane
 COPY --from=builder /out/sandbox /usr/local/bin/sandbox
-COPY --from=builder /out/sandbox-cli /usr/local/bin/sandbox-cli
 
 # The chart sets the real values; these are what a bare `docker run` of the
 # image gets, so it starts somewhere sensible rather than failing on an empty
@@ -74,5 +74,5 @@ EXPOSE 8080
 # Distroless has no shell, so the binary is the entrypoint directly — there is
 # no tini here and none is needed: the process is PID 1 and installs its own
 # signal handling, which is what a shell wrapper would otherwise be for.
-ENTRYPOINT ["/usr/local/bin/sandbox"]
+ENTRYPOINT ["/usr/local/bin/sandbox-control-plane"]
 CMD ["serve"]

@@ -277,7 +277,7 @@ func TestRenew(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Renew: %v", err)
 		}
-		if !sb.ExpiresAt.IsZero() {
+		if sb.ExpiresAt != nil {
 			t.Errorf("ExpiresAt = %v after renewing with no ttl, want no expiry", sb.ExpiresAt)
 		}
 	})

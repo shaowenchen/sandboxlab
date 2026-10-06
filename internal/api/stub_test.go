@@ -113,7 +113,7 @@ func (s *stubService) Create(_ context.Context, in sandbox.CreateInput) (model.S
 		Namespace: s.cfg.SandboxNamespace(id),
 	}
 	if ttl > 0 {
-		sb.ExpiresAt = s.now().Add(ttl)
+		sb.ExpiresAt = model.TimePtr(s.now().Add(ttl))
 	}
 	for _, p := range tmpl.Ports {
 		sb.Endpoints = append(sb.Endpoints, model.Endpoint{
@@ -164,9 +164,9 @@ func (s *stubService) Renew(ctx context.Context, id string, in sandbox.RenewInpu
 		return model.Sandbox{}, fmt.Errorf("%w: ttl cannot be negative", sandbox.ErrInvalid)
 	}
 	if in.TTL == 0 {
-		sb.ExpiresAt = time.Time{}
+		sb.ExpiresAt = nil
 	} else {
-		sb.ExpiresAt = s.now().Add(s.cfg.ClampTTL(in.TTL, 0))
+		sb.ExpiresAt = model.TimePtr(s.now().Add(s.cfg.ClampTTL(in.TTL, 0)))
 	}
 	s.boxes[sb.ID] = sb
 	return sb, nil

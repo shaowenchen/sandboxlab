@@ -72,7 +72,7 @@ func (r *Reaper) Sweep(ctx context.Context) {
 		r.log.Info("deleted an expired sandbox",
 			"sandbox", sb.ID,
 			"template", sb.Template,
-			"expired", time.Since(sb.ExpiresAt).Truncate(time.Second).String()+" ago",
+			"expired", time.Since(*sb.ExpiresAt).Truncate(time.Second).String()+" ago",
 		)
 	}
 }

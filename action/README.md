@@ -63,7 +63,7 @@ routes from a sandbox's: the console at `<domain>/sandbox`, a sandbox at
 
 | Input | Default | Description |
 |---|---|---|
-| `api_key` | generated | API key. Printed in the summary either way, because it is the deliverable. |
+| `api_key` | empty → generated | API key for this environment. Empty means the environment generates one. Printed in the summary either way, because it is the deliverable. |
 | `session_hours` | `4` | How long the environment may run. `0` means no self-imposed limit, bounded by the job's timeout. |
 | `tunnel` | `cloudflare` | `cloudflare` (no account needed) or `ngrok`. |
 | `cloudflare_token` | — | Token of a named Cloudflare tunnel; empty starts a quick tunnel. |
@@ -80,15 +80,23 @@ particular one, and the token is a credential and never a plain input.
 ### A fixed key for the debugger
 
 `gh workflow run debugger.yml` generates a fresh key every run and prints it in
-the Summary. To reuse one instead — so a `SANDBOX_KEY` in a shell, or a saved
-console session, keeps working across runs — set the repository secret
-**`SANDBOXLAB_API_KEY`**. The debugger workflow passes it as the action's
-`api_key`; left unset, it is empty and the environment generates one exactly as
-before.
+the Summary. There are two ways to pin one instead, so a `SANDBOX_KEY` in a
+shell, or a saved console session, keeps working across runs:
 
-It is a **secret** and not a workflow input on purpose: an input is plain text
-that anyone who can read the run can see, and this is the credential that guards
-every sandbox the environment serves.
+- Set the repository secret **`SANDBOXLAB_API_KEY`**. Every run then uses it.
+- Pass the workflow's **`api_key` input** at dispatch
+  (`gh workflow run debugger.yml -f api_key=...`). This is how an automated
+  caller hands over the key it will call the environment with, without the two
+  sides having to be configured with the same value out of band.
+
+The dispatch input wins when it is set; otherwise the secret pins the key; with
+both empty the environment generates one exactly as before.
+
+`api_key` is deliberately a plain workflow input rather than a secret: whoever
+starts the run is choosing a key for it, and can read it back from the run's
+Summary anyway. The **secret** path is the one to use when the key must not
+appear in the dispatch at all — an input is visible to anyone who can read the
+run.
 
 ## The domain, and the named tunnel it needs
 

@@ -161,7 +161,7 @@ func TestCreateRecordsTheExpiryOnTheNamespace(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 	want := now.Add(2 * time.Hour)
-	if !sb.ExpiresAt.Equal(want) {
+	if sb.ExpiresAt == nil || !sb.ExpiresAt.Equal(want) {
 		t.Errorf("ExpiresAt = %v, want %v", sb.ExpiresAt, want)
 	}
 
@@ -185,7 +185,7 @@ func TestCreateWithNoTTLHasNoExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if !sb.ExpiresAt.IsZero() {
+	if sb.ExpiresAt != nil {
 		t.Errorf("ExpiresAt = %v, want no expiry for a TTL of zero", sb.ExpiresAt)
 	}
 	ns, err := c.cs.CoreV1().Namespaces().Get(context.Background(), "sbx-demo", metav1.GetOptions{})
@@ -365,7 +365,7 @@ func TestRenew(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Renew: %v", err)
 		}
-		if want := now.Add(4 * time.Hour); !sb.ExpiresAt.Equal(want) {
+		if want := now.Add(4 * time.Hour); sb.ExpiresAt == nil || !sb.ExpiresAt.Equal(want) {
 			t.Errorf("ExpiresAt = %v, want %v", sb.ExpiresAt, want)
 		}
 	})
@@ -375,7 +375,7 @@ func TestRenew(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Renew: %v", err)
 		}
-		if !sb.ExpiresAt.IsZero() {
+		if sb.ExpiresAt != nil {
 			t.Errorf("ExpiresAt = %v after renewing with zero, want no expiry", sb.ExpiresAt)
 		}
 		ns, err := c.cs.CoreV1().Namespaces().Get(ctx, "sbx-demo", metav1.GetOptions{})

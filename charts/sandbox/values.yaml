@@ -66,8 +66,9 @@ maxSandboxes: 0
 # How often expired sandboxes are collected.
 reapInterval: 30s
 
-# Running commands in a sandbox, which `sandbox exec`, `sandbox cp` and the
-# console's Exec button all use.
+# Running commands in a sandbox, which `sandbox exec` and `sandbox cp` use.
+# The console deliberately has no Exec button: it copies the command an agent
+# can paste instead.
 #
 # execTimeout is how long a command may take when the caller names no time of
 # its own; execTimeoutMax is the ceiling a caller cannot ask past. A command in
@@ -85,9 +86,9 @@ maxFileBytes: 2097152
 dataPlane: true
 
 # Templates are compiled into the control plane; more can be added to a running
-# deployment through the API or the console (`sandbox catalog add`, `PUT
-# /api/v1/catalog/{id}`). They are held in memory and are not persisted, so
-# there is nothing to configure here.
+# deployment through the API or the console (`sandbox catalog add`, `POST
+# /api/v1/catalog`). They are held in memory and are not persisted, so there is
+# nothing to configure here.
 logLevel: info
 
 # The control plane's own resources. It is a small HTTP server; the work happens

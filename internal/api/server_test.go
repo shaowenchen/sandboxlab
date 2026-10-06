@@ -450,7 +450,7 @@ func TestRenewSandbox(t *testing.T) {
 	}
 	var sb model.Sandbox
 	decode(t, w, &sb)
-	if sb.ExpiresAt.IsZero() {
+	if sb.ExpiresAt == nil {
 		t.Error("renewing did not give the sandbox an expiry")
 	}
 
@@ -471,7 +471,7 @@ func TestRenewWithoutATTLRemovesTheExpiry(t *testing.T) {
 	}
 	var sb model.Sandbox
 	decode(t, w, &sb)
-	if !sb.ExpiresAt.IsZero() {
+	if sb.ExpiresAt != nil {
 		t.Errorf("expiresAt = %v after renewing with no ttl, want no expiry", sb.ExpiresAt)
 	}
 }
