@@ -52,6 +52,7 @@ directly usable, and `GET /api/v1/describe` is the contract — it needs no key.
 |---|---|
 | **kind cluster** | A throwaway Kubernetes cluster, created for this run and deleted with it. |
 | **The control plane** | Built from this commit's Dockerfile and loaded into the cluster, installed with [this repository's Helm chart](../charts/sandbox/README.md). Testing the commit under test is the point; a published `latest` would test yesterday's. |
+| **metrics-server** | The cluster's resource metrics API. It is what makes a sandbox's CPU and memory visible — in the console's Metrics panel and through `GET /api/v1/sandboxes/{id}/usage`; without it both report usage as unavailable. Pinned to `v0.7.2`, with the two flags a kind cluster's kubelets need. |
 | **Istio** | The ingress gateway the console and every sandbox are published through, plus the `Gateway` resource `istioctl install` deliberately does not write. |
 | **cloudflared** | A named tunnel, published at `domain`. Set `domain` to empty for a quick tunnel instead, or `tunnel: ngrok` to use ngrok. |
 

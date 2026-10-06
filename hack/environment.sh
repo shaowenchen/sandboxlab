@@ -332,7 +332,7 @@ record SANDBOX_GATEWAY_URL "http://127.0.0.1:${SANDBOXLAB_GATEWAY_NODEPORT}"
 # Start the tunnel agent here, once the address is known and before anything
 # waits on it.
 #
-# The named-tunnel case used to leave this to section 9, and section 8 waits for
+# The named-tunnel case used to leave this to section 10, and section 9 waits for
 # the tunnel to serve the console at the end of the run — so the wait was for
 # something that had not been started. The sequence was:
 #
@@ -344,7 +344,7 @@ record SANDBOX_GATEWAY_URL "http://127.0.0.1:${SANDBOXLAB_GATEWAY_NODEPORT}"
 # working shortly after — which is exactly the kind of fault that gets left
 # alone, because the symptom is a delay rather than a failure.
 #
-# Here rather than in section 9 because the check and the thing checked are the
+# Here rather than in section 10 because the check and the thing checked are the
 # same fact: an agent is running, so waiting for it to serve is meaningful. It
 # is also harmless to start now — cloudflared connects out and the local address
 # answers once the cluster is up, and it reconnects until then.
@@ -397,7 +397,81 @@ if [ "$SANDBOXLAB_SKIP_BUILD" != "true" ]; then
   kind load docker-image "$SANDBOXLAB_IMAGE" --name "$SANDBOXLAB_CLUSTER_NAME"
 fi
 
-# ── 6. the ingress gateway ──────────────────────────────────────────────────
+# ── 6. the metrics-server ───────────────────────────────────────────────────
+
+# The resource metrics API, which is the only thing a sandbox's CPU and memory
+# come from. Nothing in a default kind cluster serves it: without this, the
+# console's Metrics panel and `GET /api/v1/sandboxes/{id}/usage` answer
+# `available: false` forever, and the control plane is right to say so — it is
+# reporting that the cluster has no metrics API, not that a sandbox is idle.
+#
+# Installed before the control plane because the check in section 9 reads usage
+# through it: the ordering is what makes that check fail for a real reason
+# rather than for a component that has not been installed yet.
+#
+# Pinned to v0.7.2 rather than the newest, the way kind, kubectl, istioctl and
+# helm are pinned: v0.7.x is the line that supports the Kubernetes 1.31 the kind
+# node image runs, and a floating version would make the environment's behaviour
+# depend on the day it was built. The manifest names its own image
+# (metrics-server:v0.7.2), so the version appears once and in this one URL.
+log "installing the metrics-server"
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.7.2/components.yaml
+
+# The one flag a kind cluster needs, and why this step is more than a
+# `kubectl apply`.
+#
+# `--kubelet-insecure-tls` skips verification of the kubelet's serving
+# certificate. A kind node's kubelet presents a self-signed certificate with no
+# CA to verify it against, so metrics-server's default check fails and every
+# scrape is refused — the pod stays Running and the deployment looks healthy
+# while the metrics API never answers. On a real cluster with a kubelet CA this
+# flag is unnecessary; on kind it is the difference between working and not.
+#
+# It is the *only* flag needed, and the one that is usually set alongside it is
+# deliberately absent. Guides for running metrics-server on kind also pass
+# `--kubelet-preferred-address-types=InternalIP`, because a scrape that dials a
+# node's Hostname goes nowhere here: a kind node's hostname does not resolve to
+# the node from inside the cluster. The manifest pinned above already puts
+# InternalIP first — `--kubelet-preferred-address-types=InternalIP,ExternalIP,
+# Hostname` — so adding it would not change anything, and it could not: pflag
+# registers that flag as a *slice*, so a repeat appends rather than replaces,
+# and `--kubelet-preferred-address-types=InternalIP` would land at the end of
+# the list where it decides nothing. It is left out rather than added for looks,
+# and if a future version of the manifest puts Hostname first, this is the line
+# that has to change.
+#
+# Patched in rather than templated into a copy, so the file applied above stays
+# the release's own, byte for byte.
+kubectl -n kube-system patch deployment metrics-server --type=json -p \
+  '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+
+kubectl -n kube-system rollout status deployment/metrics-server --timeout=180s
+
+# The rollout finishing is the pod being Ready, not the API answering: the
+# endpoint appears only once metrics-server has completed a scrape of the nodes,
+# which is a scrape or two after the pod starts serving. A single check here is
+# therefore flaky in exactly the way that gets a wait deleted, so this polls.
+metrics_served=false
+for attempt in $(seq 1 60); do
+  if kubectl get --raw /apis/metrics.k8s.io/v1beta1/nodes >/dev/null 2>&1; then
+    metrics_served=true
+    break
+  fi
+  if [ $((attempt % 10)) -eq 0 ]; then log "  still waiting for the metrics API... (${attempt})"; fi
+  sleep 3
+done
+[ "$metrics_served" = "true" ] || {
+  show "the metrics-server's pods" kubectl -n kube-system get pods -l k8s-app=metrics-server
+  show "what the metrics-server said" kubectl -n kube-system logs -l k8s-app=metrics-server --tail=30
+  show "recent events in kube-system" kubectl -n kube-system get events --sort-by=.lastTimestamp
+  die "the metrics API did not answer within 180s"
+}
+
+show "the metrics-server" kubectl -n kube-system get deployment metrics-server
+record SANDBOX_METRICS "true"
+log "the metrics API is serving, so a sandbox's CPU and memory will be readable"
+
+# ── 7. the ingress gateway ──────────────────────────────────────────────────
 
 log "installing Istio (this is the slow step)"
 
@@ -482,7 +556,7 @@ for port in 15021 443; do
     || die "the gateway lost its port ${port} when it was patched to NodePort"
 done
 
-# ── 7. the control plane ────────────────────────────────────────────────────
+# ── 8. the control plane ────────────────────────────────────────────────────
 
 kubectl create namespace "$SANDBOXLAB_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
@@ -547,7 +621,7 @@ fi
 record SANDBOX_API_KEY "$API_KEY"
 record SANDBOX_CONSOLE_URL "${PUBLIC_URL}${SANDBOXLAB_BASE_PATH}"
 
-# ── 8. the environment answers ──────────────────────────────────────────────
+# ── 9. the environment answers ──────────────────────────────────────────────
 
 # One address, through the gateway, on the node port. This is the path a caller
 # takes, so it is the path to test over — not a port-forward, which would skip
@@ -643,6 +717,51 @@ created=$(curl -fsS -X POST -H "Host: ${TUNNEL_HOST}" -H "X-Sandbox-Key: ${API_K
   -d '{"template":"smoke","name":"sandboxlab-smoke","ttl":"5m"}' \
   "${local_url}/api/v1/sandboxes" 2>&1) || die "the smoke sandbox could not be created: ${created}"
 
+# And what that sandbox is using, read the way the console reads it: through the
+# API, on the same address, with the same key.
+#
+# The check in section 6 proves metrics-server serves the resource metrics API.
+# It does not prove this, and this is the half more likely to be wrong: the
+# chart has to grant the control plane `get`/`list` on `pods` in the
+# `metrics.k8s.io` group — a *different* resource from the core `pods` it was
+# already granted, so a missing rule is a 403 the control plane reports as
+# unavailable — and there is a route, a key and a namespace lookup between the
+# API and that grant. A cluster serving metrics proves none of it, which is why
+# the check is here rather than only up there.
+#
+# Polled, not asked once. Usage is read from the pod's metrics, and the pod has
+# only just started: the first scrape after it is Running is what makes a
+# reading exist, so a single request can get `available: false` from a perfectly
+# working environment. The wait is for a first reading, not for the API.
+#
+# The response is read through a here-string rather than piped into `grep -q`.
+# `grep -q` exits at its first match, and under `set -o pipefail` whatever is
+# writing into that pipe can be killed by SIGPIPE and report 141 — an exit that
+# reads as a failed request in the very line whose job is to prove the request
+# worked. A here-string is a file, so there is no pipe to break. The body is a
+# few bytes either way, so nothing is gained by streaming it.
+#
+# Before the deletion below, deliberately: this asks about a sandbox that
+# exists, and a few lines further down it does not.
+log "confirming the API reports what the smoke sandbox is using"
+metrics_available=false
+for attempt in $(seq 1 40); do
+  usage=$(curl -fsS -H "Host: ${TUNNEL_HOST}" -H "X-Sandbox-Key: ${API_KEY}" \
+    "${local_url}/api/v1/sandboxes/sandboxlab-smoke/usage" 2>/dev/null || true)
+  if grep -q '"available": *true' <<<"$usage"; then
+    metrics_available=true
+    break
+  fi
+  if [ $((attempt % 10)) -eq 0 ]; then log "  still waiting for a usage reading... (${attempt})"; fi
+  sleep 3
+done
+[ "$metrics_available" = "true" ] || {
+  show "the smoke sandbox" kubectl get namespaces -l app.kubernetes.io/managed-by=sandboxlab
+  show "the metrics-server's pods" kubectl -n kube-system get pods -l k8s-app=metrics-server
+  show "the control plane's cluster role" kubectl get clusterrole -l app.kubernetes.io/instance=sandbox -o yaml
+  die "the API never reported usage for the smoke sandbox; the metrics API or the chart's metrics.k8s.io grant is missing"
+}
+
 # It is deleted by the reaper when its five minutes are up; the cluster goes
 # with the job either way. Removing it here just leaves the environment tidy for
 # whoever is about to use it.
@@ -654,7 +773,7 @@ curl -fsS -X DELETE -H "Host: ${TUNNEL_HOST}" -H "X-Sandbox-Key: ${API_KEY}" \
 
 show "the sandboxes" kubectl get namespaces -l app.kubernetes.io/managed-by=sandboxlab
 
-# ── 9. publish ──────────────────────────────────────────────────────────────
+# ── 10. publish ─────────────────────────────────────────────────────────────
 
 # The tunnel was started back in section 4, once its address was known and
 # before anything waited on it — see the note there for what went wrong when it
@@ -699,7 +818,7 @@ cat <<EOF
 =====================================================================
 EOF
 
-# ── 10. stay up ─────────────────────────────────────────────────────────────
+# ── 11. stay up ─────────────────────────────────────────────────────────────
 
 if [ "$SANDBOXLAB_SESSION_HOURS" = "0" ]; then
   log "the environment is up and runs until the job times out or the workflow is cancelled"

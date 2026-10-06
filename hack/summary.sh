@@ -49,6 +49,17 @@ catalog="${SANDBOX_CATALOG:-}"
     echo "| Image | \`${SANDBOX_IMAGE}\` (built from this commit) |"
   fi
   echo "| Cluster | kind |"
+  # Whether the cluster serves the resource metrics API, which is what a
+  # sandbox's CPU and memory are read from. Said out loud because its absence is
+  # silent everywhere else: the console's Metrics panel and
+  # `GET /api/v1/sandboxes/{id}/usage` both report usage as simply unavailable,
+  # which is a legitimate answer on a cluster without a metrics API and so reads
+  # as "nothing to show" rather than as something that did not come up.
+  if [ -n "${SANDBOX_METRICS:-}" ]; then
+    echo "| Metrics | yes — CPU and memory are readable in the console |"
+  else
+    echo "| Metrics | no — the metrics API did not come up, so \`/usage\` reports nothing |"
+  fi
   echo
   echo "### Create a sandbox"
   echo
