@@ -160,7 +160,11 @@ things it manages — the sandboxes — get namespaces of their own.</p>
 <pre><code class="language-bash">kubectl -n ops-system get secret sandbox-apikey \
   -o jsonpath='{.data.api-key}' | base64 -d; echo
 </code></pre>
-<p><code>helm install</code> prints the same instructions, filled in, in its notes.</p>
+<p><code>helm install</code> prints the same instructions in its notes, naming the Secret the
+key is in — <code>sandbox-apikey</code> unless <code>existingSecret</code> named another. The notes do
+not print the key itself: the chart cannot read one it was not given, and one it
+<em>was</em> given is a credential someone else chose, so the notes point at the Secret
+rather than echoing it.</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <table>
 <thead>
@@ -296,6 +300,11 @@ to keep them, and delete them by hand.</p>
 <td><code>apiKey</code></td>
 <td>generated</td>
 <td>The key every call carries. Empty generates one and reuses it across upgrades.</td>
+</tr>
+<tr>
+<td><code>existingSecret</code></td>
+<td>—</td>
+<td>A Secret holding the key instead, with the same <code>api-key</code> field. Keeps the value out of the release; set it or <code>apiKey</code>, not both.</td>
 </tr>
 <tr>
 <td><code>publicURL</code></td>
