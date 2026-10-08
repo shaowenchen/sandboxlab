@@ -84,7 +84,10 @@ particular one, and the token is a credential and never a plain input.
 the Summary. There are two ways to pin one instead, so a `SANDBOX_KEY` in a
 shell, or a saved console session, keeps working across runs:
 
-- Set the repository secret **`SANDBOXLAB_API_KEY`**. Every run then uses it.
+- Set the repository secret **`ADMIN_KEY`**. Every run then uses it. The same
+  value belongs in the caller's own configuration — for labs that is
+  `LABS_ACTION_API_KEY` — so both sides are holding the key one of them will
+  call the environment with.
 - Pass the workflow's **`api_key` input** at dispatch
   (`gh workflow run debugger.yml -f api_key=...`). This is how an automated
   caller hands over the key it will call the environment with, without the two

@@ -52,11 +52,11 @@ on:
           - 'sandboxlab-1.chenshaowen.com'
           - 'sandboxlab-2.chenshaowen.com'
       api_key:
-        description: 'API key (empty = the SANDBOXLAB_API_KEY secret, then a random one)'
+        description: 'API key (empty = the ADMIN_KEY secret, then a random one)'
         type: string
         # An override, not the usual way in. Left empty — the normal case for a
-        # run started by hand — the run takes the SANDBOXLAB_API_KEY secret if
-        # the repository has one, and generates a key if it does not.
+        # run started by hand — the run takes the ADMIN_KEY secret if the
+        # repository has one, and generates a key if it does not.
         #
         # It is here so an automated caller (labs) can choose the key and hand
         # it over at dispatch, the way applab's workflow already works, instead
@@ -111,9 +111,16 @@ jobs:
           # console session) instead of a fresh one per run. The dispatch input
           # wins when a caller set one — that is how labs hands over the key it
           # will call the environment with — and otherwise the repository secret
-          # SANDBOXLAB_API_KEY pins it; left unset, the environment generates one
-          # and prints it in the Summary exactly as before.
-          api_key: ${{ inputs.api_key || secrets.SANDBOXLAB_API_KEY }}
+          # ADMIN_KEY pins it; left unset, the environment generates one and
+          # prints it in the Summary exactly as before.
+          #
+          # ADMIN_KEY is this deployment's key, and the secret name is the one
+          # to configure here. Its other half is the caller's own setting —
+          # labs' LABS_ACTION_API_KEY — since the dispatch carries the caller's
+          # key while this secret is what a run with no dispatch key falls back
+          # to; the two hold the same value or the environment answers to only
+          # one of them.
+          api_key: ${{ inputs.api_key || secrets.ADMIN_KEY }}
           # An input, not a secret: a domain is not sensitive, and it is the
           # thing a person has to look up before running a named tunnel.
           domain: ${{ inputs.domain }}
