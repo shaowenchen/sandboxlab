@@ -61,9 +61,12 @@ on:
         # It is here so an automated caller (labs) can choose the key and hand
         # it over at dispatch, the way applab's workflow already works, instead
         # of the two sides having to be configured with the same value out of
-        # band. Plain text rather than a secret, deliberately: whoever starts
-        # the run is choosing a key for it, and can read it back from the run's
-        # Summary anyway.
+        # band.
+        #
+        # Plain text rather than a secret, deliberately: whoever starts the run
+        # is choosing a key for it, and a dispatch input is visible to anyone
+        # who can read the run regardless of whether the run echoes it. A value
+        # set here is never printed back — see where the input is consumed.
         default: ''
 
 permissions:
@@ -113,6 +116,12 @@ jobs:
           # will call the environment with — and otherwise the repository secret
           # ADMIN_KEY pins it; left unset, the environment generates one and
           # prints it in the Summary exactly as before.
+          #
+          # Either way, a key that arrives here is one the run was *given*, and
+          # the run does not print it back: it outlives the run, so publishing
+          # it would publish a live credential. Only a key the run generated
+          # itself is shown. See "A key the run was given is not printed" in
+          # action/README.md.
           #
           # ADMIN_KEY is this deployment's key, and the secret name is the one
           # to configure here. Its other half is the caller's own setting —

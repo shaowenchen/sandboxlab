@@ -66,6 +66,10 @@ for var in $read_vars; do
     # Not inputs: paths and names the script or the workflow owns.
     SANDBOXLAB_RUNTIME_DIR|SANDBOXLAB_RESULT_ENV)
       continue ;;
+    # Nor this one: it is the name of a Secret the script creates for a key it
+    # was given, not a setting anyone outside the script chooses.
+    SANDBOXLAB_API_KEY_SECRET)
+      continue ;;
   esac
   if grep -qx "$var" <<<"$env_keys"; then
     ok "$var is supplied"

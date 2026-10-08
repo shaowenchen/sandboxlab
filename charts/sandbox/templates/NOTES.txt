@@ -1,55 +1,64 @@
 The sandbox control plane is installed in namespace {{ include "sandbox.namespace" . }}.
 
 {{/*
-The key, printed when the release was given one.
+Where the key is, and how much of it is printable.
 
-A chart that generates its own key can only tell you where to read it back,
-because the templates render before the cluster exists — the notes cannot see
-what the Secret will contain. When `apiKey` is set, though, the value is right
-here, and printing it is the whole point of a note that exists to hand someone a
-key. The fallback below is for the install that let the chart generate one.
+Three cases, and only the last one can be printed:
+
+  existingSecret   the operator's own, in a Secret this chart cannot read at
+                   render time — the templates run before the cluster exists.
+
+  apiKey           handed to this release. Known here, but it is someone else's
+                   value: a dispatch input, a repository secret, a shell. The
+                   notes name its length so the reader can tell what is live,
+                   and the way to read it — never the value itself.
+
+  neither          generated. It also cannot be printed, and for the same
+                   reason the existingSecret case cannot: the templates render
+                   before the cluster exists, and `randAlphaNum` is not memoized
+                   — a second call in this file would produce a *different* key
+                   from the one the Secret got. The environment's own summary is
+                   where a generated key is shown, because the script that
+                   generated it is the only thing that has it.
+
+Read via kubectl in every case, so there is one instruction to follow rather
+than three that differ in wording.
+
+The key helper is deliberately never called from this file: its generated
+branch is not memoized, so a call here could return a different key from the one
+that landed in the Secret.
 */}}
 {{- $key := .Values.apiKey -}}
+{{- $secret := include "sandbox.apiKeySecretName" . -}}
+{{- $readBack := printf "kubectl -n %s get secret %s \\\n    -o jsonpath='{.data.api-key}' | base64 -d; echo" (include "sandbox.namespace" .) $secret -}}
 {{ if .Values.publicURL -}}
 Open the console at:
 
   {{ .Values.publicURL }}{{ .Values.basePath }}
 
-{{ if $key -}}
-It asks for the API key:
+It asks for the API key, which is in the Secret {{ $secret }}.{{ if $key }} This release was given a key {{ len $key }} characters long.{{ end }}
 
-  {{ $key }}
+  {{ $readBack }}
 
-{{- else -}}
-It asks for the API key. Read it with:
-
-  kubectl -n {{ include "sandbox.namespace" . }} get secret {{ include "sandbox.fullname" . }}-apikey \
-    -o jsonpath='{.data.api-key}' | base64 -d; echo
-
-{{- end }}
 {{- else -}}
 No publicURL was set, so the API reports relative addresses and there is no
 address to open. Reach the console through a port-forward:
 
   kubectl -n {{ include "sandbox.namespace" . }} port-forward svc/{{ include "sandbox.fullname" . }} 8080:{{ .Values.service.port }}
 
-Then open http://localhost:8080{{ .Values.basePath }} and use the API key:
+Then open http://localhost:8080{{ .Values.basePath }} and use the API key, which
+is in the Secret {{ $secret }}.{{ if $key }} This release was given a key
+{{ len $key }} characters long.{{ end }}
 
-{{ if $key -}}
-  {{ $key }}
+  {{ $readBack }}
 
-{{- else }}
-  kubectl -n {{ include "sandbox.namespace" . }} get secret {{ include "sandbox.fullname" . }}-apikey \
-    -o jsonpath='{.data.api-key}' | base64 -d; echo
-
-{{- end }}
 {{- end }}
 
 Create a sandbox with the CLI from
 https://github.com/shaowenchen/sandboxlab:
 
   export SANDBOX_URL='{{ if .Values.publicURL }}{{ .Values.publicURL }}{{ .Values.basePath }}{{ else }}http://localhost:8080{{ .Values.basePath }}{{ end }}'
-  export SANDBOX_KEY='{{ if $key }}{{ $key }}{{ else }}<the key above>{{ end }}'
+  export SANDBOX_KEY="$({{ $readBack }})"
 
   sandbox catalog
   sandbox create -t agent-infra --name myshop

@@ -64,7 +64,7 @@ routes from a sandbox's: the console at `<domain>/sandboxlab`, a sandbox at
 
 | Input | Default | Description |
 |---|---|---|
-| `api_key` | empty → generated | API key for this environment. Empty means the environment generates one. Printed in the summary either way, because it is the deliverable. |
+| `api_key` | empty → generated | API key for this environment. Empty means the environment generates one, and prints it; a key you pass is one the run does not print. Explained below. |
 | `session_hours` | `4` | How long the environment may run. `0` means no self-imposed limit, bounded by the job's timeout. |
 | `tunnel` | `cloudflare` | `cloudflare` (no account needed) or `ngrok`. |
 | `cloudflare_token` | — | Token of a named Cloudflare tunnel; empty starts a quick tunnel. |
@@ -96,11 +96,43 @@ shell, or a saved console session, keeps working across runs:
 The dispatch input wins when it is set; otherwise the secret pins the key; with
 both empty the environment generates one exactly as before.
 
+#### A key the run was given is not printed
+
+Those two paths are the difference between a key the run **generates** and a key
+it is **given**, and the run treats them differently:
+
+| Where the key came from | What the run shows |
+|---|---|
+| generated (both left empty) | the value, in the Summary, in the run's own banner, and in a notice line |
+| the `ADMIN_KEY` secret, or a dispatched `api_key` | a mask — `••••••••…` — with the Secret it is in, and no notice line carrying it |
+
+A generated key exists nowhere else: it is minted inside the run, dies when the
+environment ends, and the Summary is the only place it can be handed over. A
+supplied key does not — labs dispatches `api_key` and then calls the environment
+with that same value for as long as the lab lives, and `ADMIN_KEY` is a key that
+outlives every run. Printing either would publish a live credential into a log
+that anyone who can read the run can read, and that GitHub keeps afterwards. So
+the run uses it and does not display it — the same thing every other tool does
+with a credential it was handed.
+
+**Reading it on the runner.** The key is in a Secret either way, and the mask
+names which one. A supplied key goes into a Secret this run creates
+(`sandboxlab-api-key`) rather than through `helm --set`, so it is in none of the
+places helm writes down — not the release's stored values, not the install
+command in the log, not the chart's notes:
+
+```bash
+kubectl -n ops-system get secret sandboxlab-api-key \
+  -o jsonpath='{.data.api-key}' | base64 -d; echo
+```
+
+A generated key never needs that: it is in the Summary, and the chart was given
+it directly because there is nothing to hide.
+
 `api_key` is deliberately a plain workflow input rather than a secret: whoever
-starts the run is choosing a key for it, and can read it back from the run's
-Summary anyway. The **secret** path is the one to use when the key must not
-appear in the dispatch at all — an input is visible to anyone who can read the
-run.
+starts the run is choosing a key for it, and the run no longer echoes it back.
+The **secret** path is the one to use when the key must not appear in the
+dispatch at all — an input is visible to anyone who can read the run.
 
 ## The domain, and the named tunnel it needs
 

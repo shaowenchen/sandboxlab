@@ -39,20 +39,52 @@ REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 : "${CLOUDFLARE_TOKEN:=}"
 : "${NGROK_TOKEN:=}"
 
-# The API key is made here rather than left to the chart, and it is not a
-# detail: the chart generates one when the value is empty, and a value it
-# generates is one it cannot print — the templates render before the cluster
-# exists, so the Secret's contents are not available to the notes that
-# `helm install` prints. What a run then sees is a placeholder where the key
-# should be, which is the opposite of the notes' purpose. Generated here, the
-# key is known to the installer, so it is real in the notes, in the summary,
-# and in the banner.
+# The API key, and — the part that decides everything downstream — where it came
+# from.
 #
-# Not masked, deliberately: the key is the deliverable, and a masked value could
-# not be shown anywhere that exists to show it.
+# A key this script generates exists nowhere else. Printing it is the only way to
+# hand it over, which is what the summary, the banner and the CLI recipe are for,
+# and it dies with the environment.
+#
+# A key that arrives from outside — a dispatch input, the ADMIN_KEY repository
+# secret, a shell — is not this run's to publish. It is a credential for an
+# environment that outlives the run: labs dispatches it and then calls the
+# environment with it, so a run that printed it would publish a key that is
+# still live after the run is gone, to everyone who can read the run.
+#
+# Those two cases are why KEY_SUPPLIED is tracked rather than re-derived at each
+# printing site. The chart value, the install, the summary and the banner all
+# read this one decision, so none of them can disagree with the others about
+# whether the key is printable.
+KEY_SUPPLIED=false
 if [ -z "$SANDBOXLAB_API_KEY" ]; then
   SANDBOXLAB_API_KEY=$(openssl rand -hex 32)
+else
+  KEY_SUPPLIED=true
 fi
+
+# What stands in for a key this run was given. A fixed run of bullets, the width
+# the console draws a credential at (MASK_WIDTH in internal/console/static), so
+# both surfaces mask the same way; fixed rather than one bullet per character,
+# because a length is a fact about a credential that nothing here needs.
+KEY_MASK='••••••••••••••••••••••••••••••••'
+
+# And the runner's own mask, as a backstop rather than as the mechanism. A
+# supplied key arrives as a workflow *input* — which is how labs hands one over —
+# and an input is not masked the way a `secrets.*` value is, so anything that
+# echoed it would show it. Nothing here means to; this is for the paths nobody
+# thought of, `--from-literal` in an error message among them.
+#
+# Only under Actions: this is a workflow command, and a script run by hand would
+# otherwise print the key inside a literal `::add-mask::` line — the opposite of
+# the point.
+if [ "$KEY_SUPPLIED" = "true" ] && [ -n "${GITHUB_ACTIONS:-}" ]; then
+  echo "::add-mask::${SANDBOXLAB_API_KEY}"
+fi
+
+# Where a supplied key lives between being read and being used. Only the
+# supplied case creates it — see the install below for why.
+SANDBOXLAB_API_KEY_SECRET="sandboxlab-api-key"
 
 RUNTIME_DIR="$SANDBOXLAB_RUNTIME_DIR"
 mkdir -p "$RUNTIME_DIR"
@@ -568,10 +600,29 @@ install_args=(
   --set "maxTTL=${SANDBOXLAB_MAX_TTL}"
   --set "istio.enabled=true"
   --set "istio.gateway=istio-system/istio-ingressgateway"
-  # Always set, never left to the chart: a key the chart generates is one the
-  # chart's own notes cannot print. See where it is made, above.
-  --set "apiKey=${SANDBOXLAB_API_KEY}"
 )
+
+if [ "$KEY_SUPPLIED" = "true" ]; then
+  # The key goes in through a Secret rather than --set apiKey=..., which would
+  # put it three places a supplied key must not be: the release's stored values,
+  # the install command in this log, and helm's notes. The chart names the
+  # Secret and the pod reads it from there, so helm never sees the value.
+  #
+  # Created before the install because the Deployment mounts it: a Secret that
+  # arrives afterwards leaves the pod unschedulable on the first pass.
+  kubectl -n "$SANDBOXLAB_NAMESPACE" create secret generic "$SANDBOXLAB_API_KEY_SECRET" \
+    --from-literal=api-key="$SANDBOXLAB_API_KEY" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  install_args+=(--set "existingSecret=${SANDBOXLAB_API_KEY_SECRET}")
+else
+  # A generated key is this release's own, so there is nothing to hide: the
+  # chart writes it into the Secret it creates, and this run's summary — not the
+  # chart's notes, which cannot read a Secret — is what shows it. Set explicitly
+  # rather than left empty, so the chart never has to generate one: a key the
+  # chart makes up is one no part of this run has seen, and it could not be
+  # shown where a generated key belongs.
+  install_args+=(--set "apiKey=${SANDBOXLAB_API_KEY}")
+fi
 if [ "$SANDBOXLAB_SKIP_BUILD" != "true" ]; then
   # The image was loaded into the node, so there is nothing to pull. Pulling
   # would fail on a name no registry knows.
@@ -592,11 +643,16 @@ deployment_name=$(chart_object_name deployment)
 [ -n "$deployment_name" ] || die "the chart did not create a deployment in ${SANDBOXLAB_NAMESPACE}"
 kubectl -n "$SANDBOXLAB_NAMESPACE" rollout status --timeout=180s "deployment/${deployment_name}"
 
-# The key comes from whichever Secret the chart made, found by the same label —
-# and the check that it exists is separate from the check that it has a value,
-# because "the Secret is missing" and "the Secret is empty" are different
-# mistakes and the message should say which.
-secret_name=$(chart_object_name secret)
+# The key comes from whichever Secret is holding it — the one this script made
+# when it was given a key, or the one the chart made when it was not — and the
+# check that it exists is separate from the check that it has a value, because
+# "the Secret is missing" and "the Secret is empty" are different mistakes and
+# the message should say which.
+if [ "$KEY_SUPPLIED" = "true" ]; then
+  secret_name="$SANDBOXLAB_API_KEY_SECRET"
+else
+  secret_name=$(chart_object_name secret)
+fi
 [ -n "$secret_name" ] || die "the chart did not create an API key Secret in ${SANDBOXLAB_NAMESPACE}"
 API_KEY=$(kubectl -n "$SANDBOXLAB_NAMESPACE" get secret "$secret_name" \
   -o jsonpath='{.data.api-key}' | base64 -d)
@@ -616,9 +672,16 @@ pod_key=$(kubectl -n "$SANDBOXLAB_NAMESPACE" get deploy \
   -o jsonpath='{.items[0].spec.template.spec.containers[0].env[?(@.name=="SANDBOX_API_KEY")].valueFrom.secretKeyRef.name}')
 [ -n "$pod_key" ] || pod_key="$secret_name"
 if [ "$pod_key" != "$secret_name" ]; then
-  warn "the Deployment reads its key from '${pod_key}' but the chart made '${secret_name}'; a request with the new key will be refused"
+  warn "the Deployment reads its key from '${pod_key}' but this run set it up to read '${secret_name}'; a request with the new key will be refused"
 fi
 record SANDBOX_API_KEY "$API_KEY"
+# Whether that key may be printed, and which Secret holds it. The summary and
+# the banner read these rather than the key and the name separately, so the rule
+# is decided once, here, where the key's origin is known — and the key itself is
+# still recorded above for the checks below and for CI, which call the
+# environment with it.
+record SANDBOX_KEY_SUPPLIED "$KEY_SUPPLIED"
+record SANDBOX_KEY_SECRET "$secret_name"
 record SANDBOX_CONSOLE_URL "${PUBLIC_URL}${SANDBOXLAB_BASE_PATH}"
 
 # ── 9. the environment answers ──────────────────────────────────────────────
@@ -788,20 +851,34 @@ show "the sandboxes" kubectl get namespaces -l app.kubernetes.io/managed-by=sand
 # environment is up, not after it is gone.
 #
 # summary.sh prints what environment.sh recorded, rather than deriving anything,
-# so what appears is what this process actually learned.
+# so what appears is what this process actually learned — including whether the
+# key was this run's to print.
 bash "$REPO_ROOT/hack/summary.sh"
 
 # The same facts again, unmissably, in the log. The Summary is a tab someone has
 # to know to open; a run is read by scrolling, and a key that only exists in the
-# tab is a key nobody finds. This is what makes the link and the key part of the
-# run's own output.
+# tab is a key nobody finds. This is what makes the link — and a generated key —
+# part of the run's own output.
+#
+# A key this run was given is the one exception, and it is masked here for the
+# reason it is masked everywhere: it stays live after the run, so the run is not
+# where it should be readable. The banner still names the Secret it is in, so a
+# reader on the runner who may read that Secret has a way to it.
+if [ "$KEY_SUPPLIED" = "true" ]; then
+  key_line="API key:  ${KEY_MASK}  (supplied; in Secret ${secret_name})"
+  key_export="export SANDBOX_KEY=\"\$(kubectl -n ${SANDBOXLAB_NAMESPACE} get secret ${secret_name} -o jsonpath='{.data.api-key}' | base64 -d)\""
+else
+  key_line="API key:  ${API_KEY}"
+  key_export="export SANDBOX_KEY='${API_KEY}'"
+fi
+
 cat <<EOF
 
 =====================================================================
  sandboxlab is ready
 
    Console:  ${PUBLIC_URL}${SANDBOXLAB_BASE_PATH}
-   API key:  ${API_KEY}
+   ${key_line}
 
    The console asks for that address and this key; both are kept in your
    browser. A sandbox is served under
@@ -810,7 +887,7 @@ cat <<EOF
    Create one from the CLI:
 
      export SANDBOX_URL='${PUBLIC_URL}${SANDBOXLAB_BASE_PATH}'
-     export SANDBOX_KEY='${API_KEY}'
+     ${key_export}
      sandbox catalog
      sandbox create -t agent-infra --name demo --wait
      sandbox url demo

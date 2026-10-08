@@ -14,7 +14,8 @@ inputs:
   api_key:
     description: >-
       API key for this environment. Generated when empty, and printed in the
-      summary either way.
+      summary; a key passed here is used but never printed, because it outlives
+      the run.
     required: false
     default: ''
   session_hours:

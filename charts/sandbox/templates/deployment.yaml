@@ -84,11 +84,12 @@ spec:
             - name: SANDBOX_LOG_LEVEL
               value: {{ .Values.logLevel | quote }}
             # From the Secret, never a plain value: the pod spec is readable by
-            # anyone who can read the Deployment.
+            # anyone who can read the Deployment. The Secret is the chart's own
+            # unless existingSecret named another.
             - name: SANDBOX_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "sandbox.fullname" . }}-apikey
+                  name: {{ include "sandbox.apiKeySecretName" . }}
                   key: api-key
           # The probes go through the base path, because that is where the
           # routes are: a deployment served under /sandbox has no /healthz at

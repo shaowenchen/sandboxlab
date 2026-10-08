@@ -31,14 +31,26 @@ image:
 
 imagePullSecrets: []
 
-# The key every API call must carry, and the one printed in the environment's
-# summary.
+# The key every API call must carry, and the one the environment's summary
+# prints.
 #
 # Left empty, one is generated at install and REUSED on upgrade — the chart
 # looks up the Secret it created rather than minting a new one, so reinstalling
 # a release does not invalidate every client that was given the key. Set it to
 # pin a particular value; it is then used as given.
+#
+# A key that must not appear anywhere the release renders goes in existingSecret
+# below instead: this value lands in the release's stored values (readable by
+# anyone with read on the namespace) and, passed as `--set apiKey=...`, in the
+# install command and in helm's own notes.
 apiKey: ""
+
+# A Secret holding the key, with the same `api-key` field this chart writes.
+# Preferred over apiKey whenever the key is not this release's to print — it
+# keeps the value out of the release's values and out of helm's output. The
+# Secret has to exist in the namespace the control plane runs in; the chart
+# does not create it, and `existingSecret` and `apiKey` may not both be set.
+existingSecret: ""
 
 # The address the console and the sandboxes are reached at, with scheme:
 # "https://sandbox.example.com". It is what the API reports a sandbox's URLs

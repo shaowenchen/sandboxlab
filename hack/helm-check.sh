@@ -209,6 +209,50 @@ else
   bad "a generated key is only ${#generated} characters"
 fi
 
+# A key the release should not carry goes in a Secret the operator named. The
+# chart then creates none of its own, and the Deployment reads the named one —
+# which is the whole point: the value never enters the release's values, its
+# rendered manifests, or helm's output.
+named=$(helm template sandbox "$CHART" --namespace default --set existingSecret=team-key)
+if grep -qE '^kind: Secret$' <<<"$named"; then
+  bad "existingSecret still renders a key Secret of the chart's own"
+else
+  ok "existingSecret renders no key Secret"
+fi
+# Note the lack of -q on the first grep: -q stops at the first match and prints
+# nothing, so the context lines this depends on would never reach the pipe. It
+# is the same trap environment.sh documents around `grep -q` and SIGPIPE.
+if grep -A2 'secretKeyRef:' <<<"$named" | grep -q 'name: team-key'; then
+  ok "the Deployment reads its key from the Secret that was named"
+else
+  bad "the Deployment does not name team-key as the source of its key"
+fi
+
+# Both settings is a contradiction, not a precedence: one of them would be
+# silently ignored, and which one is not something an operator should have to
+# know. Refused, so the mistake is at the install rather than in a key nobody
+# can explain.
+if helm template sandbox "$CHART" --namespace default \
+  --set existingSecret=team-key --set apiKey=my-fixed-key >/dev/null 2>&1; then
+  bad "existingSecret and apiKey together should be refused"
+else
+  ok "existingSecret and apiKey together refuse to render"
+fi
+
+# The helper is not memoized: `randAlphaNum` runs on every call, so two calls
+# return two different keys. Anything that printed "the key" would be guessing
+# which of them the Secret got — which is why the notes do not call it. Held
+# here as a source-level rule, because the failure is a mismatch nobody would
+# see in a rendered manifest.
+#
+# The needle is split so this check does not match its own text.
+needle="include \"sandbox.api""Key\""
+if grep -q "$needle" "$CHART/templates/NOTES.txt"; then
+  bad "the notes call the key helper, which is not memoized and may not be the key the Secret got"
+else
+  ok "the notes never call the key helper, so they cannot print a stale key"
+fi
+
 # ── the notes ───────────────────────────────────────────────────────────────
 
 section "the notes helm prints on install"
@@ -223,9 +267,10 @@ section "the notes helm prints on install"
 # That is why the assignments below end in `|| true` and read the debug output:
 # the error is about the shape of the file, not about what it says.
 #
-# What is asserted is the thing that was wrong: the notes told the reader to go
-# and read the key out of the cluster when the install already knew it, so a run
-# showed a placeholder where the deliverable should have been.
+# What is asserted is the rule the notes follow now: only a key this release
+# generated itself is printed. A key it was *given* — a dispatch input, a
+# repository secret, a shell — is masked, because publishing someone else's
+# credential in a log is not the notes' to decide.
 notes_dir=$(mktemp -d)
 trap 'rm -rf "$notes_dir"' EXIT
 cp -r "$CHART"/. "$notes_dir"/
@@ -235,30 +280,53 @@ render_notes() {
   helm template sandbox "$notes_dir" --namespace default --debug "$@" 2>&1 || true
 }
 
+# The supplied-key path. The value must not be in the notes at all, and the
+# notes must still say which key is live and where to read it — a run that says
+# nothing at all about the key is the other way to get this wrong.
 notes_with_key=$(render_notes --set apiKey=my-fixed-key --set publicURL=https://sandbox.example.com)
 
 if grep -qF 'my-fixed-key' <<<"$notes_with_key"; then
-  ok "the notes print the key when the release was given one"
+  bad "the notes print the key they were given, which is not theirs to print"
 else
-  bad "the notes do not print the key they were given"
+  ok "the notes do not print a key the release was given"
 fi
-if grep -qF "export SANDBOX_KEY='my-fixed-key'" <<<"$notes_with_key"; then
-  ok "the CLI export in the notes carries the real key"
+if grep -qF 'This release was given a key 12 characters long' <<<"$notes_with_key"; then
+  ok "the notes say a key was supplied, and how long it is"
 else
-  bad "the CLI export in the notes does not carry the key"
+  bad "the notes do not say that a key was supplied rather than generated"
 fi
-# And the placeholder is gone from that path, so nobody is told to go and look
-# up a key that is already in front of them.
-if grep -qF '<the key above>' <<<"$notes_with_key"; then
-  bad "the notes still point at <the key above> although they were given one"
+if grep -qF "get secret sandbox-apikey" <<<"$notes_with_key"; then
+  ok "the notes say where to read the key that is live"
 else
-  ok "no placeholder key is left when the key is known"
+  bad "the notes do not say where to read the supplied key"
+fi
+# And the CLI export is the read-back command, never a literal: the notes have
+# no key to put in it.
+if grep -qF 'export SANDBOX_KEY="$(kubectl' <<<"$notes_with_key"; then
+  ok "the CLI export in the notes reads the key back rather than embedding one"
+else
+  bad "the CLI export in the notes does not read the key back"
 fi
 
-# A release that let the chart generate the key cannot print it — the templates
-# render before the cluster exists — so that path still says where to read it.
+# The named-Secret path: same rule, and the Secret in the notes is the
+# operator's, not the chart's.
+notes_named=$(render_notes --set existingSecret=team-key --set publicURL=https://sandbox.example.com)
+if grep -qF 'get secret team-key' <<<"$notes_named"; then
+  ok "the notes name the Secret the operator supplied"
+else
+  bad "the notes do not name the supplied Secret"
+fi
+if grep -qF 'get secret sandbox-apikey' <<<"$notes_named"; then
+  bad "the notes point at the chart's own Secret although another was named"
+else
+  ok "the notes do not fall back to the chart's own Secret"
+fi
+
+# A release that let the chart generate the key cannot print it either — the
+# templates render before the cluster exists — so that path says where to read
+# it too.
 notes_generated=$(render_notes --set publicURL=https://sandbox.example.com)
-if grep -qF 'get secret' <<<"$notes_generated"; then
+if grep -qF 'get secret sandbox-apikey' <<<"$notes_generated"; then
   ok "the notes say where to read a key the chart generated"
 else
   bad "the notes do not say where to find a generated key"

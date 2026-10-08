@@ -39,7 +39,11 @@ kubectl -n ops-system get secret sandbox-apikey \
   -o jsonpath='{.data.api-key}' | base64 -d; echo
 ```
 
-`helm install` prints the same instructions, filled in, in its notes.
+`helm install` prints the same instructions in its notes, naming the Secret the
+key is in — `sandbox-apikey` unless `existingSecret` named another. The notes do
+not print the key itself: the chart cannot read one it was not given, and one it
+*was* given is a credential someone else chose, so the notes point at the Secret
+rather than echoing it.
 
 ## Prerequisites
 
@@ -166,6 +170,7 @@ to keep them, and delete them by hand.
 | `namespaceOverride` | `ops-system` | Where the control plane runs. |
 | `image.repository` / `image.tag` | chart appVersion | The control plane image. |
 | `apiKey` | generated | The key every call carries. Empty generates one and reuses it across upgrades. |
+| `existingSecret` | — | A Secret holding the key instead, with the same `api-key` field. Keeps the value out of the release; set it or `apiKey`, not both. |
 | `publicURL` | — | The address the API reports sandbox URLs under. Empty reports relative ones. |
 | `basePath` | — | A path prefix the deployment is served under. |
 | `sandboxNamespacePrefix` | `sbx-` | Prefix of a sandbox's namespace. |

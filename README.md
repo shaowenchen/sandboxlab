@@ -62,7 +62,10 @@ There are two kinds of key.
 **The deployment's key** is generated at install and printed in the
 environment's summary. It may do everything: create a sandbox, list them all,
 read and delete any of them, run commands in any of them, and reach any
-sandbox's ports. It is what the console signs in with.
+sandbox's ports. It is what the console signs in with. A key the debugger was
+*given* — the `api_key` dispatch input, or the `ADMIN_KEY` secret — is used the
+same way but not printed back, because it outlives the run; the summary says
+which Secret holds it instead. See [action/](action).
 
 **A sandbox's own key** is minted when the sandbox is created, stored in the
 sandbox's namespace, and reaches that sandbox and nothing else. It can read the

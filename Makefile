@@ -173,6 +173,14 @@ helm-template:
 helm-check: helm-template
 	@hack/helm-check.sh
 
+# summary-check runs the two halves of the debugger's key rule against each
+# other: a key the run generated is printed, and a key it was given is not. It
+# runs hack/summary.sh for real, because the failure it guards against is a
+# published credential and a rendered artifact cannot show one.
+.PHONY: summary-check
+summary-check:
+	@hack/summary-check.sh
+
 # Package the chart into a Helm repository directory. Needs helm; the same
 # script CI runs, so a local publish and a published one cannot diverge.
 #   make chart-package VERSION=0.1.0-dev PAGES=./pages
